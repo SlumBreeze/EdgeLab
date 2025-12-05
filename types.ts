@@ -42,13 +42,13 @@ export interface QueuedGame extends Game {
 
 export interface HighHitAnalysis {
   decision: 'PRIMARY' | 'LEAN' | 'PASS';
-  units?: number;
-  market?: string;
-  side?: string;
-  line?: string;
-  odds?: string;
-  book?: string;
-  winProbability?: number;
+  winProbability: number;
+  market: string;
+  side: string;
+  line: string;
+  odds: string;
+  book: string;
+  reasoning: string;
   fullAnalysis: string;
 }
 

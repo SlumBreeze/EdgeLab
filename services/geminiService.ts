@@ -1,4 +1,4 @@
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenAI, Type, Schema } from "@google/genai";
 import { BookLines, QueuedGame, HighHitAnalysis } from '../types';
 import { EXTRACTION_PROMPT, HIGH_HIT_SYSTEM_PROMPT } from '../constants';
 
@@ -48,37 +48,93 @@ export const extractLinesFromScreenshot = async (file: File): Promise<BookLines>
 
 // --- Analysis Service ---
 
+const analysisSchema: Schema = {
+  type: Type.OBJECT,
+  properties: {
+    decision: { type: Type.STRING, enum: ["PRIMARY", "LEAN", "PASS"] },
+    winProbability: { type: Type.NUMBER, description: "Win probability percentage as an integer (e.g. 58)" },
+    market: { type: Type.STRING, description: "Market type (Spread, Moneyline, Total)" },
+    side: { type: Type.STRING, description: "The team or side (e.g. Lakers, Over 219.5)" },
+    line: { type: Type.STRING, description: "The handicap or total line (e.g. -6.5)" },
+    odds: { type: Type.STRING, description: "The price (e.g. -110)" },
+    book: { type: Type.STRING, description: "The sportsbook offering this line" },
+    reasoning: { type: Type.STRING, description: "Short 1-sentence justification" },
+    fullAnalysis: { type: Type.STRING, description: "Detailed bullet points and breakdown of the analysis" }
+  },
+  required: ["decision", "winProbability", "market", "side", "line", "odds", "book", "reasoning", "fullAnalysis"]
+};
+
 export const analyzeGame = async (game: QueuedGame): Promise<HighHitAnalysis> => {
   const ai = getAiClient();
   
-  const prompt = `
-Analyze this matchup using the High-Hit Sports v2.2 framework.
+  // Step 1: Research Phase
+  // We use the search tool to gather current info (injuries, goalie confirmations, etc.)
+  // We cannot use strict JSON schema with Search tools in the same call.
+  const researchPrompt = `
+    Research critical betting context for the following matchup to prepare for a high-probability betting analysis.
+    
+    MATCHUP: ${game.awayTeam.name} at ${game.homeTeam.name}
+    SPORT: ${game.sport}
+    DATE: ${game.date}
 
-MATCHUP: ${game.awayTeam.name} at ${game.homeTeam.name}
-SPORT: ${game.sport}
-TIME: ${game.date}
+    Find current information on:
+    1. Key Injuries (confirmed OUT or Questionable stars).
+    2. Starting Goalies (NHL) or Pitchers (MLB).
+    3. Rest spots / Schedule fatigue (back-to-backs).
+    4. Recent form trends (last 3-5 games).
+    5. Weather (if NFL/CFB/MLB outdoors).
+  `;
 
-SHARP LINES (Pinnacle):
-${JSON.stringify(game.sharpLines || {}, null, 2)}
-
-SOFT LINES:
-${JSON.stringify(game.softLines || [], null, 2)}
-
-Follow the framework EXACTLY. Search for current injuries and context before analyzing.
-Output your analysis in the specified format.
-`;
-
-  const response = await ai.models.generateContent({
-    model: 'gemini-3-pro-preview', // Using the preview model for complex tasks
-    contents: prompt,
+  const researchResponse = await ai.models.generateContent({
+    model: 'gemini-3-pro-preview',
+    contents: researchPrompt,
     config: {
-      systemInstruction: HIGH_HIT_SYSTEM_PROMPT,
       tools: [{ googleSearch: {} }],
-      temperature: 1.0,
+      temperature: 0.3, // Lower temp for factual research
     }
   });
 
-  return parseAnalysis(response.text || "Analysis failed.");
+  const researchContext = researchResponse.text || "No research data found.";
+
+  // Step 2: Decision Phase
+  // We feed the research context + lines into the framework and request strict JSON.
+  const analysisPrompt = `
+    Analyze this matchup using the High-Hit Sports v2.2 framework.
+    
+    MATCHUP: ${game.awayTeam.name} at ${game.homeTeam.name}
+    SPORT: ${game.sport}
+    
+    === RESEARCH CONTEXT (FROM STEP 1) ===
+    ${researchContext}
+    
+    === SHARP LINES (Pinnacle) ===
+    ${JSON.stringify(game.sharpLines || {}, null, 2)}
+    
+    === SOFT LINES (Available) ===
+    ${JSON.stringify(game.softLines || [], null, 2)}
+    
+    INSTRUCTIONS:
+    1. Use the Research Context to identify edges (injuries, rest, etc.).
+    2. Compare Sharp vs Soft lines.
+    3. Apply the High-Hit internal probability engine.
+    4. Make a strict decision (PRIMARY, LEAN, or PASS).
+    5. Output the result strictly as JSON matching the schema.
+  `;
+
+  const analysisResponse = await ai.models.generateContent({
+    model: 'gemini-3-pro-preview',
+    contents: analysisPrompt,
+    config: {
+      systemInstruction: HIGH_HIT_SYSTEM_PROMPT,
+      responseMimeType: "application/json",
+      responseSchema: analysisSchema,
+      temperature: 1.0, // Best for reasoning
+    }
+  });
+
+  if (!analysisResponse.text) throw new Error("Analysis failed to generate text");
+  
+  return JSON.parse(analysisResponse.text) as HighHitAnalysis;
 };
 
 // --- Quick Scan Service ---
@@ -144,87 +200,6 @@ const fileToBase64 = (file: File): Promise<string> => {
     };
     reader.onerror = error => reject(error);
   });
-};
-
-const parseAnalysis = (text: string): HighHitAnalysis => {
-  const isPrimary = text.includes('PRIMARY PLAY');
-  const isLean = text.includes('LEAN');
-  const isPass = text.includes('PASS');
-  
-  // Basic extraction logic for metadata
-  let winProb = 0;
-  const probMatch = text.match(/Win Prob(?:ability)?:?\s*(\d+)%/i);
-  if (probMatch) winProb = parseInt(probMatch[1]);
-
-  let market = undefined;
-  let side = undefined;
-  let line = undefined;
-  let odds = undefined;
-  let book = undefined;
-
-  // Robust parsing for the structured bet line
-  // The system prompt asks for: Sport – Market – Side – Line – Odds – Book
-  // We locate the line immediately following the decision header.
-  if (isPrimary || isLean) {
-    // Split by header and get the content after
-    const chunks = text.split(/(?:PRIMARY PLAY|LEAN)(?:.*?\n)+/);
-    if (chunks.length > 1) {
-      const contentAfterHeader = chunks[1];
-      // Get the first non-empty line which should contain the bet details
-      const betLine = contentAfterHeader.split('\n').map(l => l.trim()).find(l => l.length > 5 && !l.toLowerCase().includes('win prob'));
-      
-      if (betLine) {
-        // Try to split by common separators used by LLMs: " – " (en dash), " - " (hyphen padded), " | "
-        // We use a regex that looks for these delimiters surrounded by optional whitespace
-        const parts = betLine.split(/\s*(?:[|–—]|\s-\s)\s*/);
-
-        // We expect at least Sport, Market, Side...
-        if (parts.length >= 3) {
-          // Attempt to map based on standard position
-          // If we have many parts, assume the standard format:
-          // 0:Sport, 1:Market, 2:Side, 3:Line, 4:Odds, 5:Book
-          
-          if (parts.length >= 6) {
-             market = parts[1];
-             side = parts[2];
-             line = parts[3];
-             odds = parts[4];
-             book = parts[5].replace(/^@\s*/, '');
-          } else if (parts.length >= 4) {
-             // Compressed format? e.g. Sport | Market | Side/Line | Odds | Book
-             side = parts[2]; 
-             // If side looks like "Lakers -5", keep it there, otherwise try next part
-             if (parts[3].startsWith('-') || parts[3].startsWith('+') || !isNaN(parseFloat(parts[3]))) {
-               line = parts[3];
-               if (parts[4]) odds = parts[4];
-               if (parts[5]) book = parts[5];
-             } else {
-               // Maybe parts[3] is part of the side name?
-               side = `${parts[2]} ${parts[3]}`;
-             }
-          } else {
-             // Fallback: Just dump the raw line into 'side' so user sees it
-             side = betLine;
-          }
-        } else {
-          // If splitting failed completely, use the raw line
-          side = betLine;
-        }
-      }
-    }
-  }
-
-  return {
-    decision: isPrimary ? 'PRIMARY' : isLean ? 'LEAN' : 'PASS',
-    units: isPrimary ? 1.0 : isLean ? 0.5 : undefined,
-    fullAnalysis: text,
-    winProbability: winProb,
-    market,
-    side, // Will now contain the raw line if parsing fails, preventing empty "Team"
-    line,
-    odds,
-    book
-  };
 };
 
 export const detectSpreadEdge = (sharp: BookLines, soft: BookLines): 'better' | 'worse' | 'equal' => {
