@@ -1,21 +1,51 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { QueuedGame, AnalysisState, Game, BookLines } from '../types';
+import { QueuedGame, AnalysisState, Game, BookLines, DailyPlayTracker } from '../types';
+import { MAX_DAILY_PLAYS } from '../constants';
 
 const GameContext = createContext<AnalysisState | undefined>(undefined);
+
+const getTodayKey = () => new Date().toISOString().split('T')[0];
 
 export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [queue, setQueue] = useState<QueuedGame[]>(() => {
     try {
-      const saved = localStorage.getItem('edgelab_queue');
+      const saved = localStorage.getItem('edgelab_queue_v2');
       return saved ? JSON.parse(saved) : [];
     } catch {
       return [];
     }
   });
 
+  const [dailyPlays, setDailyPlays] = useState<DailyPlayTracker>(() => {
+    try {
+      const saved = localStorage.getItem('edgelab_daily_plays');
+      const parsed = saved ? JSON.parse(saved) : { date: getTodayKey(), playCount: 0, gameIds: [] };
+      // Reset if it's a new day
+      if (parsed.date !== getTodayKey()) {
+        return { date: getTodayKey(), playCount: 0, gameIds: [] };
+      }
+      return parsed;
+    } catch {
+      return { date: getTodayKey(), playCount: 0, gameIds: [] };
+    }
+  });
+
   useEffect(() => {
-    localStorage.setItem('edgelab_queue', JSON.stringify(queue));
+    localStorage.setItem('edgelab_queue_v2', JSON.stringify(queue));
   }, [queue]);
+
+  useEffect(() => {
+    localStorage.setItem('edgelab_daily_plays', JSON.stringify(dailyPlays));
+  }, [dailyPlays]);
+
+  // Calculate current playable count
+  const getPlayableCount = () => {
+    return queue.filter(g => g.analysis?.decision === 'PLAYABLE').length;
+  };
+
+  const canAddMorePlays = () => {
+    return getPlayableCount() < MAX_DAILY_PLAYS;
+  };
 
   const addToQueue = (game: Game) => {
     setQueue((prev) => {
@@ -60,6 +90,14 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     updateGame(gameId, { sharpLines: lines });
   };
 
+  const markAsPlayed = (gameId: string) => {
+    setDailyPlays(prev => ({
+      ...prev,
+      playCount: prev.playCount + 1,
+      gameIds: [...prev.gameIds, gameId]
+    }));
+  };
+
   return (
     <GameContext.Provider value={{
       queue,
@@ -68,7 +106,12 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       updateGame,
       addSoftLines,
       updateSoftLineBook,
-      setSharpLines
+      setSharpLines,
+      // New v2.1 additions
+      dailyPlays,
+      getPlayableCount,
+      canAddMorePlays,
+      markAsPlayed,
     }}>
       {children}
     </GameContext.Provider>

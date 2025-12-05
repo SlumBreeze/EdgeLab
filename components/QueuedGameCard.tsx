@@ -197,27 +197,40 @@ const QueuedGameCard: React.FC<Props> = ({
       {/* Action Footer */}
       <div className="p-4">
         {game.analysis ? (
-           <div className={`rounded-lg border overflow-hidden ${
-             game.analysis.decision === 'PRIMARY' ? 'bg-amber-900/20 border-amber-500/50' : 
-             game.analysis.decision === 'LEAN' ? 'bg-yellow-900/20 border-yellow-500/50' :
-             'bg-slate-800 border-slate-700'
-           }`}>
-             <div className="p-3 bg-black/20 flex justify-between items-center">
-               <span className={`font-bold text-sm ${
-                 game.analysis.decision === 'PRIMARY' ? 'text-amber-500' :
-                 game.analysis.decision === 'LEAN' ? 'text-yellow-500' :
-                 'text-slate-400'
-               }`}>
-                 {game.analysis.decision === 'PRIMARY' ? '🎯 PRIMARY PLAY' : game.analysis.decision === 'LEAN' ? '📊 LEAN' : '⏸ PASS'}
-               </span>
-               {game.analysis.winProbability && (
-                 <span className="text-xs font-mono text-slate-400">{game.analysis.winProbability}% Win Prob</span>
-               )}
-             </div>
-             <div className="p-3 text-xs text-slate-300 whitespace-pre-wrap max-h-64 overflow-y-auto">
-                {game.analysis.fullAnalysis}
-             </div>
-           </div>
+          <div className={`rounded-lg border overflow-hidden ${
+            game.analysis.decision === 'PLAYABLE' 
+              ? 'bg-emerald-900/20 border-emerald-500/50' 
+              : 'bg-slate-800 border-slate-700'
+          }`}>
+            <div className="p-3 bg-black/20 flex justify-between items-center">
+              <span className={`font-bold text-sm ${
+                game.analysis.decision === 'PLAYABLE' ? 'text-emerald-400' : 'text-slate-400'
+              }`}>
+                {game.analysis.decision === 'PLAYABLE' ? '✅ PLAYABLE' : '⛔ PASS'}
+              </span>
+              {game.analysis.sharpImpliedProb && (
+                <span className="text-xs font-mono text-slate-400">
+                  Fair: {game.analysis.sharpImpliedProb.toFixed(1)}%
+                </span>
+              )}
+            </div>
+            
+            {game.analysis.vetoTriggered && game.analysis.vetoReason && (
+              <div className="px-3 py-2 bg-red-900/20 text-red-400 text-xs border-b border-slate-700">
+                <strong>Veto:</strong> {game.analysis.vetoReason}
+              </div>
+            )}
+            
+            {game.analysis.lineValueCents !== undefined && game.analysis.lineValueCents > 0 && (
+              <div className="px-3 py-2 bg-emerald-900/20 text-emerald-400 text-xs border-b border-slate-700">
+                <strong>Line Value:</strong> +{game.analysis.lineValueCents} cents at {game.analysis.softBestBook}
+              </div>
+            )}
+            
+            <div className="p-3 text-xs text-slate-300 whitespace-pre-wrap max-h-48 overflow-y-auto">
+              {game.analysis.researchSummary}
+            </div>
+          </div>
         ) : (
           <button 
             onClick={onAnalyze}
@@ -225,10 +238,10 @@ const QueuedGameCard: React.FC<Props> = ({
             className={`w-full py-3 rounded-lg font-bold text-sm transition-colors ${
               !game.sharpLines || game.softLines.length === 0
                 ? 'bg-slate-800 text-slate-600 cursor-not-allowed'
-                : 'bg-amber-600 hover:bg-amber-500 text-white shadow-lg shadow-amber-900/20'
+                : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg'
             }`}
           >
-            Run High-Hit Analysis
+            Run v2.1 Analysis
           </button>
         )}
       </div>

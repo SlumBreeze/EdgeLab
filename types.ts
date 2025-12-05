@@ -41,15 +41,29 @@ export interface QueuedGame extends Game {
 }
 
 export interface HighHitAnalysis {
-  decision: 'PRIMARY' | 'LEAN' | 'PASS';
-  winProbability: number;
-  market: string;
-  side: string;
-  line: string;
-  odds: string;
-  book: string;
-  reasoning: string;
-  fullAnalysis: string;
+  decision: 'PLAYABLE' | 'PASS';
+  vetoTriggered: boolean;
+  vetoReason?: string;
+  
+  // Line shopping data (calculated in TypeScript, not by AI)
+  sharpImpliedProb?: number;
+  softBestOdds?: string;
+  softBestBook?: string;
+  lineValueCents?: number; // How much better is soft vs sharp (in cents of juice)
+  lineValuePoints?: number; // Spread/total point difference if any
+
+  // AI-provided context (narrative only, no numbers)
+  market?: string;
+  side?: string;
+  line?: string;
+  researchSummary: string; // What the AI found (injuries, rest, etc.)
+  edgeNarrative?: string; // Plain English description of any edge
+}
+
+export interface DailyPlayTracker {
+  date: string; // YYYY-MM-DD
+  playCount: number;
+  gameIds: string[];
 }
 
 export interface AnalysisState {
@@ -60,4 +74,10 @@ export interface AnalysisState {
   addSoftLines: (gameId: string, lines: BookLines) => void;
   updateSoftLineBook: (gameId: string, index: number, newBookName: string) => void;
   setSharpLines: (gameId: string, lines: BookLines) => void;
+  
+  // v2.1 New State
+  dailyPlays: DailyPlayTracker;
+  getPlayableCount: () => number;
+  canAddMorePlays: () => boolean;
+  markAsPlayed: (gameId: string) => void;
 }
