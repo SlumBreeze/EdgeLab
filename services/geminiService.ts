@@ -190,23 +190,26 @@ export const analyzeGame = async (game: QueuedGame): Promise<HighHitAnalysis> =>
     const noVig = calculateNoVigProb(game.sharpLines.mlOddsA, game.sharpLines.mlOddsB);
     sharpImpliedProb = noVig.probA; // Away team's fair probability
     
-    // Find best soft line
+    // Find best soft line (track index to use for line value calculation)
     let bestJuiceDiff = -999;
-    for (const soft of game.softLines) {
+    let bestSoftIndex = 0;
+    
+    for (let i = 0; i < game.softLines.length; i++) {
+      const soft = game.softLines[i];
       const juiceDiff = calculateJuiceDiff(game.sharpLines.spreadOddsA, soft.spreadOddsA);
       if (juiceDiff > bestJuiceDiff) {
         bestJuiceDiff = juiceDiff;
+        bestSoftIndex = i;
         softBestOdds = soft.spreadOddsA;
         softBestBook = soft.bookName;
       }
     }
+    
     lineValueCents = bestJuiceDiff;
     
-    // Check for line value (point difference)
-    const bestSoft = game.softLines[0];
-    if (bestSoft) {
-      lineValuePoints = calculateLineDiff(game.sharpLines.spreadLineA, bestSoft.spreadLineA);
-    }
+    // Calculate line value (point difference) using the SAME best soft book
+    const bestSoft = game.softLines[bestSoftIndex];
+    lineValuePoints = calculateLineDiff(game.sharpLines.spreadLineA, bestSoft.spreadLineA);
   }
   
   // STEP 3: AI Research + Veto Check (constrained role)
