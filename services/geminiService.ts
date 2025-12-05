@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type, Schema } from "@google/genai";
-import { BookLines, QueuedGame, HighHitAnalysis } from '../types';
+import { BookLines, QueuedGame, HighHitAnalysis, Game } from '../types';
 import { EXTRACTION_PROMPT, HIGH_HIT_SYSTEM_PROMPT } from '../constants';
 
 const getAiClient = () => new GoogleGenAI({ apiKey: process.env.API_KEY });
@@ -68,8 +68,6 @@ export const analyzeGame = async (game: QueuedGame): Promise<HighHitAnalysis> =>
   const ai = getAiClient();
   
   // Step 1: Research Phase
-  // We use the search tool to gather current info (injuries, goalie confirmations, etc.)
-  // We cannot use strict JSON schema with Search tools in the same call.
   const researchPrompt = `
     Research critical betting context for the following matchup to prepare for a high-probability betting analysis.
     
@@ -97,7 +95,6 @@ export const analyzeGame = async (game: QueuedGame): Promise<HighHitAnalysis> =>
   const researchContext = researchResponse.text || "No research data found.";
 
   // Step 2: Decision Phase
-  // We feed the research context + lines into the framework and request strict JSON.
   const analysisPrompt = `
     Analyze this matchup using the High-Hit Sports v2.2 framework.
     
@@ -139,7 +136,8 @@ export const analyzeGame = async (game: QueuedGame): Promise<HighHitAnalysis> =>
 
 // --- Quick Scan Service ---
 
-export const quickScanGame = async (game: QueuedGame): Promise<{ signal: 'RED' | 'YELLOW' | 'WHITE', description: string }> => {
+// UPDATED: Accepts base Game type to support scanning from Scout page
+export const quickScanGame = async (game: Game): Promise<{ signal: 'RED' | 'YELLOW' | 'WHITE', description: string }> => {
   const ai = getAiClient();
   const prompt = `
     Quickly scan this matchup for critical betting edges using Google Search.
@@ -164,15 +162,12 @@ export const quickScanGame = async (game: QueuedGame): Promise<{ signal: 'RED' |
       contents: prompt,
       config: {
         tools: [{ googleSearch: {} }],
-        // responseMimeType is NOT used here to avoid conflict with googleSearch
       }
     });
 
     let text = response.text || "{}";
-    // Sanitize markdown if the model wraps it
     text = text.replace(/```json/g, '').replace(/```/g, '').trim();
     
-    // Attempt parse
     try {
       return JSON.parse(text);
     } catch (parseError) {
@@ -202,21 +197,24 @@ const fileToBase64 = (file: File): Promise<string> => {
   });
 };
 
-export const detectSpreadEdge = (sharp: BookLines, soft: BookLines): 'better' | 'worse' | 'equal' => {
-  if (!sharp?.spreadLineA || !soft?.spreadLineA) return 'equal';
-  const sharpVal = parseFloat(sharp.spreadLineA);
-  const softVal = parseFloat(soft.spreadLineA);
+// Returns true if there is a meaningful difference to highlight
+export const detectMarketDiff = (sharpVal: string, softVal: string, type: 'SPREAD' | 'TOTAL' | 'ML'): boolean => {
+  if (!sharpVal || !softVal || sharpVal === 'N/A' || softVal === 'N/A') return false;
   
-  // Basic spread logic: 
-  // If betting favorite (-), less negative is better (e.g. -4 better than -5)
-  // If betting underdog (+), more positive is better (e.g. +6 better than +5)
+  const s1 = parseFloat(sharpVal);
+  const s2 = parseFloat(softVal);
   
-  if (sharpVal < 0) {
-      if (softVal > sharpVal) return 'better'; // -4 > -5
-      if (softVal < sharpVal) return 'worse';
-  } else {
-      if (softVal > sharpVal) return 'better'; // +6 > +5
-      if (softVal < sharpVal) return 'worse';
+  if (isNaN(s1) || isNaN(s2)) return false;
+
+  if (type === 'SPREAD' || type === 'TOTAL') {
+    // Highlight if the main line number is different (e.g. -5 vs -4.5)
+    return Math.abs(s1 - s2) >= 0.5;
   }
-  return 'equal';
+  
+  if (type === 'ML') {
+    // Highlight if significant odds discrepancy (>15 cents)
+    return Math.abs(s1 - s2) > 15;
+  }
+
+  return false;
 };

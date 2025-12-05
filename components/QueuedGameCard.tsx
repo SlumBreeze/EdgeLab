@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { QueuedGame, BookLines } from '../types';
-import { detectSpreadEdge } from '../services/geminiService';
+import { detectMarketDiff } from '../services/geminiService';
 import { COMMON_BOOKS } from '../constants';
 
 interface Props {
@@ -40,6 +40,8 @@ const QueuedGameCard: React.FC<Props> = ({
     if (signal === 'YELLOW') return 'bg-yellow-500 text-black';
     return 'bg-slate-700 text-slate-300';
   };
+
+  const getDiffColor = (isDiff: boolean) => isDiff ? 'text-amber-400 font-bold' : 'text-slate-300';
 
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-lg relative">
@@ -102,57 +104,89 @@ const QueuedGameCard: React.FC<Props> = ({
            <input type="file" hidden ref={softInputRef} accept="image/*" onChange={(e) => handleFileChange(e, 'SOFT')} />
         </div>
 
-        <div className="space-y-2">
-          {/* Sharp Line Display */}
+        {/* Header Grid */}
+        <div className="grid grid-cols-[80px_1fr_1fr_1fr] gap-1 px-2 mb-2 text-[10px] font-bold text-slate-500 uppercase tracking-wider text-center">
+            <div className="text-left">Book</div>
+            <div>Spread</div>
+            <div>Total</div>
+            <div>ML</div>
+        </div>
+
+        <div className="space-y-1">
+          {/* Sharp Line Row */}
           {game.sharpLines ? (
-            <div className="flex justify-between items-center bg-slate-950 p-2 rounded border border-slate-800">
-              <span className="text-xs font-bold text-slate-400">Pinnacle</span>
-              <div className="text-xs text-white">
-                {game.sharpLines.spreadLineA} / {game.sharpLines.spreadLineB}
+            <div className="grid grid-cols-[80px_1fr_1fr_1fr] gap-1 items-center bg-slate-950 p-2 rounded border border-slate-800 text-xs">
+              <div className="font-bold text-slate-400 truncate">Pinnacle</div>
+              <div className="text-center text-white">
+                <div>{game.sharpLines.spreadLineA}</div>
+                <div className="text-slate-500 text-[10px]">{game.sharpLines.spreadOddsA}</div>
+              </div>
+              <div className="text-center text-white">
+                <div>{game.sharpLines.totalLine}</div>
+                <div className="text-slate-500 text-[10px]">o{game.sharpLines.totalOddsOver}</div>
+              </div>
+              <div className="text-center text-white">
+                <div>{game.sharpLines.mlOddsA}</div>
+                <div className="text-slate-500 text-[10px]">{game.sharpLines.mlOddsB}</div>
               </div>
             </div>
           ) : (
             <div className="text-xs text-slate-600 text-center py-2 border border-dashed border-slate-800 rounded">
-              Upload Pinnacle screenshot
+              Upload Sharp
             </div>
           )}
 
-          {/* Soft Lines List */}
+          {/* Soft Lines Rows */}
           {game.softLines.map((line, idx) => {
-            const edge = game.sharpLines ? detectSpreadEdge(game.sharpLines, line) : 'equal';
             const isEditing = editingLineIndex === idx;
+            // Detect diffs vs Sharp
+            const diffSpread = game.sharpLines ? detectMarketDiff(game.sharpLines.spreadLineA, line.spreadLineA, 'SPREAD') : false;
+            const diffTotal = game.sharpLines ? detectMarketDiff(game.sharpLines.totalLine, line.totalLine, 'TOTAL') : false;
+            const diffML = game.sharpLines ? detectMarketDiff(game.sharpLines.mlOddsA, line.mlOddsA, 'ML') : false;
 
             return (
-              <div key={idx} className={`flex justify-between items-center p-2 rounded border ${
-                edge === 'better' ? 'border-emerald-500/50 bg-emerald-900/10' : 
-                edge === 'worse' ? 'border-red-500/50 bg-red-900/10' : 
-                'border-slate-800 bg-slate-950'
-              }`}>
-                {isEditing ? (
-                  <select 
-                    value={line.bookName} 
-                    onChange={(e) => {
-                       onUpdateSoftBook(idx, e.target.value);
-                       setEditingLineIndex(null);
-                    }}
-                    onBlur={() => setEditingLineIndex(null)}
-                    autoFocus
-                    className="text-xs bg-slate-800 text-white rounded p-1 border border-amber-500 outline-none"
-                  >
-                    {COMMON_BOOKS.map(b => <option key={b} value={b}>{b}</option>)}
-                  </select>
-                ) : (
-                  <button 
-                    onClick={() => setEditingLineIndex(idx)} 
-                    className="text-xs font-bold text-slate-300 hover:text-amber-500 hover:underline decoration-dashed underline-offset-2 text-left"
-                    title="Click to correct book name"
-                  >
-                    {line.bookName}
-                  </button>
-                )}
-                
-                <div className="text-xs text-white">
-                   {line.spreadLineA} <span className="text-slate-500">({line.spreadOddsA})</span>
+              <div key={idx} className="grid grid-cols-[80px_1fr_1fr_1fr] gap-1 items-center bg-slate-800/50 p-2 rounded border border-slate-700/50 text-xs">
+                {/* Book Name Column */}
+                <div className="truncate">
+                  {isEditing ? (
+                    <select 
+                      value={line.bookName} 
+                      onChange={(e) => {
+                         onUpdateSoftBook(idx, e.target.value);
+                         setEditingLineIndex(null);
+                      }}
+                      onBlur={() => setEditingLineIndex(null)}
+                      autoFocus
+                      className="w-full text-[10px] bg-slate-800 text-white rounded p-1 border border-amber-500 outline-none"
+                    >
+                      {COMMON_BOOKS.map(b => <option key={b} value={b}>{b}</option>)}
+                    </select>
+                  ) : (
+                    <button 
+                      onClick={() => setEditingLineIndex(idx)} 
+                      className="font-bold text-slate-300 hover:text-amber-500 hover:underline decoration-dashed underline-offset-2 text-left truncate w-full"
+                    >
+                      {line.bookName}
+                    </button>
+                  )}
+                </div>
+
+                {/* Spread Column */}
+                <div className={`text-center ${getDiffColor(diffSpread)}`}>
+                   <div>{line.spreadLineA}</div>
+                   <div className="text-[10px] opacity-70">{line.spreadOddsA}</div>
+                </div>
+
+                {/* Total Column */}
+                <div className={`text-center ${getDiffColor(diffTotal)}`}>
+                   <div>{line.totalLine}</div>
+                   <div className="text-[10px] opacity-70">o{line.totalOddsOver}</div>
+                </div>
+
+                {/* ML Column */}
+                <div className={`text-center ${getDiffColor(diffML)}`}>
+                   <div>{line.mlOddsA}</div>
+                   <div className="text-[10px] opacity-70">{line.mlOddsB}</div>
                 </div>
               </div>
             );

@@ -15,10 +15,11 @@ export const COMMON_BOOKS = [
   "BetMGM",
   "Caesars",
   "Bet365",
-  "ESPN BET",
   "BetRivers",
   "Hard Rock",
-  "PointsBet"
+  "PointsBet",
+  "Fanatics",
+  "Fliff"
 ];
 
 export const HIGH_HIT_SYSTEM_PROMPT = `
