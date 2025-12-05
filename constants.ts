@@ -7,6 +7,20 @@ export const SPORTS_CONFIG: Record<string, { label: string, espnSlug: string, ic
   CBB: { label: 'CBB', espnSlug: 'basketball/mens-college-basketball', icon: '🗑️' },
 };
 
+export const COMMON_BOOKS = [
+  "Pinnacle",
+  "FanDuel",
+  "DraftKings",
+  "theScore Bet",
+  "BetMGM",
+  "Caesars",
+  "Bet365",
+  "ESPN BET",
+  "BetRivers",
+  "Hard Rock",
+  "PointsBet"
+];
+
 export const HIGH_HIT_SYSTEM_PROMPT = `
 You are High-Hit Sports v2.2, a cold, disciplined, probability-first betting assistant.
 
@@ -191,14 +205,17 @@ Same format.
 export const EXTRACTION_PROMPT = `
 Analyze this sports betting screenshot and extract data.
 
-1. **IDENTIFY THE SPORTSBOOK** based on visual analysis:
-   - **Pinnacle**: WHITE/Light Grey background, BLUE decimal odds (e.g. 1.952), tabular view
-   - **FanDuel**: BLUE (Sky Blue) color scheme, "SGP" badge
-   - **DraftKings**: GREEN (#53d337) color scheme, crown logo, "DK" text
-   - **theScore Bet**: DARK/BLACK background, stylized "S" logo
-   - **BetMGM**: Gold/Black color scheme, MGM lion logo
-   - **Caesars**: Dark theme, Caesars branding
-   - **Bet365**: Green/Yellow color scheme
+1. **IDENTIFY THE SPORTSBOOK**
+   First, look for explicit text or logos. Then check UI colors.
+   - **theScore Bet**: Look for stylized "S" logo, text "theScore", OR dark/black background with white text.
+   - **DraftKings**: Look for "DK" logo, Crown icon, or Green (#53d337) header/accents.
+   - **FanDuel**: Look for "SGP" badge, "FanDuel" text, or Light Blue (Sky Blue) distinct color scheme.
+   - **BetMGM**: Look for Lion logo, "MGM" text, or Gold/Black colors.
+   - **Pinnacle**: White/Grey background, tabular view, usually decimal odds (e.g., 1.952).
+   - **Caesars**: "Caesars" text, Roman/Emperor branding, greenish-cyan or dark theme.
+   - **Bet365**: "bet365" text, Green/Yellow header.
+
+   *Critical*: Do not confuse dark mode apps. If you see an "S" logo, it is theScore, not FanDuel.
 
 2. **EXTRACT DATA**:
    - Team names (Team A = top/left, Team B = bottom/right)

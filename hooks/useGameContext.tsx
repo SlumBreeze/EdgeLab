@@ -45,6 +45,17 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }));
   };
 
+  const updateSoftLineBook = (gameId: string, index: number, newBookName: string) => {
+    setQueue(prev => prev.map(g => {
+      if (g.id !== gameId) return g;
+      const newSoftLines = [...g.softLines];
+      if (newSoftLines[index]) {
+        newSoftLines[index] = { ...newSoftLines[index], bookName: newBookName };
+      }
+      return { ...g, softLines: newSoftLines };
+    }));
+  };
+
   const setSharpLines = (gameId: string, lines: BookLines) => {
     updateGame(gameId, { sharpLines: lines });
   };
@@ -56,6 +67,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       removeFromQueue,
       updateGame,
       addSoftLines,
+      updateSoftLineBook,
       setSharpLines
     }}>
       {children}

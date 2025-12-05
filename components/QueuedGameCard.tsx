@@ -1,6 +1,7 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { QueuedGame, BookLines } from '../types';
 import { detectSpreadEdge } from '../services/geminiService';
+import { COMMON_BOOKS } from '../constants';
 
 interface Props {
   game: QueuedGame;
@@ -10,11 +11,22 @@ interface Props {
   onAnalyze: () => void;
   onUploadSharp: (file: File) => void;
   onUploadSoft: (file: File) => void;
+  onUpdateSoftBook: (index: number, name: string) => void;
 }
 
-const QueuedGameCard: React.FC<Props> = ({ game, loading, onRemove, onScan, onAnalyze, onUploadSharp, onUploadSoft }) => {
+const QueuedGameCard: React.FC<Props> = ({ 
+  game, 
+  loading, 
+  onRemove, 
+  onScan, 
+  onAnalyze, 
+  onUploadSharp, 
+  onUploadSoft,
+  onUpdateSoftBook 
+}) => {
   const sharpInputRef = useRef<HTMLInputElement>(null);
   const softInputRef = useRef<HTMLInputElement>(null);
+  const [editingLineIndex, setEditingLineIndex] = useState<number | null>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, type: 'SHARP' | 'SOFT') => {
     if (e.target.files?.[0]) {
@@ -108,13 +120,37 @@ const QueuedGameCard: React.FC<Props> = ({ game, loading, onRemove, onScan, onAn
           {/* Soft Lines List */}
           {game.softLines.map((line, idx) => {
             const edge = game.sharpLines ? detectSpreadEdge(game.sharpLines, line) : 'equal';
+            const isEditing = editingLineIndex === idx;
+
             return (
               <div key={idx} className={`flex justify-between items-center p-2 rounded border ${
                 edge === 'better' ? 'border-emerald-500/50 bg-emerald-900/10' : 
                 edge === 'worse' ? 'border-red-500/50 bg-red-900/10' : 
                 'border-slate-800 bg-slate-950'
               }`}>
-                <span className="text-xs font-bold text-slate-300">{line.bookName}</span>
+                {isEditing ? (
+                  <select 
+                    value={line.bookName} 
+                    onChange={(e) => {
+                       onUpdateSoftBook(idx, e.target.value);
+                       setEditingLineIndex(null);
+                    }}
+                    onBlur={() => setEditingLineIndex(null)}
+                    autoFocus
+                    className="text-xs bg-slate-800 text-white rounded p-1 border border-amber-500 outline-none"
+                  >
+                    {COMMON_BOOKS.map(b => <option key={b} value={b}>{b}</option>)}
+                  </select>
+                ) : (
+                  <button 
+                    onClick={() => setEditingLineIndex(idx)} 
+                    className="text-xs font-bold text-slate-300 hover:text-amber-500 hover:underline decoration-dashed underline-offset-2 text-left"
+                    title="Click to correct book name"
+                  >
+                    {line.bookName}
+                  </button>
+                )}
+                
                 <div className="text-xs text-white">
                    {line.spreadLineA} <span className="text-slate-500">({line.spreadOddsA})</span>
                 </div>
@@ -127,12 +163,12 @@ const QueuedGameCard: React.FC<Props> = ({ game, loading, onRemove, onScan, onAn
       {/* Action Footer */}
       <div className="p-4">
         {game.analysis ? (
-           <div className={`p-3 rounded-lg border ${
+           <div className={`rounded-lg border overflow-hidden ${
              game.analysis.decision === 'PRIMARY' ? 'bg-amber-900/20 border-amber-500/50' : 
              game.analysis.decision === 'LEAN' ? 'bg-yellow-900/20 border-yellow-500/50' :
              'bg-slate-800 border-slate-700'
            }`}>
-             <div className="flex justify-between items-center mb-1">
+             <div className="p-3 bg-black/20 flex justify-between items-center">
                <span className={`font-bold text-sm ${
                  game.analysis.decision === 'PRIMARY' ? 'text-amber-500' :
                  game.analysis.decision === 'LEAN' ? 'text-yellow-500' :
@@ -144,9 +180,9 @@ const QueuedGameCard: React.FC<Props> = ({ game, loading, onRemove, onScan, onAn
                  <span className="text-xs font-mono text-slate-400">{game.analysis.winProbability}% Win Prob</span>
                )}
              </div>
-             <p className="text-xs text-slate-300 line-clamp-3 leading-relaxed">
-                {game.analysis.fullAnalysis.slice(0, 150)}...
-             </p>
+             <div className="p-3 text-xs text-slate-300 whitespace-pre-wrap max-h-64 overflow-y-auto">
+                {game.analysis.fullAnalysis}
+             </div>
            </div>
         ) : (
           <button 

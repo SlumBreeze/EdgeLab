@@ -4,7 +4,7 @@ import { extractLinesFromScreenshot, quickScanGame, analyzeGame } from '../servi
 import QueuedGameCard from '../components/QueuedGameCard';
 
 export default function Queue() {
-  const { queue, removeFromQueue, updateGame, addSoftLines, setSharpLines } = useGameContext();
+  const { queue, removeFromQueue, updateGame, addSoftLines, updateSoftLineBook, setSharpLines } = useGameContext();
   const [analyzingIds, setAnalyzingIds] = useState<Set<string>>(new Set());
 
   const handleScan = async (gameId: string) => {
@@ -90,6 +90,7 @@ export default function Queue() {
               onAnalyze={() => handleAnalyze(game.id)}
               onUploadSharp={(f) => handleFileUpload(game.id, 'SHARP', f)}
               onUploadSoft={(f) => handleFileUpload(game.id, 'SOFT', f)}
+              onUpdateSoftBook={(idx, name) => updateSoftLineBook(game.id, idx, name)}
             />
           ))}
         </div>

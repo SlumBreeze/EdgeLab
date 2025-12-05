@@ -18,7 +18,8 @@ export default function Card() {
       output += `🎯 PRIMARY PLAYS (1.0u)\n`;
       primaries.forEach(g => {
         const a = g.analysis!;
-        output += `${g.sport} | ${a.market || 'Bet'} | ${a.side || 'Side'} ${a.line || ''} (${a.odds || ''}) @ ${a.book || 'Book'}\n`;
+        const details = a.side && a.line ? `${a.side} ${a.line} (${a.odds})` : (a.side || 'Details in analysis');
+        output += `${g.sport} | ${a.market || 'Bet'} | ${details} @ ${a.book || 'Book'}\n`;
         output += `Win Prob: ${a.winProbability}%\n\n`;
       });
     }
@@ -27,7 +28,8 @@ export default function Card() {
       output += `📊 LEANS (0.5u)\n`;
       leans.forEach(g => {
         const a = g.analysis!;
-        output += `${g.sport} | ${a.market || 'Bet'} | ${a.side || 'Side'} ${a.line || ''} (${a.odds || ''}) @ ${a.book || 'Book'}\n`;
+        const details = a.side && a.line ? `${a.side} ${a.line} (${a.odds})` : (a.side || 'Details in analysis');
+        output += `${g.sport} | ${a.market || 'Bet'} | ${details} @ ${a.book || 'Book'}\n`;
         output += `Win Prob: ${a.winProbability}%\n\n`;
       });
     }
@@ -107,12 +109,9 @@ export default function Card() {
                 <h2 className="text-slate-500 font-bold text-sm uppercase tracking-wider mb-3 flex items-center">
                   <span className="mr-2">⏸️</span> Passed
                 </h2>
-                <div className="space-y-2 opacity-60">
+                <div className="space-y-3">
                   {passes.map(g => (
-                    <div key={g.id} className="bg-slate-900 p-3 rounded border border-slate-800 flex justify-between items-center">
-                      <span className="text-xs text-slate-300 font-bold">{g.awayTeam.name} @ {g.homeTeam.name}</span>
-                      <span className="text-xs bg-slate-800 px-2 py-1 rounded text-slate-500">No Edge</span>
-                    </div>
+                    <AnalysisResultCard key={g.id} game={g} type="PASS" />
                   ))}
                 </div>
               </section>
@@ -131,31 +130,54 @@ export default function Card() {
   );
 }
 
-const AnalysisResultCard: React.FC<{ game: QueuedGame, type: 'PRIMARY' | 'LEAN' }> = ({ game, type }) => {
+const AnalysisResultCard: React.FC<{ game: QueuedGame, type: 'PRIMARY' | 'LEAN' | 'PASS' }> = ({ game, type }) => {
   const a = game.analysis as HighHitAnalysis;
-  const colorClass = type === 'PRIMARY' ? 'border-amber-500/50 bg-amber-950/20' : 'border-yellow-500/50 bg-yellow-950/20';
-  const textClass = type === 'PRIMARY' ? 'text-amber-500' : 'text-yellow-500';
+  
+  let colorClass = 'border-slate-700 bg-slate-800';
+  let textClass = 'text-slate-400';
+  
+  if (type === 'PRIMARY') {
+    colorClass = 'border-amber-500/50 bg-amber-950/20';
+    textClass = 'text-amber-500';
+  } else if (type === 'LEAN') {
+    colorClass = 'border-yellow-500/50 bg-yellow-950/20';
+    textClass = 'text-yellow-500';
+  }
+
+  // Fallback: If 'side' parsed as undefined, default to a generic "See Analysis" or the team names if available
+  const displaySide = a.side || `${game.awayTeam.name} @ ${game.homeTeam.name}`;
 
   return (
-    <div className={`p-4 rounded-xl border ${colorClass} relative overflow-hidden`}>
+    <div className={`p-4 rounded-xl border ${colorClass} relative overflow-hidden flex flex-col`}>
       <div className="flex justify-between items-start mb-2">
         <span className="text-xs font-bold text-slate-400 uppercase">{game.sport}</span>
-        <span className={`text-xs font-bold ${textClass} px-2 py-1 bg-black/20 rounded`}>
-          {a.winProbability}% Win Prob
-        </span>
-      </div>
-      <div className="font-bold text-white text-lg mb-1">
-        {a.side || 'Team'} <span className={`${textClass}`}>{a.line}</span>
-      </div>
-      <div className="text-xs text-slate-400 mb-3 flex items-center space-x-2">
-        <span>{a.odds}</span>
-        <span>•</span>
-        <span>{a.book}</span>
+        {a.winProbability && (
+          <span className={`text-xs font-bold ${textClass} px-2 py-1 bg-black/20 rounded`}>
+            {a.winProbability}% Win Prob
+          </span>
+        )}
       </div>
       
-      {/* Expanded Analysis View Toggle can go here, just showing snippet for now */}
-      <div className="text-xs text-slate-300 leading-relaxed border-t border-slate-800/50 pt-2 mt-2">
-        {a.fullAnalysis.split('\n').find(l => l.length > 50)?.slice(0, 120)}...
+      {/* Title */}
+      <div className="font-bold text-white text-lg mb-1">
+        {type === 'PASS' 
+          ? `${game.awayTeam.name} @ ${game.homeTeam.name}` 
+          : <span>{displaySide} <span className={`${textClass}`}>{a.line || ''}</span></span>
+        }
+      </div>
+      
+      {/* Odds Subtitle (only for plays) */}
+      {type !== 'PASS' && (a.odds || a.book) && (
+        <div className="text-xs text-slate-400 mb-3 flex items-center space-x-2">
+          <span>{a.odds || 'Odds N/A'}</span>
+          <span>•</span>
+          <span>{a.book || 'Book N/A'}</span>
+        </div>
+      )}
+      
+      {/* Scrollable Analysis */}
+      <div className="text-xs text-slate-300 leading-relaxed border-t border-slate-800/50 pt-2 mt-2 max-h-40 overflow-y-auto whitespace-pre-wrap">
+        {a.fullAnalysis}
       </div>
     </div>
   );

@@ -95,7 +95,7 @@ export const quickScanGame = async (game: QueuedGame): Promise<{ signal: 'RED' |
     2. Severe rest disadvantages (Back-to-backs)
     3. Confirmed goalie/pitcher mismatches
     
-    Output JSON ONLY:
+    Output a valid JSON object EXACTLY like this (do not use Markdown code blocks if possible, just the raw JSON):
     {
       "signal": "RED" (if major injury/edge), "YELLOW" (if minor/rest), "WHITE" (no signal),
       "description": "Short 10-word summary of the edge"
@@ -108,14 +108,21 @@ export const quickScanGame = async (game: QueuedGame): Promise<{ signal: 'RED' |
       contents: prompt,
       config: {
         tools: [{ googleSearch: {} }],
-        responseMimeType: "application/json"
+        // responseMimeType is NOT used here to avoid conflict with googleSearch
       }
     });
 
-    if (response.text) {
-      return JSON.parse(response.text);
+    let text = response.text || "{}";
+    // Sanitize markdown if the model wraps it
+    text = text.replace(/```json/g, '').replace(/```/g, '').trim();
+    
+    // Attempt parse
+    try {
+      return JSON.parse(text);
+    } catch (parseError) {
+      console.warn("Could not parse scan result as JSON, returning default.", text);
+      return { signal: 'WHITE', description: 'Could not parse signal' };
     }
-    return { signal: 'WHITE', description: 'No signal found' };
   } catch (e) {
     console.error("Quick scan failed", e);
     return { signal: 'WHITE', description: 'Scan failed' };
@@ -144,7 +151,7 @@ const parseAnalysis = (text: string): HighHitAnalysis => {
   const isLean = text.includes('LEAN');
   const isPass = text.includes('PASS');
   
-  // Basic extraction logic for metadata - this is a best-effort parse based on the strict output format
+  // Basic extraction logic for metadata
   let winProb = 0;
   const probMatch = text.match(/Win Prob(?:ability)?:?\s*(\d+)%/i);
   if (probMatch) winProb = parseInt(probMatch[1]);
@@ -155,21 +162,57 @@ const parseAnalysis = (text: string): HighHitAnalysis => {
   let odds = undefined;
   let book = undefined;
 
-  // Attempt to parse the structured line: Sport – Market – Side – Line – Odds – Book
-  // E.g., NBA – Spread – BOS -6 (-108) @ FanDuel
-  const lineMatch = text.match(/(?:PRIMARY PLAY|LEAN).*?\n(.*?)\n/);
-  if (lineMatch && (isPrimary || isLean)) {
-    const parts = lineMatch[1].split(/[|–-]/).map(s => s.trim());
-    if (parts.length >= 5) {
-      market = parts[1];
-      // This is fuzzy, depends on the model's adherence to " – " separators
+  // Robust parsing for the structured bet line
+  // The system prompt asks for: Sport – Market – Side – Line – Odds – Book
+  // We locate the line immediately following the decision header.
+  if (isPrimary || isLean) {
+    // Split by header and get the content after
+    const chunks = text.split(/(?:PRIMARY PLAY|LEAN)(?:.*?\n)+/);
+    if (chunks.length > 1) {
+      const contentAfterHeader = chunks[1];
+      // Get the first non-empty line which should contain the bet details
+      const betLine = contentAfterHeader.split('\n').map(l => l.trim()).find(l => l.length > 5 && !l.toLowerCase().includes('win prob'));
+      
+      if (betLine) {
+        // Try to split by common separators used by LLMs: " – " (en dash), " - " (hyphen padded), " | "
+        // We use a regex that looks for these delimiters surrounded by optional whitespace
+        const parts = betLine.split(/\s*(?:[|–—]|\s-\s)\s*/);
+
+        // We expect at least Sport, Market, Side...
+        if (parts.length >= 3) {
+          // Attempt to map based on standard position
+          // If we have many parts, assume the standard format:
+          // 0:Sport, 1:Market, 2:Side, 3:Line, 4:Odds, 5:Book
+          
+          if (parts.length >= 6) {
+             market = parts[1];
+             side = parts[2];
+             line = parts[3];
+             odds = parts[4];
+             book = parts[5].replace(/^@\s*/, '');
+          } else if (parts.length >= 4) {
+             // Compressed format? e.g. Sport | Market | Side/Line | Odds | Book
+             side = parts[2]; 
+             // If side looks like "Lakers -5", keep it there, otherwise try next part
+             if (parts[3].startsWith('-') || parts[3].startsWith('+') || !isNaN(parseFloat(parts[3]))) {
+               line = parts[3];
+               if (parts[4]) odds = parts[4];
+               if (parts[5]) book = parts[5];
+             } else {
+               // Maybe parts[3] is part of the side name?
+               side = `${parts[2]} ${parts[3]}`;
+             }
+          } else {
+             // Fallback: Just dump the raw line into 'side' so user sees it
+             side = betLine;
+          }
+        } else {
+          // If splitting failed completely, use the raw line
+          side = betLine;
+        }
+      }
     }
   }
-
-  // Heuristic fallbacks if strict parsing fails
-  if (!market && text.includes('Spread')) market = 'Spread';
-  if (!market && text.includes('Moneyline')) market = 'Moneyline';
-  if (!market && text.includes('Total')) market = 'Total';
 
   return {
     decision: isPrimary ? 'PRIMARY' : isLean ? 'LEAN' : 'PASS',
@@ -177,7 +220,7 @@ const parseAnalysis = (text: string): HighHitAnalysis => {
     fullAnalysis: text,
     winProbability: winProb,
     market,
-    side,
+    side, // Will now contain the raw line if parsing fails, preventing empty "Team"
     line,
     odds,
     book

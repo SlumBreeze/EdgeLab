@@ -58,5 +58,6 @@ export interface AnalysisState {
   removeFromQueue: (gameId: string) => void;
   updateGame: (gameId: string, updates: Partial<QueuedGame>) => void;
   addSoftLines: (gameId: string, lines: BookLines) => void;
+  updateSoftLineBook: (gameId: string, index: number, newBookName: string) => void;
   setSharpLines: (gameId: string, lines: BookLines) => void;
 }
