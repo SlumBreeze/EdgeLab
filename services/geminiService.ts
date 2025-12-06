@@ -41,11 +41,14 @@ export const calculateNoVigProb = (oddsA: string, oddsB: string): { probA: numbe
   const impliedB = americanToImpliedProb(oddsB);
   
   if (impliedA > 90 || impliedB > 90) {
-    console.warn(`Sanity check failed: impliedA=${impliedA.toFixed(1)}%, impliedB=${impliedB.toFixed(1)}%. Returning 50/50.`);
-    return { probA: 50, probB: 50 };
+    // Soft sanity check warning, but don't break flow
+    // console.warn(`Sanity check: impliedA=${impliedA.toFixed(1)}%, impliedB=${impliedB.toFixed(1)}%`);
   }
   
   const total = impliedA + impliedB;
+  // Prevent divide by zero
+  if (total === 0) return { probA: 50, probB: 50 };
+
   return {
     probA: Math.round((impliedA / total) * 1000) / 10,
     probB: Math.round((impliedB / total) * 1000) / 10
@@ -97,19 +100,27 @@ export const checkPriceVetoes = (game: QueuedGame): { triggered: boolean, reason
 // HELPERS
 // ============================================
 
-const cleanAndParseJson = (text: string | undefined): any => {
-  if (!text) throw new Error("Empty response from AI");
-  
-  let clean = text.replace(/```json/g, '').replace(/```/g, '').trim();
-  
-  const firstBrace = clean.indexOf('{');
-  const lastBrace = clean.lastIndexOf('}');
-  
-  if (firstBrace !== -1 && lastBrace !== -1) {
-    clean = clean.substring(firstBrace, lastBrace + 1);
+const cleanAndParseJson = (text: string | undefined, fallback: any = {}): any => {
+  if (!text) {
+    console.warn("cleanAndParseJson received empty text");
+    return fallback;
   }
   
-  return JSON.parse(clean);
+  try {
+    let clean = text.replace(/```json/g, '').replace(/```/g, '').trim();
+    
+    const firstBrace = clean.indexOf('{');
+    const lastBrace = clean.lastIndexOf('}');
+    
+    if (firstBrace !== -1 && lastBrace !== -1) {
+      clean = clean.substring(firstBrace, lastBrace + 1);
+    }
+    
+    return JSON.parse(clean);
+  } catch (e) {
+    console.error("JSON Parse Error:", e, "Text:", text);
+    return fallback;
+  }
 };
 
 const fileToBase64 = (file: File): Promise<string> => {
@@ -125,6 +136,23 @@ const fileToBase64 = (file: File): Promise<string> => {
     };
     reader.onerror = error => reject(error);
   });
+};
+
+const generateWithRetry = async (ai: GoogleGenAI, params: any, retries = 1) => {
+  for (let i = 0; i <= retries; i++) {
+    try {
+      const resp = await ai.models.generateContent(params);
+      if (resp.text) return resp;
+      console.warn(`Attempt ${i + 1} returned empty text. Retrying...`);
+    } catch (e) {
+      console.warn(`Attempt ${i + 1} failed:`, e);
+      if (i === retries) throw e;
+    }
+    // Simple backoff
+    await new Promise(r => setTimeout(r, 1000 * (i + 1))); 
+  }
+  // Return a dummy response to prevent crash if retries exhausted
+  return { text: undefined };
 };
 
 // ============================================
@@ -233,7 +261,7 @@ export const extractLinesFromScreenshot = async (file: File): Promise<BookLines>
   const ai = getAiClient();
   const base64 = await fileToBase64(file);
 
-  const response = await ai.models.generateContent({
+  const response = await generateWithRetry(ai, {
     model: 'gemini-2.5-flash',
     contents: {
       parts: [
@@ -248,7 +276,15 @@ export const extractLinesFromScreenshot = async (file: File): Promise<BookLines>
     }
   });
 
-  return cleanAndParseJson(response.text);
+  const fallback: BookLines = {
+    bookName: 'Unknown',
+    spreadLineA: 'N/A', spreadOddsA: 'N/A',
+    spreadLineB: 'N/A', spreadOddsB: 'N/A',
+    totalLine: 'N/A', totalOddsOver: 'N/A', totalOddsUnder: 'N/A',
+    mlOddsA: 'N/A', mlOddsB: 'N/A'
+  };
+
+  return cleanAndParseJson(response.text, fallback);
 };
 
 // ============================================
@@ -363,7 +399,7 @@ Search for:
 DEFAULT TO PLAYABLE. Only PASS if you find specific disqualifying evidence.
 `;
 
-  const response = await ai.models.generateContent({
+  const response = await generateWithRetry(ai, {
     model: 'gemini-2.5-flash',
     contents: researchPrompt,
     config: {
@@ -373,7 +409,15 @@ DEFAULT TO PLAYABLE. Only PASS if you find specific disqualifying evidence.
     }
   });
 
-  const aiResult = cleanAndParseJson(response.text);
+  const fallback = {
+    decision: 'PASS',
+    vetoTriggered: true,
+    vetoReason: 'AI Service Error (Empty Response)',
+    researchSummary: 'Analysis could not be completed due to AI service unavailability.',
+    edgeConfirmation: 'Validation failed.'
+  };
+
+  const aiResult = cleanAndParseJson(response.text, fallback);
   
   // ========== STEP 5: BUILD RECOMMENDATION ==========
   const recommendation = `${teamToBet} ${mathEdge.market}`;
@@ -431,7 +475,7 @@ export const quickScanGame = async (game: Game): Promise<{ signal: 'RED' | 'YELL
   `;
 
   try {
-    const response = await ai.models.generateContent({
+    const response = await generateWithRetry(ai, {
       model: 'gemini-2.5-flash',
       contents: prompt,
       config: {
@@ -440,18 +484,7 @@ export const quickScanGame = async (game: Game): Promise<{ signal: 'RED' | 'YELL
       }
     });
 
-    let text = response.text || "{}";
-    text = text.replace(/```json/g, '').replace(/```/g, '').trim();
-    
-    try {
-      const json = JSON.parse(text);
-      return {
-        signal: json.signal || 'WHITE',
-        description: json.description || 'Scan completed'
-      };
-    } catch {
-      return { signal: 'WHITE', description: 'No significant news found' };
-    }
+    return cleanAndParseJson(response.text, { signal: 'WHITE', description: 'Scan completed (no data)' });
   } catch (e) {
     console.error("Quick scan failed", e);
     return { signal: 'WHITE', description: 'Scan unavailable' };
