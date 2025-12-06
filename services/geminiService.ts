@@ -105,18 +105,16 @@ export const calculateLineDiff = (sharpLine: string, softLine: string): number =
 export const checkPriceVetoes = (game: QueuedGame): { triggered: boolean, reason?: string } => {
   if (!game.sharpLines) return { triggered: false };
   
-  // Note: PRICE_CAP removed to allow betting on underdogs in games with heavy favorites.
-  
   const spreadA = Math.abs(parseFloat(game.sharpLines.spreadLineA));
   
   // Sport-specific spread caps
   let spreadLimit = 10.0;
   switch (game.sport) {
-    case 'NFL': spreadLimit = 14.5; break;
-    case 'NBA': spreadLimit = 16.5; break;
-    case 'CFB': spreadLimit = 35.0; break; // Opened up significantly for CFB
+    case 'NFL': spreadLimit = 14.0; break;   // Two TDs
+    case 'NBA': spreadLimit = 16.0; break;
+    case 'CFB': spreadLimit = 24.0; break;   // Three TDs + FG
     case 'NHL': 
-    case 'MLB': spreadLimit = 4.5; break;
+    case 'MLB': spreadLimit = 4.0; break;    // Puckline/Runline max
     default: spreadLimit = 10.0;
   }
 
