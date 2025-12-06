@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { QueuedGame, BookLines } from '../types';
-import { detectMarketDiff } from '../services/geminiService';
+import { detectMarketDiff, formatOddsForDisplay } from '../services/geminiService';
 import { COMMON_BOOKS } from '../constants';
 
 interface Props {
@@ -113,21 +113,21 @@ const QueuedGameCard: React.FC<Props> = ({
         </div>
 
         <div className="space-y-1">
-          {/* Sharp Line Row */}
+          {/* Sharp Line Row - NOW WITH AMERICAN ODDS CONVERSION */}
           {game.sharpLines ? (
             <div className="grid grid-cols-[80px_1fr_1fr_1fr] gap-1 items-center bg-slate-950 p-2 rounded border border-slate-800 text-xs">
               <div className="font-bold text-slate-400 truncate">Pinnacle</div>
               <div className="text-center text-white">
                 <div>{game.sharpLines.spreadLineA}</div>
-                <div className="text-slate-500 text-[10px]">{game.sharpLines.spreadOddsA}</div>
+                <div className="text-slate-500 text-[10px]">{formatOddsForDisplay(game.sharpLines.spreadOddsA)}</div>
               </div>
               <div className="text-center text-white">
                 <div>{game.sharpLines.totalLine}</div>
-                <div className="text-slate-500 text-[10px]">o{game.sharpLines.totalOddsOver}</div>
+                <div className="text-slate-500 text-[10px]">o{formatOddsForDisplay(game.sharpLines.totalOddsOver)}</div>
               </div>
               <div className="text-center text-white">
-                <div>{game.sharpLines.mlOddsA}</div>
-                <div className="text-slate-500 text-[10px]">{game.sharpLines.mlOddsB}</div>
+                <div>{formatOddsForDisplay(game.sharpLines.mlOddsA)}</div>
+                <div className="text-slate-500 text-[10px]">{formatOddsForDisplay(game.sharpLines.mlOddsB)}</div>
               </div>
             </div>
           ) : (
@@ -174,19 +174,19 @@ const QueuedGameCard: React.FC<Props> = ({
                 {/* Spread Column */}
                 <div className={`text-center ${getDiffColor(diffSpread)}`}>
                    <div>{line.spreadLineA}</div>
-                   <div className="text-[10px] opacity-70">{line.spreadOddsA}</div>
+                   <div className="text-[10px] opacity-70">{formatOddsForDisplay(line.spreadOddsA)}</div>
                 </div>
 
                 {/* Total Column */}
                 <div className={`text-center ${getDiffColor(diffTotal)}`}>
                    <div>{line.totalLine}</div>
-                   <div className="text-[10px] opacity-70">o{line.totalOddsOver}</div>
+                   <div className="text-[10px] opacity-70">o{formatOddsForDisplay(line.totalOddsOver)}</div>
                 </div>
 
                 {/* ML Column */}
                 <div className={`text-center ${getDiffColor(diffML)}`}>
-                   <div>{line.mlOddsA}</div>
-                   <div className="text-[10px] opacity-70">{line.mlOddsB}</div>
+                   <div>{formatOddsForDisplay(line.mlOddsA)}</div>
+                   <div className="text-[10px] opacity-70">{formatOddsForDisplay(line.mlOddsB)}</div>
                 </div>
               </div>
             );
@@ -253,7 +253,7 @@ const QueuedGameCard: React.FC<Props> = ({
                 : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg'
             }`}
           >
-            Run v2.1 Analysis
+            Run v3 Analysis
           </button>
         )}
       </div>

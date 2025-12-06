@@ -25,6 +25,32 @@ const normalizeToAmerican = (odds: string | number): number => {
   return val;
 };
 
+// Format odds for display - converts decimal to American string
+export const formatOddsForDisplay = (odds: string | number): string => {
+  if (!odds || odds === 'N/A') return 'N/A';
+  
+  const val = typeof odds === 'string' ? parseFloat(odds) : odds;
+  if (isNaN(val)) return String(odds);
+
+  // Check if it's likely decimal (between 1.01 and ~50)
+  const isLikelyDecimal = val > 1.0 && val < 50;
+
+  if (isLikelyDecimal) {
+    let american: number;
+    if (val >= 2.0) {
+      american = Math.round((val - 1) * 100);
+      return `+${american}`;
+    } else {
+      american = Math.round(-100 / (val - 1));
+      return String(american);
+    }
+  }
+  
+  // Already American - format with + for positive
+  const numVal = Math.round(val);
+  return numVal > 0 ? `+${numVal}` : String(numVal);
+};
+
 export const americanToImpliedProb = (odds: string | number): number => {
   const o = normalizeToAmerican(odds);
   if (isNaN(o) || o === 0) return 50;
@@ -469,8 +495,8 @@ DEFAULT TO PASS if situation is unclear or conflicts with the math.`,
 
   const recommendation = `${teamName} ${selectedSide.market}`;
   const recLine = selectedSide.market === 'Moneyline' 
-    ? selectedSide.bestSoftOdds
-    : `${selectedSide.bestSoftLine} (${selectedSide.bestSoftOdds})`;
+    ? formatOddsForDisplay(selectedSide.bestSoftOdds)
+    : `${selectedSide.bestSoftLine} (${formatOddsForDisplay(selectedSide.bestSoftOdds)})`;
 
   return {
     decision: 'PLAYABLE',
@@ -488,7 +514,7 @@ DEFAULT TO PASS if situation is unclear or conflicts with the math.`,
     line: selectedSide.bestSoftLine,
     
     sharpImpliedProb,
-    softBestOdds: selectedSide.bestSoftOdds,
+    softBestOdds: formatOddsForDisplay(selectedSide.bestSoftOdds),
     softBestBook: selectedSide.bestSoftBook,
     lineValueCents: selectedSide.priceValue > 0 ? selectedSide.priceValue : 0,
     lineValuePoints: selectedSide.lineValue
