@@ -1,4 +1,4 @@
-export type Sport = 'NBA' | 'NFL' | 'NHL' | 'MLB';
+export type Sport = 'NBA' | 'NFL' | 'NHL' | 'MLB' | 'CFB';
 
 export interface Game {
   id: string;
@@ -62,7 +62,7 @@ export interface HighHitAnalysis {
   side?: string;
   line?: string;
   researchSummary: string; // What the AI found (injuries, rest, etc.)
-  edgeNarrative?: string; // Plain English description of any edge
+  edgeNarrative?: string; // Plain English description of any situational edge. Do NOT assign percentages.
 }
 
 export interface DailyPlayTracker {

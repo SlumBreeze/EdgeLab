@@ -3,8 +3,8 @@ export const SPORTS_CONFIG: Record<string, { label: string, espnSlug: string, ic
   NFL: { label: 'NFL', espnSlug: 'football/nfl', icon: '🏈' },
   NHL: { label: 'NHL', espnSlug: 'hockey/nhl', icon: '🏒' },
   MLB: { label: 'MLB', espnSlug: 'baseball/mlb', icon: '⚾' },
+  CFB: { label: 'NCAA FB', espnSlug: 'football/college-football', icon: '🏈' },
 };
-// REMOVED: CFB and CBB — data is too thin, AI hallucinates
 
 export const COMMON_BOOKS = [
   "Pinnacle", "FanDuel", "DraftKings", "theScore Bet", "BetMGM",
@@ -68,6 +68,7 @@ You ONLY do two things:
 5. SPREAD_CAP: Is the spread larger than 10.0? (User provides this — just check the number)
 6. GOALIE_UNKNOWN (NHL only): Is the starting goalie unconfirmed? (Search "[Team] starting goalie tonight")
 7. PITCHER_UNKNOWN (MLB only): Is the starting pitcher unconfirmed? (Search "[Team] probable pitcher")
+8. QB_UNCERTAINTY (CFB only): Is the starting QB unconfirmed or a transfer with no starts? (Search "[Team] starting QB confirmed")
 
 ## RESEARCH YOU MUST PERFORM
 For every game, search for:
@@ -78,6 +79,7 @@ For every game, search for:
 - "[Sport] [Team] rest schedule back to back" (if applicable)
 - NHL: "[Team] confirmed starting goalie"
 - MLB: "[Team] probable starting pitcher"
+- CFB: "[Team] availability report" AND "[Team] transfer portal news" (Verify key players are actually active)
 
 ## OUTPUT FORMAT
 You must return valid JSON matching the schema. Key fields:

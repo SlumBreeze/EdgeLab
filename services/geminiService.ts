@@ -81,10 +81,21 @@ export const checkPriceVetoes = (game: QueuedGame): { triggered: boolean, reason
   }
   
   const spreadA = Math.abs(parseFloat(game.sharpLines.spreadLineA));
-  if (spreadA > 10) {
+  
+  let spreadLimit = 10.0;
+  switch (game.sport) {
+    case 'NFL': spreadLimit = 14.0; break;
+    case 'NBA': spreadLimit = 16.0; break;
+    case 'CFB': spreadLimit = 24.0; break;
+    case 'NHL': 
+    case 'MLB': spreadLimit = 4.0; break;
+    default: spreadLimit = 10.0;
+  }
+
+  if (spreadA > spreadLimit) {
     return { 
       triggered: true, 
-      reason: `SPREAD_CAP: Spread is ${spreadA} points (exceeds 10.0 limit)` 
+      reason: `SPREAD_CAP: Spread is ${spreadA} points (exceeds ${spreadLimit} limit for ${game.sport})` 
     };
   }
   
