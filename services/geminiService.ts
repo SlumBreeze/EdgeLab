@@ -40,13 +40,7 @@ export const calculateNoVigProb = (oddsA: string, oddsB: string): { probA: numbe
   const impliedA = americanToImpliedProb(oddsA);
   const impliedB = americanToImpliedProb(oddsB);
   
-  if (impliedA > 90 || impliedB > 90) {
-    // Soft sanity check warning, but don't break flow
-    // console.warn(`Sanity check: impliedA=${impliedA.toFixed(1)}%, impliedB=${impliedB.toFixed(1)}%`);
-  }
-  
   const total = impliedA + impliedB;
-  // Prevent divide by zero
   if (total === 0) return { probA: 50, probB: 50 };
 
   return {
@@ -148,92 +142,106 @@ const generateWithRetry = async (ai: GoogleGenAI, params: any, retries = 1) => {
       console.warn(`Attempt ${i + 1} failed:`, e);
       if (i === retries) throw e;
     }
-    // Simple backoff
     await new Promise(r => setTimeout(r, 1000 * (i + 1))); 
   }
-  // Return a dummy response to prevent crash if retries exhausted
   return { text: undefined };
 };
 
 // ============================================
-// MARKET SCANNER - FINDS THE MATH EDGE
+// LINE VALUE CALCULATOR - ANALYZES ALL SIDES
 // ============================================
 
-const findBestValue = (sharp: BookLines, softLines: BookLines[], sport: string) => {
-  let best = {
-    valueCents: -999,
-    valuePoints: 0,
-    book: '',
-    market: 'N/A',
-    side: 'N/A',
-    line: '',
-    odds: '',
-    fairProb: 0,
-    teamType: '' as 'AWAY' | 'HOME' | 'OVER' | 'UNDER' | ''
-  };
+interface SideValue {
+  side: 'AWAY' | 'HOME' | 'OVER' | 'UNDER';
+  market: 'Spread' | 'Moneyline' | 'Total';
+  sharpLine: string;
+  sharpOdds: string;
+  bestSoftLine: string;
+  bestSoftOdds: string;
+  bestSoftBook: string;
+  lineValue: number;      // positive = getting better number
+  priceValue: number;     // cents of juice saved
+  hasPositiveValue: boolean;
+}
 
-  const check = (
-    sharpOdds: string, 
-    softOdds: string, 
+const analyzeAllSides = (sharp: BookLines, softLines: BookLines[]): SideValue[] => {
+  const results: SideValue[] = [];
+
+  const checkSide = (
+    side: 'AWAY' | 'HOME' | 'OVER' | 'UNDER',
+    market: 'Spread' | 'Moneyline' | 'Total',
     sharpLine: string,
-    softLine: string,
-    market: string, 
-    side: string, 
-    bookName: string,
-    teamType: 'AWAY' | 'HOME' | 'OVER' | 'UNDER'
+    sharpOdds: string,
+    getSoftLine: (s: BookLines) => string,
+    getSoftOdds: (s: BookLines) => string
   ) => {
-    if (!sharpOdds || !softOdds || sharpOdds === 'N/A' || softOdds === 'N/A') return;
-    
-    const sharpNum = parseFloat(sharpOdds);
-    const softNum = parseFloat(softOdds);
-    if (isNaN(sharpNum) || isNaN(softNum)) return;
-    if (Math.abs(sharpNum) > 2000 || Math.abs(softNum) > 2000) return;
-    
-    const fairProb = americanToImpliedProb(sharpOdds);
-    
-    if (market === 'Spread' && fairProb > 80) return;
-    if (market === 'Total' && fairProb > 80) return;
-    if (market === 'Moneyline' && fairProb > 92) return;
+    let bestValue = -999;
+    let bestBook = '';
+    let bestLine = '';
+    let bestOdds = '';
+    let bestLineValue = 0;
+    let bestPriceValue = 0;
 
-    const valueCents = calculateJuiceDiff(sharpOdds, softOdds);
-    const valuePoints = calculateLineDiff(sharpLine, softLine);
-    
-    if (valueCents > 50 || valueCents < -50) return;
+    softLines.forEach(soft => {
+      const softLine = getSoftLine(soft);
+      const softOdds = getSoftOdds(soft);
+      
+      if (!softOdds || softOdds === 'N/A' || !sharpOdds || sharpOdds === 'N/A') return;
 
-    // Prioritize: 1) Line value (points), 2) Price value (cents)
-    const totalScore = (Math.abs(valuePoints) * 10) + valueCents;
-    const bestScore = (Math.abs(best.valuePoints) * 10) + best.valueCents;
+      const lineValue = calculateLineDiff(sharpLine, softLine);
+      const priceValue = calculateJuiceDiff(sharpOdds, softOdds);
 
-    if (totalScore > bestScore) {
-      best = { 
-        valueCents, 
-        valuePoints,
-        book: bookName, 
-        market, 
-        side, 
-        line: softLine, 
-        odds: softOdds, 
-        fairProb,
-        teamType
-      };
+      // For underdogs (positive spread), MORE points is better (positive lineValue)
+      // For favorites (negative spread), FEWER points is better (lineValue should be positive when soft is less negative)
+      // The calculateLineDiff returns soft - sharp, so:
+      // - Underdog: sharp +12.5, soft +13.5 → lineValue = +1 (good!)
+      // - Favorite: sharp -12.5, soft -13.5 → lineValue = -1 (bad!)
+      
+      // Score: lineValue (for spreads) + priceValue/10 (juice matters less than points)
+      const totalValue = (market === 'Spread' ? lineValue * 10 : 0) + priceValue;
+
+      if (totalValue > bestValue) {
+        bestValue = totalValue;
+        bestBook = soft.bookName;
+        bestLine = softLine;
+        bestOdds = softOdds;
+        bestLineValue = lineValue;
+        bestPriceValue = priceValue;
+      }
+    });
+
+    if (bestBook) {
+      // Determine if this side has positive value
+      // For spreads: positive line value (getting more points as dog, laying fewer as fav)
+      // For ML/Totals: positive price value
+      const hasPositiveValue = market === 'Spread' 
+        ? bestLineValue > 0 || (bestLineValue === 0 && bestPriceValue > 0)
+        : bestPriceValue > 0;
+
+      results.push({
+        side,
+        market,
+        sharpLine,
+        sharpOdds,
+        bestSoftLine: bestLine,
+        bestSoftOdds: bestOdds,
+        bestSoftBook: bestBook,
+        lineValue: bestLineValue,
+        priceValue: bestPriceValue,
+        hasPositiveValue
+      });
     }
   };
 
-  softLines.forEach(soft => {
-    // Spreads
-    check(sharp.spreadOddsA, soft.spreadOddsA, sharp.spreadLineA, soft.spreadLineA, 'Spread', 'Away', soft.bookName, 'AWAY');
-    check(sharp.spreadOddsB, soft.spreadOddsB, sharp.spreadLineB, soft.spreadLineB, 'Spread', 'Home', soft.bookName, 'HOME');
-    
-    // Moneylines
-    check(sharp.mlOddsA, soft.mlOddsA, 'ML', 'ML', 'Moneyline', 'Away', soft.bookName, 'AWAY');
-    check(sharp.mlOddsB, soft.mlOddsB, 'ML', 'ML', 'Moneyline', 'Home', soft.bookName, 'HOME');
-    
-    // Totals
-    check(sharp.totalOddsOver, soft.totalOddsOver, sharp.totalLine, soft.totalLine, 'Total', 'Over', soft.bookName, 'OVER');
-    check(sharp.totalOddsUnder, soft.totalOddsUnder, sharp.totalLine, soft.totalLine, 'Total', 'Under', soft.bookName, 'UNDER');
-  });
+  // Check all sides
+  checkSide('AWAY', 'Spread', sharp.spreadLineA, sharp.spreadOddsA, s => s.spreadLineA, s => s.spreadOddsA);
+  checkSide('HOME', 'Spread', sharp.spreadLineB, sharp.spreadOddsB, s => s.spreadLineB, s => s.spreadOddsB);
+  checkSide('AWAY', 'Moneyline', 'ML', sharp.mlOddsA, () => 'ML', s => s.mlOddsA);
+  checkSide('HOME', 'Moneyline', 'ML', sharp.mlOddsB, () => 'ML', s => s.mlOddsB);
+  checkSide('OVER', 'Total', sharp.totalLine, sharp.totalOddsOver, s => s.totalLine, s => s.totalOddsOver);
+  checkSide('UNDER', 'Total', sharp.totalLine, sharp.totalOddsUnder, s => s.totalLine, s => s.totalOddsUnder);
 
-  return best;
+  return results;
 };
 
 // ============================================
@@ -288,7 +296,7 @@ export const extractLinesFromScreenshot = async (file: File): Promise<BookLines>
 };
 
 // ============================================
-// MAIN ANALYSIS - MATH FIRST, THEN VETO CHECK
+// MAIN ANALYSIS - HOLISTIC APPROACH
 // ============================================
 
 export const analyzeGame = async (game: QueuedGame): Promise<HighHitAnalysis> => {
@@ -305,105 +313,120 @@ export const analyzeGame = async (game: QueuedGame): Promise<HighHitAnalysis> =>
     };
   }
   
-  // ========== STEP 2: FIND MATH EDGE ==========
+  // ========== STEP 2: ANALYZE ALL SIDES ==========
   let sharpImpliedProb = 50;
-  let mathEdge = { 
-    valueCents: 0, 
-    valuePoints: 0,
-    book: 'N/A', 
-    market: 'N/A', 
-    side: 'N/A', 
-    line: '', 
-    odds: '', 
-    fairProb: 0,
-    teamType: '' as 'AWAY' | 'HOME' | 'OVER' | 'UNDER' | ''
-  };
+  let allSides: SideValue[] = [];
 
   if (game.sharpLines) {
     const noVig = calculateNoVigProb(game.sharpLines.mlOddsA, game.sharpLines.mlOddsB);
     sharpImpliedProb = noVig.probA;
 
     if (game.softLines.length > 0) {
-      mathEdge = findBestValue(game.sharpLines, game.softLines, game.sport);
+      allSides = analyzeAllSides(game.sharpLines, game.softLines);
     }
   }
   
-  // ========== STEP 3: NO MATH EDGE = PASS ==========
-  const hasLineValue = Math.abs(mathEdge.valuePoints) >= 0.5;
-  const hasPriceValue = mathEdge.valueCents >= 5;
+  // ========== STEP 3: CHECK IF ANY VALUE EXISTS ==========
+  const sidesWithValue = allSides.filter(s => s.hasPositiveValue);
   
-  if (!hasLineValue && !hasPriceValue) {
+  if (sidesWithValue.length === 0) {
     return {
       decision: 'PASS',
       vetoTriggered: true,
-      vetoReason: "NO_VALUE: No line or price edge found vs sharp book.",
-      researchSummary: "Math scan complete. Soft books match or are worse than Pinnacle.",
+      vetoReason: "NO_VALUE: No positive line or price value found on any side.",
+      researchSummary: "Math scan complete. All soft book lines are equal or worse than Pinnacle.",
       sharpImpliedProb,
-      lineValueCents: mathEdge.valueCents,
-      lineValuePoints: mathEdge.valuePoints
+      lineValueCents: 0,
+      lineValuePoints: 0
     };
   }
   
-  // ========== STEP 4: MATH EDGE EXISTS - ASK AI TO VETO CHECK ==========
+  // ========== STEP 4: AI HOLISTIC ANALYSIS ==========
   const dateObj = new Date(game.date);
   const readableDate = dateObj.toLocaleDateString('en-US', { weekday: 'short', month: 'long', day: 'numeric' });
   
-  const teamToBet = mathEdge.side === 'Away' ? game.awayTeam.name : 
-                    mathEdge.side === 'Home' ? game.homeTeam.name :
-                    mathEdge.side; // Over/Under
+  // Build the value summary for AI
+  const valueSummary = sidesWithValue.map(s => {
+    const teamName = s.side === 'AWAY' ? game.awayTeam.name : 
+                     s.side === 'HOME' ? game.homeTeam.name : s.side;
+    const valueDesc = [];
+    if (s.lineValue > 0) valueDesc.push(`+${s.lineValue} points`);
+    if (s.lineValue < 0) valueDesc.push(`${s.lineValue} points`);
+    if (s.priceValue > 0) valueDesc.push(`+${s.priceValue} cents juice`);
+    return `- ${teamName} ${s.market} ${s.bestSoftLine} @ ${s.bestSoftBook}: ${valueDesc.join(', ')}`;
+  }).join('\n');
 
-  const researchPrompt = `
-MATH EDGE IDENTIFIED - VETO CHECK REQUIRED
+  const holisticPrompt = `
+## GAME ANALYSIS REQUEST
 
-MATCHUP: ${game.awayTeam.name} (AWAY) at ${game.homeTeam.name} (HOME)
-SPORT: ${game.sport}
-DATE: ${readableDate}
+**Matchup:** ${game.awayTeam.name} (AWAY) at ${game.homeTeam.name} (HOME)
+**Sport:** ${game.sport}
+**Date:** ${readableDate}
 
-## THE MATH EDGE WE FOUND
-- Market: ${mathEdge.market}
-- Side: ${teamToBet} (${mathEdge.side})
-- Line: ${mathEdge.line}
-- Odds: ${mathEdge.odds} at ${mathEdge.book}
-- Value: ${mathEdge.valuePoints >= 0.5 ? `+${mathEdge.valuePoints} points` : ''} ${mathEdge.valueCents > 0 ? `+${mathEdge.valueCents} cents` : ''}
+## SHARP LINES (Pinnacle - Market Truth)
+- ${game.awayTeam.name} Spread: ${game.sharpLines?.spreadLineA} (${game.sharpLines?.spreadOddsA})
+- ${game.homeTeam.name} Spread: ${game.sharpLines?.spreadLineB} (${game.sharpLines?.spreadOddsB})
+- Total: ${game.sharpLines?.totalLine}
+- ${game.awayTeam.name} ML: ${game.sharpLines?.mlOddsA}
+- ${game.homeTeam.name} ML: ${game.sharpLines?.mlOddsB}
 
-## YOUR JOB
-We have a MATH EDGE. Your job is to CHECK if anything VETOES this bet.
+## SIDES WITH POSITIVE VALUE (Soft Books Offering Better Numbers)
+${valueSummary}
 
-Search for:
-1. "${teamToBet} injury report" - Is any KEY player OUT?
-2. "${teamToBet} offensive efficiency ranking" - Are they Bottom 10?
-3. Sport-specific confirmations (goalie/pitcher/QB if applicable)
+## YOUR TASK
 
-## VETO CONDITIONS (Only these can trigger PASS)
-- EFFICIENCY_FLOOR: ${teamToBet} is Bottom 10 in offensive efficiency
-- KEY_PLAYER_OUT: Star player (All-Star/All-Pro level) is OUT for ${teamToBet}
-- GOALIE_UNKNOWN (NHL): Goalie unconfirmed for ${teamToBet}
-- PITCHER_UNKNOWN (MLB): Pitcher unconfirmed for ${teamToBet}
-- QB_UNCERTAINTY (CFB): QB unconfirmed or freshman for ${teamToBet}
+**Search for current information on BOTH teams:**
+1. "${game.awayTeam.name} injury report injuries out" 
+2. "${game.homeTeam.name} injury report injuries out"
+3. "${game.awayTeam.name} vs ${game.homeTeam.name} preview"
 
-## NOT A VETO
-- Opponent has injuries (this HELPS our bet)
-- Role players out (not stars)
-- Team is underdog (the math accounts for this)
-- Weather, travel, etc. (not disqualifying)
+**Then analyze:**
+- Which team has MORE injuries / key players OUT?
+- Which team is healthier and more likely to perform to expectations?
+- Do the injuries favor one side covering the spread?
+- Does the LINE VALUE align with the SITUATIONAL EDGE?
+
+## DECISION FRAMEWORK
+
+**PLAYABLE** = Line value + Situation ALIGN
+Example: Team A is healthier AND you get +1 point on them → PLAYABLE
+
+**PASS** = Line value and Situation CONFLICT or unclear
+Example: Team A has value but they're missing their QB → PASS
+
+**IMPORTANT:** 
+- Getting MORE points on an underdog is GOOD (+1 point value)
+- Laying MORE points on a favorite is BAD (-1 point value)
+- A healthy team getting extra points vs an injured opponent = IDEAL
 
 ## OUTPUT JSON
 {
   "decision": "PLAYABLE" or "PASS",
-  "vetoTriggered": true or false,
-  "vetoReason": "Specific veto rule and evidence" or null,
-  "researchSummary": "What you found about ${teamToBet} and opponent",
-  "edgeConfirmation": "Why the math edge is valid OR why it's vetoed"
+  "recommendedSide": "AWAY" or "HOME" or "OVER" or "UNDER",
+  "recommendedMarket": "Spread" or "Moneyline" or "Total",
+  "reasoning": "2-3 sentences explaining why math + situation align (or don't)",
+  "awayTeamInjuries": "Key injuries for away team",
+  "homeTeamInjuries": "Key injuries for home team", 
+  "situationFavors": "AWAY" or "HOME" or "NEUTRAL",
+  "confidence": "HIGH" or "MEDIUM" or "LOW"
 }
-
-DEFAULT TO PLAYABLE. Only PASS if you find specific disqualifying evidence.
 `;
 
   const response = await generateWithRetry(ai, {
     model: 'gemini-2.5-flash',
-    contents: researchPrompt,
+    contents: holisticPrompt,
     config: {
-      systemInstruction: HIGH_HIT_SYSTEM_PROMPT,
+      systemInstruction: `You are EdgeLab v3, a sports betting analyst that synthesizes LINE VALUE and SITUATIONAL FACTORS to find aligned edges.
+
+Your job:
+1. Search for injuries and news on BOTH teams
+2. Determine which team is in a better situation
+3. Check if the situational edge ALIGNS with the mathematical value
+4. Only recommend PLAYABLE when both factors point the same direction
+
+Key principle: We want to bet on healthier teams when we're also getting better numbers. If we'd be betting on the injured team just for line value, that's a PASS.
+
+DEFAULT TO PASS if situation is unclear or conflicts with the math.`,
       tools: [{ googleSearch: {} }],
       temperature: 0.2
     }
@@ -411,43 +434,64 @@ DEFAULT TO PLAYABLE. Only PASS if you find specific disqualifying evidence.
 
   const fallback = {
     decision: 'PASS',
-    vetoTriggered: true,
-    vetoReason: 'AI Service Error (Empty Response)',
-    researchSummary: 'Analysis could not be completed due to AI service unavailability.',
-    edgeConfirmation: 'Validation failed.'
+    recommendedSide: null,
+    recommendedMarket: null,
+    reasoning: 'Analysis could not be completed.',
+    awayTeamInjuries: 'Unknown',
+    homeTeamInjuries: 'Unknown',
+    situationFavors: 'NEUTRAL',
+    confidence: 'LOW'
   };
 
   const aiResult = cleanAndParseJson(response.text, fallback);
   
   // ========== STEP 5: BUILD RECOMMENDATION ==========
-  const recommendation = `${teamToBet} ${mathEdge.market}`;
-  
-  const recLine = mathEdge.market === 'Total' 
-    ? `${mathEdge.line} (${mathEdge.odds})`
-    : mathEdge.market === 'Spread'
-    ? `${mathEdge.line} (${mathEdge.odds})`
-    : mathEdge.odds;
+  if (aiResult.decision !== 'PLAYABLE' || !aiResult.recommendedSide) {
+    return {
+      decision: 'PASS',
+      vetoTriggered: false,
+      vetoReason: aiResult.reasoning || 'AI did not find aligned edge',
+      researchSummary: `Away (${game.awayTeam.name}): ${aiResult.awayTeamInjuries || 'No data'}\nHome (${game.homeTeam.name}): ${aiResult.homeTeamInjuries || 'No data'}\n\nSituation favors: ${aiResult.situationFavors}`,
+      edgeNarrative: aiResult.reasoning,
+      sharpImpliedProb
+    };
+  }
+
+  // Find the matching side value
+  const selectedSide = sidesWithValue.find(s => 
+    s.side === aiResult.recommendedSide && 
+    s.market === aiResult.recommendedMarket
+  ) || sidesWithValue.find(s => s.side === aiResult.recommendedSide) || sidesWithValue[0];
+
+  const teamName = selectedSide.side === 'AWAY' ? game.awayTeam.name :
+                   selectedSide.side === 'HOME' ? game.homeTeam.name :
+                   selectedSide.side;
+
+  const recommendation = `${teamName} ${selectedSide.market}`;
+  const recLine = selectedSide.market === 'Moneyline' 
+    ? selectedSide.bestSoftOdds
+    : `${selectedSide.bestSoftLine} (${selectedSide.bestSoftOdds})`;
 
   return {
-    decision: aiResult.vetoTriggered ? 'PASS' : 'PLAYABLE',
-    vetoTriggered: aiResult.vetoTriggered || false,
-    vetoReason: aiResult.vetoReason,
-    researchSummary: aiResult.researchSummary,
-    edgeNarrative: aiResult.edgeConfirmation,
+    decision: 'PLAYABLE',
+    vetoTriggered: false,
+    vetoReason: undefined,
+    researchSummary: `Away (${game.awayTeam.name}): ${aiResult.awayTeamInjuries || 'No major injuries'}\nHome (${game.homeTeam.name}): ${aiResult.homeTeamInjuries || 'No major injuries'}\n\nSituation favors: ${aiResult.situationFavors}\nConfidence: ${aiResult.confidence}`,
+    edgeNarrative: aiResult.reasoning,
     
-    recommendation: !aiResult.vetoTriggered ? recommendation : undefined,
-    recLine: !aiResult.vetoTriggered ? recLine : undefined,
-    recProbability: mathEdge.fairProb,
+    recommendation,
+    recLine,
+    recProbability: selectedSide.side === 'AWAY' ? sharpImpliedProb : 100 - sharpImpliedProb,
     
-    market: mathEdge.market,
-    side: mathEdge.side,
-    line: mathEdge.line,
+    market: selectedSide.market,
+    side: selectedSide.side,
+    line: selectedSide.bestSoftLine,
     
     sharpImpliedProb,
-    softBestOdds: mathEdge.odds,
-    softBestBook: mathEdge.book,
-    lineValueCents: mathEdge.valueCents > 0 ? mathEdge.valueCents : 0,
-    lineValuePoints: mathEdge.valuePoints
+    softBestOdds: selectedSide.bestSoftOdds,
+    softBestBook: selectedSide.bestSoftBook,
+    lineValueCents: selectedSide.priceValue > 0 ? selectedSide.priceValue : 0,
+    lineValuePoints: selectedSide.lineValue
   };
 };
 
@@ -469,8 +513,8 @@ export const quickScanGame = async (game: Game): Promise<{ signal: 'RED' | 'YELL
     
     Return JSON:
     {
-      "signal": "RED" (star player OUT), "YELLOW" (key player questionable), or "WHITE" (normal),
-      "description": "Max 10 words - who is out and for which team"
+      "signal": "RED" (star player OUT or major injury disparity), "YELLOW" (key player questionable), or "WHITE" (both teams healthy),
+      "description": "Max 15 words - summarize injury situation for BOTH teams"
     }
   `;
 
