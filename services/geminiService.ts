@@ -260,11 +260,39 @@ export const analyzeGame = async (game: QueuedGame): Promise<HighHitAnalysis> =>
     };
   }
   
-  // STEP 2: Get sharp probabilities for context
+  // STEP 2: Get sharp probabilities AND run initial math scan
   let sharpImpliedProb = 50;
+  let bestValue = { valueCents: 0, book: 'N/A', market: 'N/A', side: 'N/A', line: '', odds: '', fairProb: 0 };
+
   if (game.sharpLines) {
     const noVig = calculateNoVigProb(game.sharpLines.mlOddsA, game.sharpLines.mlOddsB);
     sharpImpliedProb = noVig.probA;
+
+    // Scan ALL markets immediately to see if ANY value exists
+    if (game.softLines.length > 0) {
+      bestValue = findBestValue(game.sharpLines, game.softLines, game.sport, 'ALL');
+    }
+  }
+  
+  // STEP 2.5: STRICT MATH VALIDATION
+  // If the math engine found no valid value (or sanity guards killed everything),
+  // we MUST return PASS immediately. Do not ask the AI.
+  if (bestValue.valueCents <= 0 || bestValue.market === 'N/A') {
+    return {
+      decision: 'PASS',
+      vetoTriggered: true,
+      vetoReason: "MATH_VETO: No positive value found on any market (or filtered by sanity guards).",
+      researchSummary: "Mathematical scan completed. No edge found greater than 0 cents.",
+      edgeNarrative: "No mathematical edge.",
+      market: "N/A",
+      side: "N/A",
+      line: "N/A",
+      sharpImpliedProb,
+      softBestOdds: "N/A",
+      softBestBook: "N/A",
+      lineValueCents: 0,
+      lineValuePoints: 0
+    };
   }
   
   // STEP 3: AI Research - NOW ASKS FOR edgeFavors
@@ -337,7 +365,8 @@ Remember: PASSING IS PROFITABLE. When in doubt, edgeFavors = "NONE" → decision
   }
   
   // STEP 5: AI found an edge direction - now find best price for THAT SIDE
-  let bestValue = { valueCents: 0, book: 'N/A', market: 'N/A', side: 'N/A', line: '', odds: '', fairProb: 0 };
+  // Reset bestValue to ensure we only pick something that matches the AI's narrative
+  bestValue = { valueCents: 0, book: 'N/A', market: 'N/A', side: 'N/A', line: '', odds: '', fairProb: 0 };
   
   if (game.sharpLines && game.softLines.length > 0) {
     // Map AI's edgeFavors to our targetSide format
