@@ -45,6 +45,11 @@ export interface HighHitAnalysis {
   vetoTriggered: boolean;
   vetoReason?: string;
   
+  // Math-derived recommendation
+  recommendation?: string;  // "Buffalo Sabres Moneyline"
+  recLine?: string;         // "+145" or "-6.5 (-108)"
+  recProbability?: number;  // Fair prob for this specific bet
+  
   // Line shopping data (calculated in TypeScript, not by AI)
   sharpImpliedProb?: number;
   softBestOdds?: string;

@@ -215,13 +215,25 @@ const QueuedGameCard: React.FC<Props> = ({
               )}
             </div>
             
+            {/* The Pick - shows the recommended bet */}
+            {game.analysis.decision === 'PLAYABLE' && game.analysis.recommendation && (
+              <div className="px-3 py-3 border-b border-slate-700 bg-emerald-900/10">
+                <div className="font-bold text-emerald-400 text-lg">
+                  {game.analysis.recommendation} {game.analysis.recLine}
+                </div>
+                <div className="text-xs text-slate-400 mt-1">
+                  @ {game.analysis.softBestBook} {game.analysis.lineValueCents && game.analysis.lineValueCents > 0 ? `• +${game.analysis.lineValueCents} cents value` : ''}
+                </div>
+              </div>
+            )}
+            
             {game.analysis.vetoTriggered && game.analysis.vetoReason && (
               <div className="px-3 py-2 bg-red-900/20 text-red-400 text-xs border-b border-slate-700">
                 <strong>Veto:</strong> {game.analysis.vetoReason}
               </div>
             )}
             
-            {game.analysis.lineValueCents !== undefined && game.analysis.lineValueCents > 0 && (
+            {game.analysis.lineValueCents !== undefined && game.analysis.lineValueCents > 0 && !game.analysis.recommendation && (
               <div className="px-3 py-2 bg-emerald-900/20 text-emerald-400 text-xs border-b border-slate-700">
                 <strong>Line Value:</strong> +{game.analysis.lineValueCents} cents at {game.analysis.softBestBook}
               </div>

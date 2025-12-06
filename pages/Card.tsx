@@ -23,8 +23,11 @@ export default function Card() {
         const a = g.analysis!;
         output += `\n${g.sport}: ${g.awayTeam.name} @ ${g.homeTeam.name}\n`;
         output += `Sharp Fair Prob: ${a.sharpImpliedProb?.toFixed(1) || 'N/A'}%\n`;
+        if (a.recommendation) {
+           output += `PICK: ${a.recommendation} ${a.recLine} @ ${a.softBestBook}\n`;
+        }
         if (a.lineValueCents && a.lineValueCents > 0) {
-          output += `Line Value: +${a.lineValueCents} cents at ${a.softBestBook}\n`;
+          output += `Line Value: +${a.lineValueCents} cents\n`;
         }
         output += `Edge: ${a.edgeNarrative || 'No specific edge identified'}\n`;
       });
@@ -142,26 +145,36 @@ const PlayableCard: React.FC<{ game: QueuedGame }> = ({ game }) => {
   
   return (
     <div className="p-4 rounded-xl border border-emerald-500/30 bg-emerald-950/20">
-      <div className="flex justify-between items-start mb-3">
+      <div className="flex justify-between items-start mb-2">
         <span className="text-xs font-bold text-slate-400 uppercase">{game.sport}</span>
-        {a.sharpImpliedProb && (
+        {a.recProbability !== undefined && a.recProbability > 0 && (
           <span className="text-xs font-mono bg-slate-800 px-2 py-1 rounded text-slate-300">
-            Fair: {a.sharpImpliedProb.toFixed(1)}%
+            Fair: {a.recProbability.toFixed(1)}%
           </span>
         )}
       </div>
       
-      <div className="font-bold text-white text-lg mb-2">
+      {/* THE PICK - BIG AND BOLD */}
+      {a.recommendation && (
+        <div className="mb-4">
+          <div className="text-xl font-bold text-white leading-tight">
+            {a.recommendation} <span className="text-emerald-400">{a.recLine}</span>
+          </div>
+          <div className="text-sm text-slate-400 mt-1">
+            @ {a.softBestBook}
+          </div>
+        </div>
+      )}
+      
+      {/* Matchup context */}
+      <div className="text-sm text-slate-500 mb-3">
         {game.awayTeam.name} @ {game.homeTeam.name}
       </div>
       
-      {/* Line Value Display */}
+      {/* Line Value Badge */}
       {(a.lineValueCents !== undefined && a.lineValueCents > 0) && (
-        <div className="flex items-center space-x-2 mb-3">
-          <span className="text-xs bg-emerald-900/50 text-emerald-400 px-2 py-1 rounded">
-            +{a.lineValueCents} cents
-          </span>
-          <span className="text-xs text-slate-400">@ {a.softBestBook}</span>
+        <div className="inline-block bg-emerald-900/50 text-emerald-400 text-xs px-2 py-1 rounded border border-emerald-500/30 mb-3">
+          +{a.lineValueCents} cents vs sharp
         </div>
       )}
       
@@ -171,9 +184,9 @@ const PlayableCard: React.FC<{ game: QueuedGame }> = ({ game }) => {
         </div>
       )}
       
-      <details className="text-xs text-slate-400">
-        <summary className="cursor-pointer hover:text-slate-300">Research Summary</summary>
-        <div className="mt-2 p-2 bg-slate-900 rounded whitespace-pre-wrap">
+      <details className="text-xs text-slate-400 border-t border-slate-700/50 pt-2">
+        <summary className="cursor-pointer hover:text-slate-300 font-medium">Research Summary</summary>
+        <div className="mt-2 p-2 bg-slate-900 rounded whitespace-pre-wrap text-slate-300">
           {a.researchSummary}
         </div>
       </details>

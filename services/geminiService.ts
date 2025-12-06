@@ -102,6 +102,125 @@ export const checkPriceVetoes = (game: QueuedGame): { triggered: boolean, reason
 };
 
 // ============================================
+// HELPER: ROBUST JSON PARSER
+// ============================================
+
+const cleanAndParseJson = (text: string | undefined): any => {
+  if (!text) throw new Error("Empty response from AI");
+  
+  // Remove markdown code blocks
+  let clean = text.replace(/```json/g, '').replace(/```/g, '').trim();
+  
+  // Attempt to find JSON object structure (first { to last })
+  const firstBrace = clean.indexOf('{');
+  const lastBrace = clean.lastIndexOf('}');
+  
+  if (firstBrace !== -1 && lastBrace !== -1) {
+    clean = clean.substring(firstBrace, lastBrace + 1);
+  }
+  
+  return JSON.parse(clean);
+};
+
+// ============================================
+// HELPERS
+// ============================================
+
+const fileToBase64 = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => {
+      let encoded = reader.result?.toString().replace(/^data:(.*,)?/, '');
+      if (encoded && (encoded.length % 4) > 0) {
+        encoded += '='.repeat(4 - (encoded.length % 4));
+      }
+      resolve(encoded || '');
+    };
+    reader.onerror = error => reject(error);
+  });
+};
+
+// ============================================
+// MARKET SCANNER
+// ============================================
+
+// === Find the best value for a SPECIFIC side with SANITY GUARDS ===
+const findBestValue = (sharp: BookLines, softLines: BookLines[], sport: string, targetSide: 'AWAY' | 'HOME' | 'OVER' | 'UNDER' | 'ALL' = 'ALL') => {
+  let best = {
+    valueCents: -999,
+    book: '',
+    market: 'N/A',
+    side: 'N/A',
+    line: '',
+    odds: '',
+    fairProb: 0
+  };
+
+  const check = (sharpOdds: string, softOdds: string, market: string, side: string, line: string, bookName: string) => {
+    if (!sharpOdds || !softOdds || sharpOdds === 'N/A' || softOdds === 'N/A') return;
+    
+    // Skip if we're targeting a specific side and this isn't it
+    if (targetSide !== 'ALL') {
+      if (targetSide === 'AWAY' && side !== 'Away') return;
+      if (targetSide === 'HOME' && side !== 'Home') return;
+      if (targetSide === 'OVER' && side !== 'Over') return;
+      if (targetSide === 'UNDER' && side !== 'Under') return;
+    }
+    
+    // SANITY CHECK 1: Filter out bad OCR scans
+    // Real odds are between -2000 and +2000. Anything outside is garbage.
+    const sharpNum = parseFloat(sharpOdds);
+    const softNum = parseFloat(softOdds);
+    if (isNaN(sharpNum) || isNaN(softNum)) return;
+    if (Math.abs(sharpNum) > 2000) return;
+    if (Math.abs(softNum) > 2000) return;
+    
+    const fairProb = americanToImpliedProb(sharpOdds);
+    
+    // SANITY CHECK 2: Probability Caps
+    // No spread/puckline is 80% likely. No ML is 92% likely in competitive sports.
+    if (market === 'Spread' && fairProb > 80) return;
+    if (market === 'Total' && fairProb > 80) return;
+    if (market === 'Moneyline' && fairProb > 92) return;
+
+    // Calculate value
+    const val = calculateJuiceDiff(sharpOdds, softOdds);
+    
+    // SANITY CHECK 3: Value Cap
+    // If we find >50 cents of value, it's likely mismatched data (alt line vs main, or OCR error)
+    // Real edges are 2-15 cents. 50+ is impossible.
+    if (val > 50) return;
+    
+    // SANITY CHECK 4: Negative value cap
+    // If value is worse than -50 cents, something is wrong with the data
+    if (val < -50) return;
+
+    if (val > best.valueCents) {
+      best = { valueCents: val, book: bookName, market, side, line, odds: softOdds, fairProb };
+    }
+  };
+
+  softLines.forEach(soft => {
+    // Check Spreads (Away & Home)
+    check(sharp.spreadOddsA, soft.spreadOddsA, 'Spread', 'Away', soft.spreadLineA, soft.bookName);
+    check(sharp.spreadOddsB, soft.spreadOddsB, 'Spread', 'Home', soft.spreadLineB, soft.bookName);
+    
+    // Check Moneylines (Away & Home)
+    check(sharp.mlOddsA, soft.mlOddsA, 'Moneyline', 'Away', 'ML', soft.bookName);
+    check(sharp.mlOddsB, soft.mlOddsB, 'Moneyline', 'Home', 'ML', soft.bookName);
+    
+    // Check Totals — NHL ONLY per v2.1 rules
+    if (sport === 'NHL') {
+      check(sharp.totalOddsOver, soft.totalOddsOver, 'Total', 'Over', `o${soft.totalLine}`, soft.bookName);
+      check(sharp.totalOddsUnder, soft.totalOddsUnder, 'Total', 'Under', `u${soft.totalLine}`, soft.bookName);
+    }
+  });
+
+  return best;
+};
+
+// ============================================
 // EXTRACTION SERVICE (Screenshot → Lines)
 // ============================================
 
@@ -141,133 +260,126 @@ export const extractLinesFromScreenshot = async (file: File): Promise<BookLines>
     }
   });
 
-  if (!response.text) throw new Error("No data extracted");
-  return JSON.parse(response.text);
+  return cleanAndParseJson(response.text);
 };
 
 // ============================================
 // ANALYSIS SERVICE (Research + Veto Check)
 // ============================================
 
-const analysisSchema: Schema = {
-  type: Type.OBJECT,
-  properties: {
-    decision: { type: Type.STRING, enum: ["PLAYABLE", "PASS"] },
-    vetoTriggered: { type: Type.BOOLEAN },
-    vetoReason: { type: Type.STRING, description: "Which veto rule was triggered and why" },
-    researchSummary: { type: Type.STRING, description: "Bullet points of injuries, rest, efficiency data found" },
-    edgeNarrative: { type: Type.STRING, description: "Plain English edge description, NO percentages" },
-    market: { type: Type.STRING },
-    side: { type: Type.STRING },
-    line: { type: Type.STRING },
-  },
-  required: ["decision", "vetoTriggered", "researchSummary"]
-};
-
 export const analyzeGame = async (game: QueuedGame): Promise<HighHitAnalysis> => {
   const ai = getAiClient();
   
-  // STEP 1: Check price vetoes in TypeScript (no AI needed)
+  // STEP 1: Check price vetoes (TypeScript)
   const priceVeto = checkPriceVetoes(game);
   if (priceVeto.triggered) {
     return {
       decision: 'PASS',
       vetoTriggered: true,
       vetoReason: priceVeto.reason,
-      researchSummary: 'Price veto triggered before research phase.',
+      researchSummary: 'Price veto triggered.',
     };
   }
   
-  // STEP 2: Calculate sharp baseline (TypeScript math)
-  let sharpImpliedProb: number | undefined;
-  let lineValueCents: number | undefined;
-  let lineValuePoints: number | undefined;
-  let softBestOdds: string | undefined;
-  let softBestBook: string | undefined;
-  
+  // STEP 2: Find the BEST mathematical edge across all markets
+  let bestValue = { valueCents: 0, book: 'N/A', market: 'N/A', side: 'N/A', line: '', odds: '', fairProb: 0 };
+  let sharpImpliedProb = 0;
+
   if (game.sharpLines && game.softLines.length > 0) {
-    // Calculate no-vig probability from sharp
     const noVig = calculateNoVigProb(game.sharpLines.mlOddsA, game.sharpLines.mlOddsB);
-    sharpImpliedProb = noVig.probA; // Away team's fair probability
-    
-    // Find best soft line (track index to use for line value calculation)
-    let bestJuiceDiff = -999;
-    let bestSoftIndex = 0;
-    
-    for (let i = 0; i < game.softLines.length; i++) {
-      const soft = game.softLines[i];
-      const juiceDiff = calculateJuiceDiff(game.sharpLines.spreadOddsA, soft.spreadOddsA);
-      if (juiceDiff > bestJuiceDiff) {
-        bestJuiceDiff = juiceDiff;
-        bestSoftIndex = i;
-        softBestOdds = soft.spreadOddsA;
-        softBestBook = soft.bookName;
-      }
-    }
-    
-    lineValueCents = bestJuiceDiff;
-    
-    // Calculate line value (point difference) using the SAME best soft book
-    const bestSoft = game.softLines[bestSoftIndex];
-    lineValuePoints = calculateLineDiff(game.sharpLines.spreadLineA, bestSoft.spreadLineA);
+    sharpImpliedProb = noVig.probA;
+
+    // Scan all markets for best value (with sanity guards)
+    bestValue = findBestValue(game.sharpLines, game.softLines, game.sport);
   }
   
-  // STEP 3: AI Research + Veto Check (constrained role)
+  // STEP 3: AI Research (Constrained)
+  const dateObj = new Date(game.date);
+  const readableDate = dateObj.toLocaleDateString('en-US', { 
+    weekday: 'short', 
+    month: 'long', 
+    day: 'numeric' 
+  });
+
   const researchPrompt = `
 MATCHUP: ${game.awayTeam.name} at ${game.homeTeam.name}
 SPORT: ${game.sport}
-DATE: ${game.date}
+DATE: ${readableDate}
 
 SHARP LINES (Pinnacle):
 - Spread: ${game.sharpLines?.spreadLineA || 'N/A'} (${game.sharpLines?.spreadOddsA || 'N/A'})
 - ML: ${game.sharpLines?.mlOddsA || 'N/A'} / ${game.sharpLines?.mlOddsB || 'N/A'}
 - Total: ${game.sharpLines?.totalLine || 'N/A'}
 
-CALCULATED FAIR PROBABILITY (from sharp line): ${sharpImpliedProb?.toFixed(1) || 'N/A'}%
-(This is MATH, not your estimate. Do not change it.)
+MATHEMATICAL CONTEXT:
+Best Value Found: ${bestValue.side} ${bestValue.market} (+${bestValue.valueCents} cents edge at ${bestValue.book})
 
 YOUR TASK:
 1. Search for injuries, rest, efficiency rankings, and lineup confirmations.
 2. Check each VETO rule against what you find.
 3. If ANY veto triggers, return decision: "PASS" with vetoReason.
 4. If no veto triggers, return decision: "PLAYABLE" with researchSummary.
+5. You MUST return ONLY valid JSON.
 
-Remember: You do NOT estimate probability. The math is already done above.
-PASSING IS PROFITABLE.
+Remember: PASSING IS PROFITABLE.
 `;
 
   const response = await ai.models.generateContent({
-    model: 'gemini-2.5-flash', // Flash is fine for research, and more reliable than Pro for rule-following
+    model: 'gemini-2.5-flash',
     contents: researchPrompt,
     config: {
       systemInstruction: HIGH_HIT_SYSTEM_PROMPT,
       tools: [{ googleSearch: {} }],
-      responseMimeType: "application/json",
-      responseSchema: analysisSchema,
-      temperature: 0.2 // Low for strict rule adherence
+      // NOTE: Cannot use responseMimeType with tools for this model config
+      temperature: 0.2
     }
   });
 
-  if (!response.text) throw new Error("Analysis failed");
+  const aiResult = cleanAndParseJson(response.text);
+
+  // SANITY CHECK: If no valid value found after guards, something is wrong with the data
+  if (bestValue.valueCents <= 0 && aiResult.decision === 'PLAYABLE') {
+    console.warn("AI said PLAYABLE but no valid line value found after sanity checks. Check OCR data.");
+  }
   
-  const aiResult = JSON.parse(response.text);
+  // STEP 4: Build recommendation using MATH (not AI)
+  const teamName = bestValue.side === 'Away' ? game.awayTeam.name : 
+                   bestValue.side === 'Home' ? game.homeTeam.name :
+                   bestValue.side; // For Over/Under
   
-  // Combine AI research with TypeScript calculations
+  const recommendation = bestValue.market === 'N/A' 
+    ? undefined 
+    : `${teamName} ${bestValue.market}`;
+
+  const recLine = bestValue.market === 'Total' 
+    ? `${bestValue.line} (${bestValue.odds})`
+    : bestValue.market === 'Spread'
+    ? `${bestValue.line} (${bestValue.odds})`
+    : bestValue.odds; // ML just shows odds
+
   return {
     decision: aiResult.decision,
     vetoTriggered: aiResult.vetoTriggered,
     vetoReason: aiResult.vetoReason,
     researchSummary: aiResult.researchSummary,
     edgeNarrative: aiResult.edgeNarrative,
-    market: aiResult.market,
-    side: aiResult.side,
-    line: aiResult.line,
-    // TypeScript-calculated values (the truth)
+    
+    // Math-derived recommendation
+    recommendation: aiResult.decision === 'PLAYABLE' ? recommendation : undefined,
+    recLine: aiResult.decision === 'PLAYABLE' ? recLine : undefined,
+    recProbability: bestValue.fairProb,
+    
+    market: bestValue.market,
+    side: bestValue.side,
+    line: bestValue.line,
+    
     sharpImpliedProb,
-    softBestOdds,
-    softBestBook,
-    lineValueCents,
-    lineValuePoints,
+    softBestOdds: bestValue.odds,
+    softBestBook: bestValue.book,
+    lineValueCents: bestValue.valueCents,
+    // Note: lineValuePoints was part of previous types but not fully used here, 
+    // maintaining consistency with interface if needed but primarily using cents value now.
+    lineValuePoints: 0 
   };
 };
 
@@ -277,22 +389,41 @@ PASSING IS PROFITABLE.
 
 export const quickScanGame = async (game: Game): Promise<{ signal: 'RED' | 'YELLOW' | 'WHITE', description: string }> => {
   const ai = getAiClient();
+  
+  // FIX: Format the date to be human-readable for the Search Engine
+  // This prevents the "Game not scheduled" error caused by ISO timestamps
+  const dateObj = new Date(game.date);
+  const readableDate = dateObj.toLocaleDateString('en-US', { 
+    weekday: 'short', 
+    month: 'long', 
+    day: 'numeric' 
+  });
+
   const prompt = `
-Quick injury/rest scan for: ${game.awayTeam.name} at ${game.homeTeam.name} (${game.sport})
-Date: ${game.date}
-
-Search for:
-1. Major injuries (stars OUT or Questionable)
-2. Back-to-back or 3-in-4 rest disadvantage
-3. NHL: Goalie confirmation
-4. MLB: Pitcher confirmation
-
-Return JSON:
-{
-  "signal": "RED" (major injury/rest), "YELLOW" (minor concern), "WHITE" (nothing notable),
-  "description": "Brief summary under 15 words"
-}
-`;
+    You are a sports betting researcher. Perform a Google Search for this specific matchup:
+    "${game.awayTeam.name} vs ${game.homeTeam.name} ${game.sport} injury report ${readableDate}"
+    
+    CONTEXT:
+    - Sport: ${game.sport}
+    - Teams: ${game.awayTeam.name} (Away) vs ${game.homeTeam.name} (Home)
+    - Date: ${readableDate}
+    
+    TASK:
+    1. Check for **Major Injuries** to star players (OUT/Doubtful).
+    2. Check for **Rest Disadvantage** (Back-to-backs).
+    3. (NHL Only) Check for **Goalie Confirmation**.
+    
+    CRITICAL RULES:
+    - Do NOT invent team names. Use the exact names provided above.
+    - If the exact date search fails, look for the most recent news for these two teams.
+    - If no major news is found, return WHITE signal.
+    
+    Output valid JSON:
+    {
+      "signal": "RED" (if Star OUT or huge rest disadv), "YELLOW" (minor injury/unconfirmed goalie), "WHITE" (standard game),
+      "description": "Max 10 words. Be specific (e.g. 'Matthews OUT', 'Utah B2B', 'Oettinger Confirmed')"
+    }
+  `;
 
   try {
     const response = await ai.models.generateContent({
@@ -308,13 +439,18 @@ Return JSON:
     text = text.replace(/```json/g, '').replace(/```/g, '').trim();
     
     try {
-      return JSON.parse(text);
-    } catch {
-      return { signal: 'WHITE', description: 'Could not parse scan result' };
+      const json = JSON.parse(text);
+      return {
+        signal: json.signal || 'WHITE',
+        description: json.description || 'Scan completed'
+      };
+    } catch (parseError) {
+      console.warn("Could not parse scan result, returning default.", text);
+      return { signal: 'WHITE', description: 'No significant news found' };
     }
   } catch (e) {
     console.error("Quick scan failed", e);
-    return { signal: 'WHITE', description: 'Scan failed' };
+    return { signal: 'WHITE', description: 'Scan unavailable' };
   }
 };
 
@@ -336,23 +472,4 @@ export const detectMarketDiff = (sharpVal: string, softVal: string, type: 'SPREA
     return Math.abs(s1 - s2) > 15;
   }
   return false;
-};
-
-// ============================================
-// HELPERS
-// ============================================
-
-const fileToBase64 = (file: File): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = () => {
-      let encoded = reader.result?.toString().replace(/^data:(.*,)?/, '');
-      if (encoded && (encoded.length % 4) > 0) {
-        encoded += '='.repeat(4 - (encoded.length % 4));
-      }
-      resolve(encoded || '');
-    };
-    reader.onerror = error => reject(error);
-  });
 };
