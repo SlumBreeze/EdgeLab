@@ -98,18 +98,7 @@ export const calculateLineDiff = (sharpLine: string, softLine: string): number =
 export const checkPriceVetoes = (game: QueuedGame): { triggered: boolean, reason?: string } => {
   if (!game.sharpLines) return { triggered: false };
   
-  // Use normalized odds for price check
-  const mlA = normalizeToAmerican(game.sharpLines.mlOddsA);
-  const mlB = normalizeToAmerican(game.sharpLines.mlOddsB);
-  
-  if (mlA < -170 || mlB < -170) {
-    // Only trigger if we are actually confident it's a huge favorite
-    const favoritePrice = mlA < mlB ? mlA : mlB;
-    return { 
-      triggered: true, 
-      reason: `PRICE_CAP: Favorite priced at ${Math.round(favoritePrice)} (worse than -170)` 
-    };
-  }
+  // Note: PRICE_CAP removed to allow betting on underdogs in games with heavy favorites.
   
   const spreadA = Math.abs(parseFloat(game.sharpLines.spreadLineA));
   
