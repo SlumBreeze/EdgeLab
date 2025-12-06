@@ -56,6 +56,13 @@ export const americanToImpliedProb = (odds: string | number): number => {
 export const calculateNoVigProb = (oddsA: string, oddsB: string): { probA: number, probB: number } => {
   const impliedA = americanToImpliedProb(oddsA);
   const impliedB = americanToImpliedProb(oddsB);
+  
+  // SANITY CHECK: If either side is >90%, data is corrupted (no real game is 90%+ likely)
+  if (impliedA > 90 || impliedB > 90) {
+    console.warn(`Sanity check failed: impliedA=${impliedA.toFixed(1)}%, impliedB=${impliedB.toFixed(1)}%. Returning 50/50.`);
+    return { probA: 50, probB: 50 };
+  }
+  
   const total = impliedA + impliedB;
   return {
     probA: Math.round((impliedA / total) * 1000) / 10,
@@ -292,7 +299,7 @@ export const analyzeGame = async (game: QueuedGame): Promise<HighHitAnalysis> =>
   
   // STEP 2: Get sharp probabilities AND run initial math scan
   let sharpImpliedProb = 50;
-  let bestValue = { valueCents: 0, book: 'N/A', market: 'N/A', side: 'N/A', line: '', odds: '', fairProb: 0 };
+  let initialBestValue = { valueCents: 0, book: 'N/A', market: 'N/A', side: 'N/A', line: '', odds: '', fairProb: 0 };
 
   if (game.sharpLines) {
     const noVig = calculateNoVigProb(game.sharpLines.mlOddsA, game.sharpLines.mlOddsB);
@@ -300,20 +307,18 @@ export const analyzeGame = async (game: QueuedGame): Promise<HighHitAnalysis> =>
 
     // Scan ALL markets immediately to see if ANY value exists
     if (game.softLines.length > 0) {
-      bestValue = findBestValue(game.sharpLines, game.softLines, game.sport, 'ALL');
+      initialBestValue = findBestValue(game.sharpLines, game.softLines, game.sport, 'ALL');
     }
   }
   
-  // STEP 2.5: STRICT MATH VALIDATION
-  // If the math engine found no valid value (or sanity guards killed everything),
-  // we MUST return PASS immediately. Do not ask the AI.
-  if (bestValue.valueCents <= 0 || bestValue.market === 'N/A') {
+  // STEP 2.5: MATH_VETO - Skip AI call if no mathematical edge exists
+  if (initialBestValue.valueCents <= 0 || initialBestValue.market === 'N/A') {
     return {
       decision: 'PASS',
       vetoTriggered: true,
-      vetoReason: "MATH_VETO: No positive value found on any market (or filtered by sanity guards).",
-      researchSummary: "Mathematical scan completed. No edge found greater than 0 cents.",
-      edgeNarrative: "No mathematical edge.",
+      vetoReason: "MATH_VETO: No positive value found on any market after sanity checks.",
+      researchSummary: "Mathematical scan completed. No edge found. Skipped AI research to save costs.",
+      edgeNarrative: "No mathematical edge - passing.",
       market: "N/A",
       side: "N/A",
       line: "N/A",
@@ -396,7 +401,7 @@ Remember: PASSING IS PROFITABLE. When in doubt, edgeFavors = "NONE" → decision
   
   // STEP 5: AI found an edge direction - now find best price for THAT SIDE
   // Reset bestValue to ensure we only pick something that matches the AI's narrative
-  bestValue = { valueCents: 0, book: 'N/A', market: 'N/A', side: 'N/A', line: '', odds: '', fairProb: 0 };
+  let bestValue = { valueCents: 0, book: 'N/A', market: 'N/A', side: 'N/A', line: '', odds: '', fairProb: 0 };
   
   if (game.sharpLines && game.softLines.length > 0) {
     // Map AI's edgeFavors to our targetSide format
@@ -404,33 +409,45 @@ Remember: PASSING IS PROFITABLE. When in doubt, edgeFavors = "NONE" → decision
     
     bestValue = findBestValue(game.sharpLines, game.softLines, game.sport, targetSide);
     
-    // If no valid market found for the favored side, still try to build a recommendation
-    if (bestValue.market === 'N/A') {
-      // Fallback: Build recommendation from the AI's edge direction even without line value
-      const teamName = targetSide === 'AWAY' ? game.awayTeam.name : 
-                       targetSide === 'HOME' ? game.homeTeam.name :
-                       targetSide;
-      
-      // Get the appropriate odds from sharp lines as fallback
+    // STEP 5.5: If no value found for AI's side, build fallback recommendation
+    if (bestValue.market === 'N/A' || bestValue.valueCents <= 0) {
       let fallbackOdds = '';
       let fallbackLine = '';
       let fallbackFairProb = 50;
+      let fallbackMarket = 'Moneyline';
+      let fallbackSide = '';
       
       if (targetSide === 'AWAY') {
-        fallbackOdds = game.sharpLines.mlOddsA;
+        fallbackOdds = game.sharpLines!.mlOddsA;
         fallbackLine = 'ML';
         fallbackFairProb = sharpImpliedProb;
+        fallbackMarket = 'Moneyline';
+        fallbackSide = 'Away';
       } else if (targetSide === 'HOME') {
-        fallbackOdds = game.sharpLines.mlOddsB;
+        fallbackOdds = game.sharpLines!.mlOddsB;
         fallbackLine = 'ML';
         fallbackFairProb = 100 - sharpImpliedProb;
+        fallbackMarket = 'Moneyline';
+        fallbackSide = 'Home';
+      } else if (targetSide === 'OVER') {
+        fallbackOdds = game.sharpLines!.totalOddsOver || '-110';
+        fallbackLine = `o${game.sharpLines!.totalLine}`;
+        fallbackFairProb = 50;
+        fallbackMarket = 'Total';
+        fallbackSide = 'Over';
+      } else if (targetSide === 'UNDER') {
+        fallbackOdds = game.sharpLines!.totalOddsUnder || '-110';
+        fallbackLine = `u${game.sharpLines!.totalLine}`;
+        fallbackFairProb = 50;
+        fallbackMarket = 'Total';
+        fallbackSide = 'Under';
       }
       
       bestValue = {
         valueCents: 0,
-        book: 'Sharp Price',
-        market: 'Moneyline',
-        side: targetSide === 'AWAY' ? 'Away' : targetSide === 'HOME' ? 'Home' : targetSide,
+        book: 'Sharp Price (no soft edge)',
+        market: fallbackMarket,
+        side: fallbackSide,
         line: fallbackLine,
         odds: fallbackOdds,
         fairProb: fallbackFairProb
