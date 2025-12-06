@@ -9,12 +9,40 @@ const getAiClient = () => new GoogleGenAI({ apiKey: process.env.API_KEY });
 // ============================================
 
 /**
+ * Helper: Convert any odds format to American Number
+ * Handles Decimal (1.91) vs American (-110) distinction automatically.
+ */
+const normalizeToAmerican = (odds: string | number): number => {
+  const val = typeof odds === 'string' ? parseFloat(odds) : odds;
+  if (isNaN(val)) return 0;
+
+  // Heuristic: If odds are between 1.0 and 9.0 (exclusive of 0), it's likely Decimal.
+  // American odds of 1 to 9 would be +1 to +9 (impossible in betting).
+  // Smallest favorite -10000, Smallest dog +100.
+  // Exception: Huge longshots in Decimal (e.g. 50.0) vs American (+4900).
+  // We assume values < 100 and > 1.0 are Decimal.
+  
+  const isLikelyDecimal = Math.abs(val) < 50 && val > 1.0;
+
+  if (isLikelyDecimal) {
+    if (val >= 2.0) {
+      return (val - 1) * 100;
+    } else {
+      return -100 / (val - 1);
+    }
+  }
+  
+  return val;
+};
+
+/**
  * Convert American odds to implied probability
  * -110 → 52.38%, +150 → 40.00%
  */
 export const americanToImpliedProb = (odds: string | number): number => {
-  const o = typeof odds === 'string' ? parseFloat(odds) : odds;
-  if (isNaN(o)) return 50;
+  const o = normalizeToAmerican(odds);
+  if (isNaN(o) || o === 0) return 50;
+  
   if (o < 0) {
     return Math.abs(o) / (Math.abs(o) + 100) * 100;
   } else {
@@ -36,22 +64,22 @@ export const calculateNoVigProb = (oddsA: string, oddsB: string): { probA: numbe
 };
 
 /**
- * Calculate juice difference in cents
- * -108 vs -110 = +2 cents savings
+ * Calculate juice difference (Value) in cents
+ * Postive Result = Soft Book is Better (Value)
+ * Negative Result = Sharp Book is Better (No Value)
  */
 export const calculateJuiceDiff = (sharpOdds: string, softOdds: string): number => {
-  const sharp = parseFloat(sharpOdds);
-  const soft = parseFloat(softOdds);
-  if (isNaN(sharp) || isNaN(soft)) return 0;
+  const sharp = normalizeToAmerican(sharpOdds);
+  const soft = normalizeToAmerican(softOdds);
   
-  // For negative odds, less negative is better (savings)
-  // For positive odds, more positive is better
-  if (sharp < 0 && soft < 0) {
-    return Math.round(sharp - soft); // -108 - (-110) = +2
-  } else if (sharp > 0 && soft > 0) {
-    return Math.round(soft - sharp); // +155 - +150 = +5
-  }
-  return 0;
+  if (isNaN(sharp) || isNaN(soft) || sharp === 0 || soft === 0) return 0;
+  
+  // Logic: Always "Soft - Sharp" works for both positive and negative American odds
+  // Example Neg: Soft -105 (better), Sharp -110. (-105) - (-110) = +5. (Value)
+  // Example Pos: Soft +150 (better), Sharp +140. 150 - 140 = +10. (Value)
+  // Example Mixed: Soft +105, Sharp -105. 105 - (-105) = 210 (Huge value/Arb)
+  
+  return Math.round(soft - sharp);
 };
 
 /**
@@ -70,25 +98,29 @@ export const calculateLineDiff = (sharpLine: string, softLine: string): number =
 export const checkPriceVetoes = (game: QueuedGame): { triggered: boolean, reason?: string } => {
   if (!game.sharpLines) return { triggered: false };
   
-  const mlA = parseFloat(game.sharpLines.mlOddsA);
-  const mlB = parseFloat(game.sharpLines.mlOddsB);
+  // Use normalized odds for price check
+  const mlA = normalizeToAmerican(game.sharpLines.mlOddsA);
+  const mlB = normalizeToAmerican(game.sharpLines.mlOddsB);
   
   if (mlA < -170 || mlB < -170) {
+    // Only trigger if we are actually confident it's a huge favorite
+    const favoritePrice = mlA < mlB ? mlA : mlB;
     return { 
       triggered: true, 
-      reason: `PRICE_CAP: Favorite priced at ${mlA < mlB ? game.sharpLines.mlOddsA : game.sharpLines.mlOddsB} (worse than -170)` 
+      reason: `PRICE_CAP: Favorite priced at ${Math.round(favoritePrice)} (worse than -170)` 
     };
   }
   
   const spreadA = Math.abs(parseFloat(game.sharpLines.spreadLineA));
   
+  // Sport-specific spread caps
   let spreadLimit = 10.0;
   switch (game.sport) {
-    case 'NFL': spreadLimit = 14.0; break;
-    case 'NBA': spreadLimit = 16.0; break;
-    case 'CFB': spreadLimit = 24.0; break;
+    case 'NFL': spreadLimit = 14.5; break;
+    case 'NBA': spreadLimit = 16.5; break;
+    case 'CFB': spreadLimit = 35.0; break; // Opened up significantly for CFB
     case 'NHL': 
-    case 'MLB': spreadLimit = 4.0; break;
+    case 'MLB': spreadLimit = 4.5; break;
     default: spreadLimit = 10.0;
   }
 
@@ -200,11 +232,9 @@ const findBestValue = (sharp: BookLines, softLines: BookLines[], sport: string, 
     check(sharp.mlOddsA, soft.mlOddsA, 'Moneyline', 'Away', 'ML', soft.bookName);
     check(sharp.mlOddsB, soft.mlOddsB, 'Moneyline', 'Home', 'ML', soft.bookName);
     
-    // Check Totals — NHL ONLY per v2.1 rules
-    if (sport === 'NHL') {
-      check(sharp.totalOddsOver, soft.totalOddsOver, 'Total', 'Over', `o${soft.totalLine}`, soft.bookName);
-      check(sharp.totalOddsUnder, soft.totalOddsUnder, 'Total', 'Under', `u${soft.totalLine}`, soft.bookName);
-    }
+    // Check Totals (All Sports)
+    check(sharp.totalOddsOver, soft.totalOddsOver, 'Total', 'Over', `o${soft.totalLine}`, soft.bookName);
+    check(sharp.totalOddsUnder, soft.totalOddsUnder, 'Total', 'Under', `u${soft.totalLine}`, soft.bookName);
   });
 
   return best;
