@@ -97,11 +97,24 @@ export const fetchOddsForSport = async (sport: Sport): Promise<any[]> => {
   }
 };
 
+// UPDATED FUNCTION: Checks cache first to save credits
 export const fetchOddsForGame = async (sport: Sport, gameId: string): Promise<any> => {
+  // 1. Try to find the game in the existing cache (FREE)
+  // This calls fetchOddsForSport, which checks the 15-min cache
+  const cachedGames = await fetchOddsForSport(sport);
+  const cachedGame = cachedGames.find((g: any) => g.id === gameId);
+  
+  if (cachedGame) {
+    console.log(`Found game ${gameId} in cache. Saving credits.`);
+    return cachedGame;
+  }
+
+  // 2. Fallback: Only call API directly if missing (Costs credits)
+  console.log(`Game ${gameId} not in cache. Fetching from API...`);
   const sportKey = SPORT_KEYS[sport];
   if (!sportKey || !API_KEY) return null;
 
-  // Use the specific event endpoint
+  // Use the specific event endpoint with correct regions
   const url = `${BASE_URL}/${sportKey}/events/${gameId}/odds?apiKey=${API_KEY}&regions=us,us2,eu&markets=h2h,spreads,totals&oddsFormat=american`;
 
   try {
