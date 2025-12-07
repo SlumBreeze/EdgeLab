@@ -1,9 +1,11 @@
 import { BookLines, Sport } from '../types';
 
-// Fallback key added explicitly to prevent runtime errors if build config replacement fails
+// UPDATED: Using the correct key that has usage history
 const API_KEY = process.env.ODDS_API_KEY || "93d0d9932ba8b9c297edb1858935cd3d";
 const BASE_URL = 'https://api.the-odds-api.com/v4/sports';
-const CACHE_DURATION = 15 * 60 * 1000; // 15 minutes
+
+// Cache Duration: 60 minutes (keeps "Scout" free for an hour)
+const CACHE_DURATION = 60 * 60 * 1000; 
 
 const SPORT_KEYS: Record<Sport, string> = {
   'NBA': 'basketball_nba',
@@ -14,23 +16,16 @@ const SPORT_KEYS: Record<Sport, string> = {
 };
 
 export const SOFT_BOOK_KEYS = [
-  'draftkings',
-  'fanduel', 
-  'bovada',
-  'betmgm',
-  'betrivers',
-  'fliff',
-  'espnbet'
+  'draftkings', 'fanduel', 'betmgm', 'williamhill_us', 'betrivers', 'bovada'
 ];
 
 export const BOOK_DISPLAY_NAMES: Record<string, string> = {
   'draftkings': 'DraftKings',
   'fanduel': 'FanDuel',
-  'bovada': 'Bovada',
   'betmgm': 'BetMGM',
+  'williamhill_us': 'Caesars',
   'betrivers': 'BetRivers',
-  'fliff': 'Fliff',
-  'espnbet': 'ESPN BET',
+  'bovada': 'Bovada',
   'pinnacle': 'Pinnacle'
 };
 
@@ -41,7 +36,8 @@ interface OddsCache {
   };
 }
 
-const cache: OddsCache = {};
+// In-memory cache acts as a fast layer on top of localStorage
+let memoryCache: OddsCache = {};
 
 const formatPoint = (point: number): string => {
   return point > 0 ? `+${point}` : `${point}`;
@@ -51,6 +47,9 @@ const formatOdds = (price: number): string => {
   return price > 0 ? `+${price}` : `${price}`;
 };
 
+// Helper to access localStorage safely
+const getStorageKey = (sportKey: string) => `edgelab_odds_cache_${sportKey}`;
+
 export const fetchOddsForSport = async (sport: Sport): Promise<any[]> => {
   const sportKey = SPORT_KEYS[sport];
   if (!sportKey) {
@@ -59,9 +58,35 @@ export const fetchOddsForSport = async (sport: Sport): Promise<any[]> => {
   }
 
   const now = Date.now();
-  if (cache[sportKey] && (now - cache[sportKey].timestamp < CACHE_DURATION)) {
-    console.log(`Returning cached odds for ${sport}`);
-    return cache[sportKey].data;
+  const storageKey = getStorageKey(sportKey);
+
+  // 1. Check In-Memory Cache (Fastest)
+  if (memoryCache[sportKey] && (now - memoryCache[sportKey].timestamp < CACHE_DURATION)) {
+    console.log(`[OddsService] Using memory cache for ${sport}`);
+    return memoryCache[sportKey].data;
+  }
+
+  // 2. Check LocalStorage (Persistence)
+  if (typeof window !== 'undefined') {
+    try {
+      const stored = localStorage.getItem(storageKey);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        const age = now - parsed.timestamp;
+        
+        if (age < CACHE_DURATION) {
+          console.log(`[OddsService] Restoring ${sport} from LocalStorage (${Math.round(age/1000/60)}m old)`);
+          // Hydrate memory cache
+          memoryCache[sportKey] = parsed;
+          return parsed.data;
+        } else {
+          console.log(`[OddsService] Expired LocalStorage for ${sport}`);
+          localStorage.removeItem(storageKey);
+        }
+      }
+    } catch (e) {
+      console.warn("Failed to parse odds cache", e);
+    }
   }
 
   if (!API_KEY) {
@@ -69,13 +94,14 @@ export const fetchOddsForSport = async (sport: Sport): Promise<any[]> => {
     return [];
   }
 
-  // Request US, US2 (offshore), and EU regions to cover all requested books
-  const url = `${BASE_URL}/${sportKey}/odds?apiKey=${API_KEY}&regions=us,us2,eu&markets=h2h,spreads,totals&oddsFormat=american`;
+  console.log(`[OddsService] Fetching fresh API data for ${sport}...`);
+  
+  // Request US and EU regions to cover US books and Pinnacle (often EU)
+  const url = `${BASE_URL}/${sportKey}/odds?apiKey=${API_KEY}&regions=us,eu&markets=h2h,spreads,totals&oddsFormat=american`;
   
   try {
     const response = await fetch(url);
     if (!response.ok) {
-      // 401 usually means quota exceeded or bad key
       if (response.status === 401) {
         console.warn("Odds API Key invalid or expired");
       }
@@ -84,11 +110,13 @@ export const fetchOddsForSport = async (sport: Sport): Promise<any[]> => {
     
     const data = await response.json();
     
-    // Update cache
-    cache[sportKey] = {
-      timestamp: now,
-      data: data
-    };
+    // 3. Update Caches
+    const cacheEntry = { timestamp: now, data: data };
+    memoryCache[sportKey] = cacheEntry;
+    
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(storageKey, JSON.stringify(cacheEntry));
+    }
     
     return data;
   } catch (error) {
@@ -97,25 +125,23 @@ export const fetchOddsForSport = async (sport: Sport): Promise<any[]> => {
   }
 };
 
-// UPDATED FUNCTION: Checks cache first to save credits
 export const fetchOddsForGame = async (sport: Sport, gameId: string): Promise<any> => {
   // 1. Try to find the game in the existing cache (FREE)
-  // This calls fetchOddsForSport, which checks the 15-min cache
+  // This calls fetchOddsForSport, which handles the cache logic internally
   const cachedGames = await fetchOddsForSport(sport);
   const cachedGame = cachedGames.find((g: any) => g.id === gameId);
   
   if (cachedGame) {
-    console.log(`Found game ${gameId} in cache. Saving credits.`);
+    console.log(`[OddsService] Found game ${gameId} in cache.`);
     return cachedGame;
   }
 
   // 2. Fallback: Only call API directly if missing (Costs credits)
-  console.log(`Game ${gameId} not in cache. Fetching from API...`);
+  console.log(`[OddsService] Game ${gameId} not in cache. Fetching single event...`);
   const sportKey = SPORT_KEYS[sport];
   if (!sportKey || !API_KEY) return null;
 
-  // Use the specific event endpoint with correct regions
-  const url = `${BASE_URL}/${sportKey}/events/${gameId}/odds?apiKey=${API_KEY}&regions=us,us2,eu&markets=h2h,spreads,totals&oddsFormat=american`;
+  const url = `${BASE_URL}/${sportKey}/events/${gameId}/odds?apiKey=${API_KEY}&regions=us,eu&markets=h2h,spreads,totals&oddsFormat=american`;
 
   try {
     const response = await fetch(url);
@@ -124,6 +150,17 @@ export const fetchOddsForGame = async (sport: Sport, gameId: string): Promise<an
   } catch (e) {
     console.error("Error fetching single game odds:", e);
     return null;
+  }
+};
+
+// Manually clear cache to force fresh data
+export const clearOddsCache = () => {
+  memoryCache = {};
+  if (typeof window !== 'undefined') {
+    Object.values(SPORT_KEYS).forEach(key => {
+      localStorage.removeItem(getStorageKey(key));
+    });
+    console.log("[OddsService] Cache cleared.");
   }
 };
 
@@ -149,7 +186,6 @@ export const getBookmakerLines = (gameData: any, bookmakerKey: string): BookLine
   // Moneyline (h2h)
   const h2hMarket = bookmaker.markets.find((m: any) => m.key === 'h2h');
   if (h2hMarket) {
-    // Assuming 'away_team' in API maps to our Team A
     const outcomeA = h2hMarket.outcomes.find((o: any) => o.name === awayTeam);
     const outcomeB = h2hMarket.outcomes.find((o: any) => o.name === homeTeam);
     if (outcomeA) mlOddsA = formatOdds(outcomeA.price);
