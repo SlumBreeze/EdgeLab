@@ -1,7 +1,7 @@
 import { BookLines, Sport } from '../types';
 
 // Fallback key added explicitly to prevent runtime errors if build config replacement fails
-const API_KEY = process.env.ODDS_API_KEY || "a45454608c6f67f3fc98630b07923484";
+const API_KEY = process.env.ODDS_API_KEY || "93d0d9932ba8b9c297edb1858935cd3d";
 const BASE_URL = 'https://api.the-odds-api.com/v4/sports';
 const CACHE_DURATION = 15 * 60 * 1000; // 15 minutes
 

@@ -47,11 +47,10 @@ export default function Scout() {
       setLoading(true);
       const data = await fetchOddsForSport(selectedSport);
       
-      // Filter by selected date (Odds API uses ISO UTC strings)
-      // We check if the game commences on the selected local date
+      // Filter to show games on or after selected date
       const filtered = data.filter((g: any) => {
-        const gameDate = new Date(g.commence_time).toLocaleDateString('en-CA'); // YYYY-MM-DD in local time
-        return gameDate === selectedDate;
+        const gameDate = new Date(g.commence_time).toLocaleDateString('en-CA');
+        return gameDate >= selectedDate;
       });
       
       setApiGames(filtered);
