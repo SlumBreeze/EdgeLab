@@ -15,7 +15,7 @@ export default function Card() {
 
   const generateClipboardText = () => {
     const dateStr = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
-    let output = `EDGELAB v2.1 — DISCIPLINE CARD\n${dateStr}\n${'='.repeat(35)}\n\n`;
+    let output = `EDGELAB v3 — DAILY CARD\n${dateStr}\n${'='.repeat(35)}\n\n`;
 
     if (playable.length > 0) {
       output += `✅ PLAYABLE (No Vetoes Triggered)\n`;
@@ -51,20 +51,20 @@ export default function Card() {
   return (
     <div className="p-4 max-w-lg mx-auto">
       <header className="mb-6">
-        <h1 className="text-2xl font-bold text-white mb-1">Daily Card</h1>
-        <p className="text-slate-500 text-sm">
+        <h1 className="text-2xl font-bold text-slate-800 mb-1">Daily Card</h1>
+        <p className="text-slate-400 text-sm">
           {new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
         </p>
       </header>
 
       {/* DISCIPLINE WARNING */}
       {overLimit && (
-        <div className="mb-6 p-4 bg-red-900/30 border border-red-500 rounded-xl">
-          <div className="flex items-center text-red-400 font-bold mb-2">
+        <div className="mb-6 p-4 bg-coral-50 border border-coral-200 rounded-2xl">
+          <div className="flex items-center text-coral-600 font-bold mb-2">
             <span className="text-xl mr-2">⚠️</span>
             DISCIPLINE WARNING
           </div>
-          <p className="text-red-300 text-sm">
+          <p className="text-coral-600 text-sm">
             You have {playableCount} playable games but the framework limits you to {MAX_DAILY_PLAYS} per day.
             Choose your best {MAX_DAILY_PLAYS} based on line value, not gut feel.
           </p>
@@ -72,32 +72,36 @@ export default function Card() {
       )}
 
       {analyzedGames.length === 0 ? (
-        <div className="text-center py-20 bg-slate-900 rounded-xl border border-slate-800">
-          <p className="text-slate-500">No analyses completed yet.</p>
-          <p className="text-slate-600 text-sm mt-2">Add games from Scout → Upload lines → Run analysis</p>
+        <div className="text-center py-20 bg-white rounded-2xl border border-slate-200 shadow-sm">
+          <p className="text-slate-400">No analyses completed yet.</p>
+          <p className="text-slate-300 text-sm mt-2">Add games from Scout → Upload lines → Run analysis</p>
         </div>
       ) : (
         <>
           {/* Stats Grid */}
           <div className="grid grid-cols-2 gap-3 mb-6">
-            <div className={`p-4 rounded-xl border ${overLimit ? 'bg-red-900/20 border-red-500/50' : 'bg-emerald-900/20 border-emerald-500/30'}`}>
-              <div className={`text-2xl font-bold ${overLimit ? 'text-red-400' : 'text-emerald-400'}`}>
+            <div className={`p-4 rounded-2xl border shadow-sm ${
+              overLimit 
+                ? 'bg-coral-50 border-coral-200' 
+                : 'bg-gradient-to-br from-teal-50 to-emerald-50 border-teal-200'
+            }`}>
+              <div className={`text-3xl font-bold ${overLimit ? 'text-coral-500' : 'text-teal-500'}`}>
                 {playableCount}
               </div>
-              <div className="text-[10px] uppercase text-slate-400 font-bold tracking-wider">
+              <div className="text-[10px] uppercase text-slate-500 font-bold tracking-wider mt-1">
                 Playable / {MAX_DAILY_PLAYS} Max
               </div>
             </div>
-            <div className="bg-slate-800 border border-slate-700 p-4 rounded-xl">
-              <div className="text-2xl font-bold text-slate-400">{passed.length}</div>
-              <div className="text-[10px] uppercase text-slate-500 font-bold tracking-wider">Passed</div>
+            <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-sm">
+              <div className="text-3xl font-bold text-slate-400">{passed.length}</div>
+              <div className="text-[10px] uppercase text-slate-400 font-bold tracking-wider mt-1">Passed</div>
             </div>
           </div>
 
           {/* Playable Games */}
           {playable.length > 0 && (
             <section className="mb-6">
-              <h2 className="text-emerald-400 font-bold text-sm uppercase tracking-wider mb-3 flex items-center">
+              <h2 className="text-teal-600 font-bold text-sm uppercase tracking-wider mb-3 flex items-center">
                 <span className="mr-2">✅</span> Playable (Your Decision)
               </h2>
               <div className="space-y-3">
@@ -111,7 +115,7 @@ export default function Card() {
           {/* Passed Games */}
           {passed.length > 0 && (
             <section>
-              <h2 className="text-slate-500 font-bold text-sm uppercase tracking-wider mb-3 flex items-center">
+              <h2 className="text-slate-400 font-bold text-sm uppercase tracking-wider mb-3 flex items-center">
                 <span className="mr-2">⛔</span> Passed (Veto Triggered)
               </h2>
               <div className="space-y-3">
@@ -124,14 +128,14 @@ export default function Card() {
 
           <button 
             onClick={copyToClipboard}
-            className="w-full mt-8 bg-slate-800 hover:bg-slate-700 text-white font-bold py-4 rounded-xl border border-slate-700"
+            className="w-full mt-8 bg-gradient-to-r from-slate-700 to-slate-800 hover:from-slate-800 hover:to-slate-900 text-white font-bold py-4 rounded-2xl shadow-lg transition-all hover:shadow-xl"
           >
             📋 Copy Daily Card
           </button>
 
           {/* Philosophy Reminder */}
-          <div className="mt-6 text-center text-slate-600 text-xs">
-            <p>EdgeLab v2.1 — Discipline Edition</p>
+          <div className="mt-6 text-center text-slate-400 text-xs">
+            <p>EdgeLab v3 — Discipline Edition</p>
             <p className="mt-1 italic">"Passing is profitable."</p>
           </div>
         </>
@@ -144,11 +148,11 @@ const PlayableCard: React.FC<{ game: QueuedGame }> = ({ game }) => {
   const a = game.analysis!;
   
   return (
-    <div className="p-4 rounded-xl border border-emerald-500/30 bg-emerald-950/20">
+    <div className="p-4 rounded-2xl bg-gradient-to-br from-teal-500 to-emerald-500 text-white shadow-lg">
       <div className="flex justify-between items-start mb-2">
-        <span className="text-xs font-bold text-slate-400 uppercase">{game.sport}</span>
+        <span className="text-xs font-bold text-white/70 uppercase">{game.sport}</span>
         {a.recProbability !== undefined && a.recProbability > 0 && (
-          <span className="text-xs font-mono bg-slate-800 px-2 py-1 rounded text-slate-300">
+          <span className="text-xs font-mono bg-white/20 px-2 py-1 rounded-full">
             Fair: {a.recProbability.toFixed(1)}%
           </span>
         )}
@@ -157,36 +161,36 @@ const PlayableCard: React.FC<{ game: QueuedGame }> = ({ game }) => {
       {/* THE PICK - BIG AND BOLD */}
       {a.recommendation && (
         <div className="mb-4">
-          <div className="text-xl font-bold text-white leading-tight">
-            {a.recommendation} <span className="text-emerald-400">{a.recLine}</span>
+          <div className="text-2xl font-bold leading-tight">
+            {a.recommendation} <span className="text-white/90">{a.recLine}</span>
           </div>
-          <div className="text-sm text-slate-400 mt-1">
+          <div className="text-sm text-white/70 mt-1">
             @ {a.softBestBook}
           </div>
         </div>
       )}
       
       {/* Matchup context */}
-      <div className="text-sm text-slate-500 mb-3">
+      <div className="text-sm text-white/60 mb-3">
         {game.awayTeam.name} @ {game.homeTeam.name}
       </div>
       
       {/* Line Value Badge */}
       {(a.lineValueCents !== undefined && a.lineValueCents > 0) && (
-        <div className="inline-block bg-emerald-900/50 text-emerald-400 text-xs px-2 py-1 rounded border border-emerald-500/30 mb-3">
-          +{a.lineValueCents} cents vs sharp
+        <div className="inline-block bg-white/20 text-white text-xs px-3 py-1 rounded-full mb-3">
+          +{a.lineValueCents}¢ vs sharp
         </div>
       )}
       
       {a.edgeNarrative && (
-        <div className="text-sm text-slate-300 mb-3 italic">
+        <div className="text-sm text-white/80 mb-3 italic">
           "{a.edgeNarrative}"
         </div>
       )}
       
-      <details className="text-xs text-slate-400 border-t border-slate-700/50 pt-2">
-        <summary className="cursor-pointer hover:text-slate-300 font-medium">Research Summary</summary>
-        <div className="mt-2 p-2 bg-slate-900 rounded whitespace-pre-wrap text-slate-300">
+      <details className="text-xs text-white/70 border-t border-white/20 pt-2">
+        <summary className="cursor-pointer hover:text-white font-medium">Research Summary</summary>
+        <div className="mt-2 p-2 bg-white/10 rounded-xl whitespace-pre-wrap">
           {a.researchSummary}
         </div>
       </details>
@@ -198,29 +202,29 @@ const PassedCard: React.FC<{ game: QueuedGame }> = ({ game }) => {
   const a = game.analysis!;
   
   return (
-    <div className="p-4 rounded-xl border border-slate-700 bg-slate-800/50">
+    <div className="p-4 rounded-2xl border border-slate-200 bg-white shadow-sm">
       <div className="flex justify-between items-start mb-2">
-        <span className="text-xs font-bold text-slate-500 uppercase">{game.sport}</span>
+        <span className="text-xs font-bold text-slate-400 uppercase">{game.sport}</span>
         {a.vetoTriggered && (
-          <span className="text-xs bg-red-900/50 text-red-400 px-2 py-1 rounded">
+          <span className="text-xs bg-coral-100 text-coral-600 px-2 py-1 rounded-full font-medium">
             VETO
           </span>
         )}
       </div>
       
-      <div className="font-bold text-slate-400 mb-2">
+      <div className="font-bold text-slate-600 mb-2">
         {game.awayTeam.name} @ {game.homeTeam.name}
       </div>
       
       {a.vetoReason && (
-        <div className="text-xs text-red-400/80 mb-2">
+        <div className="text-xs text-coral-500 mb-2">
           {a.vetoReason}
         </div>
       )}
       
-      <details className="text-xs text-slate-500">
-        <summary className="cursor-pointer hover:text-slate-400">Research Summary</summary>
-        <div className="mt-2 p-2 bg-slate-900 rounded whitespace-pre-wrap">
+      <details className="text-xs text-slate-400">
+        <summary className="cursor-pointer hover:text-slate-600">Research Summary</summary>
+        <div className="mt-2 p-2 bg-slate-50 rounded-xl whitespace-pre-wrap text-slate-500">
           {a.researchSummary}
         </div>
       </details>

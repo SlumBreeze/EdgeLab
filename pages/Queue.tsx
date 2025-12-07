@@ -43,7 +43,7 @@ export default function Queue() {
 
   const handleFileUpload = async (gameId: string, type: 'SHARP' | 'SOFT', file: File) => {
     try {
-      setAnalyzingIds(prev => new Set(prev).add(gameId + type)); // Use a composite key for loading state
+      setAnalyzingIds(prev => new Set(prev).add(gameId + type));
       const lines = await extractLinesFromScreenshot(file);
       
       if (type === 'SHARP') {
@@ -66,17 +66,17 @@ export default function Queue() {
   return (
     <div className="p-4 max-w-lg mx-auto">
       <header className="mb-6 flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-white">Analysis Queue</h1>
-        <span className="bg-slate-800 text-xs px-3 py-1 rounded-full text-slate-400">
+        <h1 className="text-2xl font-bold text-slate-800">Analysis Queue</h1>
+        <span className="bg-coral-100 text-coral-600 text-xs px-3 py-1.5 rounded-full font-bold">
           {queue.length} Games
         </span>
       </header>
 
       {queue.length === 0 ? (
-        <div className="text-center py-20 text-slate-500">
-          <p className="mb-2 text-4xl">📋</p>
-          <p>Your queue is empty.</p>
-          <p className="text-sm">Go to Scout to add games.</p>
+        <div className="text-center py-20 bg-white rounded-2xl border border-slate-200 shadow-sm">
+          <p className="mb-2 text-5xl">📋</p>
+          <p className="text-slate-500 font-medium">Your queue is empty.</p>
+          <p className="text-sm text-slate-400 mt-1">Go to Scout to add games.</p>
         </div>
       ) : (
         <div className="space-y-6">

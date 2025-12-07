@@ -36,224 +36,325 @@ const QueuedGameCard: React.FC<Props> = ({
   };
 
   const getEdgeColor = (signal?: string) => {
-    if (signal === 'RED') return 'bg-red-500 text-white';
-    if (signal === 'YELLOW') return 'bg-yellow-500 text-black';
-    return 'bg-slate-700 text-slate-300';
+    if (signal === 'RED') return 'bg-red-100 text-red-600 border-red-200';
+    if (signal === 'YELLOW') return 'bg-amber-100 text-amber-700 border-amber-200';
+    return 'bg-slate-100 text-slate-600 border-slate-200';
   };
 
-  const getDiffColor = (isDiff: boolean) => isDiff ? 'text-amber-400 font-bold' : 'text-slate-300';
+  const getEdgeEmoji = (signal?: string) => {
+    if (signal === 'RED') return '🔴';
+    if (signal === 'YELLOW') return '🟡';
+    return '⚪';
+  };
+
+  // DraftKings-style line cell component
+  const LineCell: React.FC<{ 
+    line?: string; 
+    odds?: string; 
+    isHighlighted?: boolean;
+    label?: string;
+  }> = ({ line, odds, isHighlighted, label }) => (
+    <div className={`
+      flex flex-col items-center justify-center p-2 rounded-lg min-w-[70px]
+      ${isHighlighted 
+        ? 'bg-teal-50 border-2 border-teal-400' 
+        : 'bg-slate-50 border border-slate-200'
+      }
+    `}>
+      {label && <span className="text-[9px] text-slate-400 uppercase font-medium mb-0.5">{label}</span>}
+      <span className={`font-bold text-sm ${isHighlighted ? 'text-teal-600' : 'text-slate-800'}`}>
+        {line || 'N/A'}
+      </span>
+      <span className={`text-xs ${isHighlighted ? 'text-teal-500' : 'text-slate-500'}`}>
+        {odds ? formatOddsForDisplay(odds) : ''}
+      </span>
+    </div>
+  );
+
+  // Team row component (DraftKings style)
+  const TeamRow: React.FC<{
+    team: { name: string; logo?: string };
+    spreadLine: string;
+    spreadOdds: string;
+    totalLine: string;
+    totalOdds: string;
+    totalType: 'O' | 'U';
+    mlOdds: string;
+    isAway?: boolean;
+    highlightSpread?: boolean;
+    highlightTotal?: boolean;
+    highlightML?: boolean;
+  }> = ({ team, spreadLine, spreadOdds, totalLine, totalOdds, totalType, mlOdds, isAway, highlightSpread, highlightTotal, highlightML }) => (
+    <div className="flex items-center gap-2 py-2">
+      {/* Team Info */}
+      <div className="flex items-center gap-2 min-w-[140px]">
+        {team.logo && (
+          <img src={team.logo} alt={team.name} className="w-8 h-8 object-contain" />
+        )}
+        <span className="font-semibold text-slate-800 text-sm truncate">{team.name}</span>
+      </div>
+      
+      {/* Betting Cells */}
+      <div className="flex gap-2 flex-1 justify-end">
+        <LineCell line={spreadLine} odds={spreadOdds} isHighlighted={highlightSpread} />
+        <LineCell line={`${totalType}${totalLine}`} odds={totalOdds} isHighlighted={highlightTotal} />
+        <LineCell line={formatOddsForDisplay(mlOdds)} odds="" isHighlighted={highlightML} />
+      </div>
+    </div>
+  );
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-lg relative">
+    <div className="bg-white rounded-2xl overflow-hidden shadow-lg border border-slate-200 relative">
       {loading && (
-        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm z-20 flex items-center justify-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-500"></div>
+        <div className="absolute inset-0 bg-white/80 backdrop-blur-sm z-20 flex items-center justify-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-coral-500"></div>
         </div>
       )}
 
       {/* Header */}
-      <div className="p-4 bg-slate-850 border-b border-slate-800 flex justify-between items-start">
-        <div>
-          <div className="text-amber-500 font-bold text-xs uppercase tracking-wider mb-1">
-            {game.sport} | {game.visibleId}
-          </div>
-          <h3 className="font-bold text-white text-lg leading-tight">
-            {game.awayTeam.name} <span className="text-slate-500 text-sm font-normal">at</span> {game.homeTeam.name}
-          </h3>
+      <div className="px-4 py-3 bg-gradient-to-r from-slate-800 to-slate-700 flex justify-between items-center">
+        <div className="flex items-center gap-2">
+          <span className="bg-coral-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">
+            {game.sport}
+          </span>
+          <span className="text-white/60 text-xs">#{game.visibleId}</span>
         </div>
-        <button onClick={onRemove} className="text-slate-600 hover:text-red-500">
-          ✕
+        <button onClick={onRemove} className="text-white/40 hover:text-coral-400 transition-colors">
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
         </button>
       </div>
 
-      {/* Scout / Edge Section */}
-      <div className="p-4 border-b border-slate-800">
-        <div className="flex items-center justify-between mb-2">
-           <span className="text-xs text-slate-400 font-medium">INITIAL READ</span>
-           {!game.edgeSignal && (
-             <button onClick={onScan} className="text-xs text-amber-500 hover:underline">
-               Run Scan
-             </button>
-           )}
+      {/* Matchup Title */}
+      <div className="px-4 py-3 border-b border-slate-100">
+        <h3 className="font-bold text-slate-800 text-lg">
+          {game.awayTeam.name} <span className="text-slate-400 font-normal">@</span> {game.homeTeam.name}
+        </h3>
+      </div>
+
+      {/* Initial Read / Edge Scan */}
+      <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/50">
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-slate-500 font-medium uppercase tracking-wide">Initial Read</span>
+          {!game.edgeSignal && (
+            <button 
+              onClick={onScan} 
+              className="text-xs text-teal-600 hover:text-teal-700 font-medium flex items-center gap-1"
+            >
+              <span>⚡</span> Quick Scan
+            </button>
+          )}
         </div>
         {game.edgeSignal ? (
-          <div className={`text-xs px-3 py-2 rounded font-medium flex items-center ${getEdgeColor(game.edgeSignal)}`}>
-            <span className="mr-2 text-lg">
-              {game.edgeSignal === 'RED' ? '🔴' : game.edgeSignal === 'YELLOW' ? '🟡' : '⚪'}
-            </span>
-            {game.edgeDescription || 'No description available'}
+          <div className={`mt-2 text-xs px-3 py-2 rounded-lg border flex items-center gap-2 ${getEdgeColor(game.edgeSignal)}`}>
+            <span>{getEdgeEmoji(game.edgeSignal)}</span>
+            <span>{game.edgeDescription || 'No description available'}</span>
           </div>
         ) : (
-          <div className="text-xs text-slate-600 italic">No edge scan run yet.</div>
+          <p className="text-xs text-slate-400 mt-1 italic">Run a quick scan to check for injury edges</p>
         )}
       </div>
 
-      {/* Shop / Lines Section */}
-      <div className="p-4 border-b border-slate-800 bg-slate-900/50">
+      {/* Line Shopping Section */}
+      <div className="px-4 py-3">
         <div className="flex justify-between items-center mb-3">
-           <span className="text-xs text-slate-400 font-medium uppercase">Line Shopping</span>
-           <div className="flex space-x-2">
-             <button onClick={() => sharpInputRef.current?.click()} className="text-xs bg-slate-800 hover:bg-slate-700 px-2 py-1 rounded text-slate-300">
-               + Sharp
-             </button>
-             <button onClick={() => softInputRef.current?.click()} className="text-xs bg-slate-800 hover:bg-slate-700 px-2 py-1 rounded text-slate-300">
-               + Soft
-             </button>
-           </div>
-           <input type="file" hidden ref={sharpInputRef} accept="image/*" onChange={(e) => handleFileChange(e, 'SHARP')} />
-           <input type="file" hidden ref={softInputRef} accept="image/*" onChange={(e) => handleFileChange(e, 'SOFT')} />
+          <span className="text-xs text-slate-500 font-medium uppercase tracking-wide">Line Shopping</span>
+          <div className="flex gap-2">
+            <button 
+              onClick={() => sharpInputRef.current?.click()} 
+              className="text-xs bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg text-slate-600 font-medium transition-colors"
+            >
+              + Sharp
+            </button>
+            <button 
+              onClick={() => softInputRef.current?.click()} 
+              className="text-xs bg-teal-50 hover:bg-teal-100 px-3 py-1.5 rounded-lg text-teal-600 font-medium transition-colors"
+            >
+              + Soft
+            </button>
+          </div>
+          <input type="file" hidden ref={sharpInputRef} accept="image/*" onChange={(e) => handleFileChange(e, 'SHARP')} />
+          <input type="file" hidden ref={softInputRef} accept="image/*" onChange={(e) => handleFileChange(e, 'SOFT')} />
         </div>
 
-        {/* Header Grid */}
-        <div className="grid grid-cols-[80px_1fr_1fr_1fr] gap-1 px-2 mb-2 text-[10px] font-bold text-slate-500 uppercase tracking-wider text-center">
-            <div className="text-left">Book</div>
-            <div>Spread</div>
-            <div>Total</div>
-            <div>ML</div>
+        {/* Column Headers */}
+        <div className="flex items-center gap-2 mb-2 text-[10px] font-bold text-slate-400 uppercase">
+          <div className="min-w-[140px]">Team</div>
+          <div className="flex gap-2 flex-1 justify-end">
+            <div className="min-w-[70px] text-center">Spread</div>
+            <div className="min-w-[70px] text-center">Total</div>
+            <div className="min-w-[70px] text-center">Money</div>
+          </div>
         </div>
 
-        <div className="space-y-1">
-          {/* Sharp Line Row - NOW WITH AMERICAN ODDS CONVERSION */}
-          {game.sharpLines ? (
-            <div className="grid grid-cols-[80px_1fr_1fr_1fr] gap-1 items-center bg-slate-950 p-2 rounded border border-slate-800 text-xs">
-              <div className="font-bold text-slate-400 truncate">Pinnacle</div>
-              <div className="text-center text-white">
-                <div>{game.sharpLines.spreadLineA}</div>
-                <div className="text-slate-500 text-[10px]">{formatOddsForDisplay(game.sharpLines.spreadOddsA)}</div>
-              </div>
-              <div className="text-center text-white">
-                <div>{game.sharpLines.totalLine}</div>
-                <div className="text-slate-500 text-[10px]">o{formatOddsForDisplay(game.sharpLines.totalOddsOver)}</div>
-              </div>
-              <div className="text-center text-white">
-                <div>{formatOddsForDisplay(game.sharpLines.mlOddsA)}</div>
-                <div className="text-slate-500 text-[10px]">{formatOddsForDisplay(game.sharpLines.mlOddsB)}</div>
-              </div>
+        {/* Sharp Lines (Pinnacle) */}
+        {game.sharpLines ? (
+          <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl p-3 mb-3 border border-amber-200">
+            <div className="text-[10px] font-bold text-amber-600 uppercase mb-2 flex items-center gap-1">
+              <span>📌</span> Pinnacle (Sharp)
             </div>
-          ) : (
-            <div className="text-xs text-slate-600 text-center py-2 border border-dashed border-slate-800 rounded">
-              Upload Sharp
-            </div>
-          )}
+            <TeamRow
+              team={game.awayTeam}
+              spreadLine={game.sharpLines.spreadLineA}
+              spreadOdds={game.sharpLines.spreadOddsA}
+              totalLine={game.sharpLines.totalLine}
+              totalOdds={game.sharpLines.totalOddsOver}
+              totalType="O"
+              mlOdds={game.sharpLines.mlOddsA}
+              isAway
+            />
+            <div className="border-t border-amber-200 my-1"></div>
+            <TeamRow
+              team={game.homeTeam}
+              spreadLine={game.sharpLines.spreadLineB}
+              spreadOdds={game.sharpLines.spreadOddsB}
+              totalLine={game.sharpLines.totalLine}
+              totalOdds={game.sharpLines.totalOddsUnder}
+              totalType="U"
+              mlOdds={game.sharpLines.mlOddsB}
+            />
+          </div>
+        ) : (
+          <div className="border-2 border-dashed border-slate-200 rounded-xl p-6 text-center mb-3">
+            <p className="text-slate-400 text-sm">Upload Pinnacle screenshot</p>
+          </div>
+        )}
 
-          {/* Soft Lines Rows */}
-          {game.softLines.map((line, idx) => {
-            const isEditing = editingLineIndex === idx;
-            // Detect diffs vs Sharp
-            const diffSpread = game.sharpLines ? detectMarketDiff(game.sharpLines.spreadLineA, line.spreadLineA, 'SPREAD') : false;
-            const diffTotal = game.sharpLines ? detectMarketDiff(game.sharpLines.totalLine, line.totalLine, 'TOTAL') : false;
-            const diffML = game.sharpLines ? detectMarketDiff(game.sharpLines.mlOddsA, line.mlOddsA, 'ML') : false;
+        {/* Soft Lines */}
+        {game.softLines.map((line, idx) => {
+          const isEditing = editingLineIndex === idx;
+          const diffSpread = game.sharpLines ? detectMarketDiff(game.sharpLines.spreadLineA, line.spreadLineA, 'SPREAD') : false;
+          const diffTotal = game.sharpLines ? detectMarketDiff(game.sharpLines.totalLine, line.totalLine, 'TOTAL') : false;
+          const diffML = game.sharpLines ? detectMarketDiff(game.sharpLines.mlOddsA, line.mlOddsA, 'ML') : false;
 
-            return (
-              <div key={idx} className="grid grid-cols-[80px_1fr_1fr_1fr] gap-1 items-center bg-slate-800/50 p-2 rounded border border-slate-700/50 text-xs">
-                {/* Book Name Column */}
-                <div className="truncate">
-                  {isEditing ? (
-                    <select 
-                      value={line.bookName} 
-                      onChange={(e) => {
-                         onUpdateSoftBook(idx, e.target.value);
-                         setEditingLineIndex(null);
-                      }}
-                      onBlur={() => setEditingLineIndex(null)}
-                      autoFocus
-                      className="w-full text-[10px] bg-slate-800 text-white rounded p-1 border border-amber-500 outline-none"
-                    >
-                      {COMMON_BOOKS.map(b => <option key={b} value={b}>{b}</option>)}
-                    </select>
-                  ) : (
-                    <button 
-                      onClick={() => setEditingLineIndex(idx)} 
-                      className="font-bold text-slate-300 hover:text-amber-500 hover:underline decoration-dashed underline-offset-2 text-left truncate w-full"
-                    >
-                      {line.bookName}
-                    </button>
-                  )}
-                </div>
-
-                {/* Spread Column */}
-                <div className={`text-center ${getDiffColor(diffSpread)}`}>
-                   <div>{line.spreadLineA}</div>
-                   <div className="text-[10px] opacity-70">{formatOddsForDisplay(line.spreadOddsA)}</div>
-                </div>
-
-                {/* Total Column */}
-                <div className={`text-center ${getDiffColor(diffTotal)}`}>
-                   <div>{line.totalLine}</div>
-                   <div className="text-[10px] opacity-70">o{formatOddsForDisplay(line.totalOddsOver)}</div>
-                </div>
-
-                {/* ML Column */}
-                <div className={`text-center ${getDiffColor(diffML)}`}>
-                   <div>{formatOddsForDisplay(line.mlOddsA)}</div>
-                   <div className="text-[10px] opacity-70">{formatOddsForDisplay(line.mlOddsB)}</div>
-                </div>
+          return (
+            <div key={idx} className="bg-white rounded-xl p-3 mb-2 border border-slate-200 shadow-sm">
+              <div className="flex items-center justify-between mb-2">
+                {isEditing ? (
+                  <select 
+                    value={line.bookName} 
+                    onChange={(e) => {
+                      onUpdateSoftBook(idx, e.target.value);
+                      setEditingLineIndex(null);
+                    }}
+                    onBlur={() => setEditingLineIndex(null)}
+                    autoFocus
+                    className="text-xs bg-white text-slate-800 rounded-lg px-2 py-1 border-2 border-teal-400 outline-none"
+                  >
+                    {COMMON_BOOKS.map(b => <option key={b} value={b}>{b}</option>)}
+                  </select>
+                ) : (
+                  <button 
+                    onClick={() => setEditingLineIndex(idx)} 
+                    className="text-[10px] font-bold text-slate-600 uppercase flex items-center gap-1 hover:text-teal-600"
+                  >
+                    <span>🏷️</span> {line.bookName}
+                  </button>
+                )}
               </div>
-            );
-          })}
-        </div>
+              <TeamRow
+                team={game.awayTeam}
+                spreadLine={line.spreadLineA}
+                spreadOdds={line.spreadOddsA}
+                totalLine={line.totalLine}
+                totalOdds={line.totalOddsOver}
+                totalType="O"
+                mlOdds={line.mlOddsA}
+                isAway
+                highlightSpread={diffSpread}
+                highlightTotal={diffTotal}
+                highlightML={diffML}
+              />
+              <div className="border-t border-slate-100 my-1"></div>
+              <TeamRow
+                team={game.homeTeam}
+                spreadLine={line.spreadLineB}
+                spreadOdds={line.spreadOddsB}
+                totalLine={line.totalLine}
+                totalOdds={line.totalOddsUnder}
+                totalType="U"
+                mlOdds={line.mlOddsB}
+                highlightSpread={diffSpread}
+                highlightTotal={diffTotal}
+                highlightML={diffML}
+              />
+            </div>
+          );
+        })}
       </div>
 
-      {/* Action Footer */}
-      <div className="p-4">
+      {/* Analysis Result / Action */}
+      <div className="px-4 py-4 bg-slate-50 border-t border-slate-100">
         {game.analysis ? (
-          <div className={`rounded-lg border overflow-hidden ${
+          <div className={`rounded-xl overflow-hidden ${
             game.analysis.decision === 'PLAYABLE' 
-              ? 'bg-emerald-900/20 border-emerald-500/50' 
-              : 'bg-slate-800 border-slate-700'
+              ? 'bg-gradient-to-r from-teal-500 to-emerald-500 text-white' 
+              : 'bg-slate-200 text-slate-600'
           }`}>
-            <div className="p-3 bg-black/20 flex justify-between items-center">
-              <span className={`font-bold text-sm ${
-                game.analysis.decision === 'PLAYABLE' ? 'text-emerald-400' : 'text-slate-400'
-              }`}>
-                {game.analysis.decision === 'PLAYABLE' ? '✅ PLAYABLE' : '⛔ PASS'}
+            {/* Decision Header */}
+            <div className="px-4 py-3 flex justify-between items-center">
+              <span className="font-bold text-sm flex items-center gap-2">
+                {game.analysis.decision === 'PLAYABLE' ? '✅' : '⛔'} 
+                {game.analysis.decision}
               </span>
               {game.analysis.sharpImpliedProb && (
-                <span className="text-xs font-mono text-slate-400">
+                <span className="text-xs opacity-80 font-mono">
                   Fair: {game.analysis.sharpImpliedProb.toFixed(1)}%
                 </span>
               )}
             </div>
             
-            {/* The Pick - shows the recommended bet */}
+            {/* The Pick */}
             {game.analysis.decision === 'PLAYABLE' && game.analysis.recommendation && (
-              <div className="px-3 py-3 border-b border-slate-700 bg-emerald-900/10">
-                <div className="font-bold text-emerald-400 text-lg">
+              <div className="px-4 py-3 bg-white/10">
+                <div className="font-bold text-xl">
                   {game.analysis.recommendation} {game.analysis.recLine}
                 </div>
-                <div className="text-xs text-slate-400 mt-1">
-                  @ {game.analysis.softBestBook} {game.analysis.lineValueCents && game.analysis.lineValueCents > 0 ? `• +${game.analysis.lineValueCents} cents value` : ''}
+                <div className="text-sm opacity-80 mt-1">
+                  @ {game.analysis.softBestBook} 
+                  {game.analysis.lineValueCents && game.analysis.lineValueCents > 0 && (
+                    <span className="ml-2 bg-white/20 px-2 py-0.5 rounded-full text-xs">
+                      +{game.analysis.lineValueCents}¢ value
+                    </span>
+                  )}
                 </div>
               </div>
             )}
             
+            {/* Veto Reason */}
             {game.analysis.vetoTriggered && game.analysis.vetoReason && (
-              <div className="px-3 py-2 bg-red-900/20 text-red-400 text-xs border-b border-slate-700">
+              <div className="px-4 py-2 bg-red-500/20 text-sm">
                 <strong>Veto:</strong> {game.analysis.vetoReason}
               </div>
             )}
             
-            {game.analysis.lineValueCents !== undefined && game.analysis.lineValueCents > 0 && !game.analysis.recommendation && (
-              <div className="px-3 py-2 bg-emerald-900/20 text-emerald-400 text-xs border-b border-slate-700">
-                <strong>Line Value:</strong> +{game.analysis.lineValueCents} cents at {game.analysis.softBestBook}
+            {/* Research Summary */}
+            <details className={`text-xs ${game.analysis.decision === 'PLAYABLE' ? 'bg-white/10' : 'bg-slate-100'}`}>
+              <summary className="px-4 py-2 cursor-pointer hover:bg-white/10 font-medium">
+                Research Summary
+              </summary>
+              <div className={`px-4 py-3 whitespace-pre-wrap ${
+                game.analysis.decision === 'PLAYABLE' ? 'text-white/90' : 'text-slate-600'
+              }`}>
+                {game.analysis.researchSummary}
               </div>
-            )}
-            
-            <div className="p-3 text-xs text-slate-300 whitespace-pre-wrap max-h-48 overflow-y-auto">
-              {game.analysis.researchSummary}
-            </div>
+            </details>
           </div>
         ) : (
           <button 
             onClick={onAnalyze}
             disabled={!game.sharpLines || game.softLines.length === 0}
-            className={`w-full py-3 rounded-lg font-bold text-sm transition-colors ${
+            className={`w-full py-4 rounded-xl font-bold text-sm transition-all transform hover:scale-[1.02] ${
               !game.sharpLines || game.softLines.length === 0
-                ? 'bg-slate-800 text-slate-600 cursor-not-allowed'
-                : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg'
+                ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                : 'bg-gradient-to-r from-coral-500 to-orange-500 text-white shadow-lg hover:shadow-xl'
             }`}
           >
-            Run v3 Analysis
+            {!game.sharpLines || game.softLines.length === 0 
+              ? 'Upload Sharp + Soft Lines First'
+              : '🎯 Run v3 Analysis'
+            }
           </button>
         )}
       </div>
