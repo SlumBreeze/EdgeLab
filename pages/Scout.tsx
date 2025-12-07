@@ -1,15 +1,42 @@
 import React, { useState, useEffect } from 'react';
-import { Sport, Game } from '../types';
+import { Sport, Game, BookLines } from '../types';
 import { SPORTS_CONFIG } from '../constants';
-import { fetchGames } from '../services/espnService';
+import { fetchOddsForSport, getBookmakerLines } from '../services/oddsService';
 import { quickScanGame } from '../services/geminiService';
 import { useGameContext } from '../hooks/useGameContext';
+
+// Helper to get/set reference lines from localStorage
+// Returns the reference lines for comparison
+const getOrSetReferenceLines = (gameId: string, currentLines: BookLines | null) => {
+  if (!currentLines) return null;
+  
+  const key = `edgelab_reference_${gameId}`;
+  const stored = localStorage.getItem(key);
+  
+  if (stored) {
+    try {
+      return JSON.parse(stored) as { spreadLineA: string, spreadLineB: string };
+    } catch {
+      // Fall through to set if parse fails
+    }
+  }
+
+  // Initial save of the first lines we see
+  const ref = {
+    spreadLineA: currentLines.spreadLineA,
+    spreadLineB: currentLines.spreadLineB
+  };
+  localStorage.setItem(key, JSON.stringify(ref));
+  return ref;
+};
 
 export default function Scout() {
   const [selectedSport, setSelectedSport] = useState<Sport>('NBA');
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
-  const [games, setGames] = useState<Game[]>([]);
   const [loading, setLoading] = useState(false);
+  const [apiGames, setApiGames] = useState<any[]>([]);
+  
+  // Scanning state
   const [scanningIds, setScanningIds] = useState<Set<string>>(new Set());
   const [scanResults, setScanResults] = useState<Record<string, { signal: 'RED'|'YELLOW'|'WHITE', description: string }>>({});
   
@@ -18,12 +45,41 @@ export default function Scout() {
   useEffect(() => {
     const loadGames = async () => {
       setLoading(true);
-      const data = await fetchGames(selectedSport, selectedDate);
-      setGames(data);
+      const data = await fetchOddsForSport(selectedSport);
+      
+      // Filter by selected date (Odds API uses ISO UTC strings)
+      // We check if the game commences on the selected local date
+      const filtered = data.filter((g: any) => {
+        const gameDate = new Date(g.commence_time).toLocaleDateString('en-CA'); // YYYY-MM-DD in local time
+        return gameDate === selectedDate;
+      });
+      
+      setApiGames(filtered);
       setLoading(false);
     };
     loadGames();
   }, [selectedSport, selectedDate]);
+
+  const mapToGameObject = (apiGame: any, pinnLines: BookLines | null): Game => {
+    return {
+      id: apiGame.id,
+      sport: selectedSport,
+      date: apiGame.commence_time,
+      status: 'Scheduled',
+      homeTeam: { 
+        name: apiGame.home_team,
+        // Logo and record not available from Odds API, UI handles missing logo gracefully
+      },
+      awayTeam: { 
+        name: apiGame.away_team,
+      },
+      odds: pinnLines ? {
+        details: `${pinnLines.spreadLineA} / ${pinnLines.spreadLineB}`,
+        spread: pinnLines.spreadLineA,
+        total: parseFloat(pinnLines.totalLine) || undefined
+      } : undefined
+    };
+  };
 
   const handleQuickScan = async (game: Game) => {
     if (scanningIds.has(game.id)) return;
@@ -42,7 +98,9 @@ export default function Scout() {
     });
   };
 
-  const handleAddToQueue = (game: Game) => {
+  const handleAddToQueue = (apiGame: any, pinnLines: BookLines | null) => {
+    const game = mapToGameObject(apiGame, pinnLines);
+    
     const scanData = scanResults[game.id];
     const gameWithScan = scanData ? { 
       ...game, 
@@ -51,6 +109,36 @@ export default function Scout() {
     } : game;
     
     addToQueue(gameWithScan);
+  };
+
+  const getMovementAnalysis = (currentA: string, refA: string, homeName: string, awayName: string) => {
+    const curr = parseFloat(currentA);
+    const ref = parseFloat(refA);
+    
+    if (isNaN(curr) || isNaN(ref)) return null;
+    if (Math.abs(curr - ref) < 0.1) return { icon: '➡️', text: '', color: 'text-slate-300' };
+
+    // If spread for Away increases (e.g. +4.5 -> +5.5), Away is getting more points (weaker).
+    // Market is moving towards HOME.
+    if (curr > ref) {
+      return { 
+        icon: '⬆️', 
+        text: `Sharps on ${homeName.split(' ').pop()}`, // Use last name for brevity
+        color: 'text-emerald-600'
+      };
+    }
+    
+    // If spread for Away decreases (e.g. +4.5 -> +3.5), Away is getting fewer points (stronger).
+    // Market is moving towards AWAY.
+    if (curr < ref) {
+      return { 
+        icon: '⬇️', 
+        text: `Sharps on ${awayName.split(' ').pop()}`,
+        color: 'text-emerald-600'
+      };
+    }
+    
+    return null;
   };
 
   const isInQueue = (id: string) => queue.some(g => g.id === id);
@@ -98,87 +186,118 @@ export default function Scout() {
         {loading ? (
           <div className="text-center py-10 text-slate-400">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-coral-500 mx-auto mb-3"></div>
-            Loading games...
+            Searching lines...
           </div>
-        ) : games.length === 0 ? (
+        ) : apiGames.length === 0 ? (
           <div className="text-center py-10 text-slate-400 bg-white rounded-2xl border border-slate-200">
             No games found for this date.
           </div>
         ) : (
-          games.map(game => {
+          apiGames.map(game => {
+            const pinnLines = getBookmakerLines(game, 'pinnacle');
+            const refLines = getOrSetReferenceLines(game.id, pinnLines);
+            
+            // Movement calculated based on Away spread drift
+            const movement = (pinnLines && refLines) 
+              ? getMovementAnalysis(pinnLines.spreadLineA, refLines.spreadLineA, game.home_team, game.away_team)
+              : null;
+
             const scan = scanResults[game.id];
             const isScanning = scanningIds.has(game.id);
+            const inQueue = isInQueue(game.id);
+            const gameObj = mapToGameObject(game, pinnLines);
 
             return (
               <div key={game.id} className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm hover:shadow-md transition-shadow">
-                <div className="flex justify-between items-start mb-4">
-                  <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                    {game.status}
-                  </div>
-                  <div className="text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded-full">
-                    {game.odds?.details || 'No Lines'}
-                  </div>
-                </div>
                 
-                <div className="flex justify-between items-center mb-6">
-                  <div className="flex flex-col items-center w-1/3">
-                    <img src={game.awayTeam.logo} alt={game.awayTeam.name} className="w-14 h-14 mb-2 object-contain" />
-                    <span className="text-sm font-bold text-slate-800 text-center leading-tight">{game.awayTeam.name}</span>
-                    <span className="text-xs text-slate-400 mt-1">{game.awayTeam.record}</span>
+                {/* Header: Time & Add Button */}
+                <div className="flex justify-between items-center mb-4">
+                  <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                    {new Date(game.commence_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </div>
-                  
-                  <div className="text-lg font-bold text-slate-300">@</div>
-                  
-                  <div className="flex flex-col items-center w-1/3">
-                    <img src={game.homeTeam.logo} alt={game.homeTeam.name} className="w-14 h-14 mb-2 object-contain" />
-                    <span className="text-sm font-bold text-slate-800 text-center leading-tight">{game.homeTeam.name}</span>
-                    <span className="text-xs text-slate-400 mt-1">{game.homeTeam.record}</span>
+                  <button 
+                    onClick={() => handleAddToQueue(game, pinnLines)}
+                    disabled={inQueue}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                      inQueue 
+                        ? 'bg-slate-100 text-slate-400' 
+                        : 'bg-teal-50 text-teal-600 hover:bg-teal-100'
+                    }`}
+                  >
+                    {inQueue ? '✓ In Queue' : '+ Add to Queue'}
+                  </button>
+                </div>
+
+                {/* Odds Table */}
+                <div className="mb-4">
+                  <div className="grid grid-cols-[2fr_1fr_1fr_2fr] gap-2 mb-2 text-[10px] text-slate-400 uppercase font-bold tracking-wider">
+                    <div>Team</div>
+                    <div className="text-center">Ref</div>
+                    <div className="text-center">Current</div>
+                    <div className="text-center">Movement</div>
+                  </div>
+
+                  {/* Away Row */}
+                  <div className="grid grid-cols-[2fr_1fr_1fr_2fr] gap-2 items-center py-1.5 border-b border-slate-50">
+                    <div className="font-bold text-slate-700 truncate text-sm">{game.away_team}</div>
+                    <div className="text-center text-slate-400 text-xs font-mono">{refLines?.spreadLineA || '-'}</div>
+                    <div className="text-center font-bold text-slate-800 bg-slate-50 rounded py-1 text-xs font-mono">
+                      {pinnLines?.spreadLineA || '-'}
+                    </div>
+                    
+                    {/* Movement Indicator (Spans 2 rows via Flex placement logic in grid) */}
+                    <div className="row-span-2 flex flex-col items-center justify-center h-full">
+                      {movement && (
+                        <>
+                          <span className="text-lg leading-none mb-1">{movement.icon}</span>
+                          <span className={`text-[9px] font-bold leading-none text-center ${movement.color}`}>
+                            {movement.text}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Home Row */}
+                  <div className="grid grid-cols-[2fr_1fr_1fr_2fr] gap-2 items-center py-1.5">
+                    <div className="font-bold text-slate-700 truncate text-sm">{game.home_team}</div>
+                    <div className="text-center text-slate-400 text-xs font-mono">{refLines?.spreadLineB || '-'}</div>
+                    <div className="text-center font-bold text-slate-800 bg-slate-50 rounded py-1 text-xs font-mono">
+                      {pinnLines?.spreadLineB || '-'}
+                    </div>
+                    {/* Empty cell for movement col (handled by span above implicitly or just blank) */}
+                    <div></div> 
                   </div>
                 </div>
 
-                {/* Scan Result Display */}
+                {/* Scan Result */}
                 {scan && (
-                  <div className={`mb-4 p-3 rounded-xl flex items-start gap-2 ${
+                  <div className={`mb-3 p-3 rounded-xl flex items-start gap-2 ${
                     scan.signal === 'RED' ? 'bg-red-50 border border-red-200' :
                     scan.signal === 'YELLOW' ? 'bg-amber-50 border border-amber-200' :
                     'bg-slate-50 border border-slate-200'
                   }`}>
                     <span className="text-lg">{getEdgeEmoji(scan.signal)}</span>
-                    <span className="text-xs text-slate-600 leading-tight">{scan.description}</span>
+                    <span className="text-xs text-slate-600 leading-tight font-medium">{scan.description}</span>
                   </div>
                 )}
 
-                <div className="flex space-x-2">
+                {/* Scan Button */}
+                {!scan && (
                   <button 
-                    onClick={() => handleQuickScan(game)}
-                    disabled={isScanning || !!scan}
-                    className={`flex-1 py-3 rounded-xl font-bold text-sm transition-all ${
-                      scan 
-                        ? 'bg-slate-100 text-slate-400 cursor-default'
-                        : 'bg-slate-100 hover:bg-slate-200 text-teal-600'
-                    }`}
+                    onClick={() => handleQuickScan(gameObj)}
+                    disabled={isScanning}
+                    className="w-full py-2 bg-slate-50 hover:bg-slate-100 text-slate-500 hover:text-slate-700 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-2"
                   >
                     {isScanning ? (
-                      <span className="animate-pulse">Scanning...</span>
-                    ) : scan ? (
-                      '✓ Scanned'
+                      <span className="animate-pulse">Scanning Injuries...</span>
                     ) : (
-                      '⚡ Scan'
+                      <>
+                        <span>⚡</span> Run Injury Scan
+                      </>
                     )}
                   </button>
-
-                  <button
-                    disabled={isInQueue(game.id)}
-                    onClick={() => handleAddToQueue(game)}
-                    className={`flex-[2] py-3 rounded-xl font-bold text-sm transition-all ${
-                      isInQueue(game.id)
-                        ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
-                        : 'bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-600 hover:to-emerald-600 text-white shadow-md hover:shadow-lg'
-                    }`}
-                  >
-                    {isInQueue(game.id) ? '✓ In Queue' : 'Add to Queue'}
-                  </button>
-                </div>
+                )}
               </div>
             );
           })

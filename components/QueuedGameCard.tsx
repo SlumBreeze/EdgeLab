@@ -2,6 +2,8 @@ import React, { useRef, useState } from 'react';
 import { QueuedGame, BookLines } from '../types';
 import { formatOddsForDisplay } from '../services/geminiService';
 import { COMMON_BOOKS } from '../constants';
+import { fetchOddsForGame, getBookmakerLines, SOFT_BOOK_KEYS } from '../services/oddsService';
+import { useGameContext } from '../hooks/useGameContext';
 
 interface Props {
   game: QueuedGame;
@@ -16,7 +18,7 @@ interface Props {
 
 const QueuedGameCard: React.FC<Props> = ({ 
   game, 
-  loading, 
+  loading: parentLoading, 
   onRemove, 
   onScan, 
   onAnalyze, 
@@ -24,15 +26,113 @@ const QueuedGameCard: React.FC<Props> = ({
   onUploadSoft,
   onUpdateSoftBook 
 }) => {
+  const { setSharpLines, addSoftLines, updateGame } = useGameContext();
   const sharpInputRef = useRef<HTMLInputElement>(null);
   const softInputRef = useRef<HTMLInputElement>(null);
   const [editingLineIndex, setEditingLineIndex] = useState<number | null>(null);
+  const [fetchingOdds, setFetchingOdds] = useState(false);
+  const [apiSoftBooks, setApiSoftBooks] = useState<BookLines[]>([]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, type: 'SHARP' | 'SOFT') => {
     if (e.target.files?.[0]) {
       if (type === 'SHARP') onUploadSharp(e.target.files[0]);
       else onUploadSoft(e.target.files[0]);
     }
+  };
+
+  const handleFetchLines = async () => {
+    setFetchingOdds(true);
+    setApiSoftBooks([]);
+    
+    try {
+      const data = await fetchOddsForGame(game.sport, game.id);
+      if (!data) {
+        alert("Could not fetch lines for this game. It might be too far in the future or started.");
+        setFetchingOdds(false);
+        return;
+      }
+
+      // 1. Set Sharp Lines (Pinnacle)
+      const pinnacle = getBookmakerLines(data, 'pinnacle');
+      if (pinnacle) {
+        setSharpLines(game.id, pinnacle);
+      }
+
+      // 2. Gather Available Soft Books
+      const foundBooks: BookLines[] = [];
+      SOFT_BOOK_KEYS.forEach(key => {
+        const lines = getBookmakerLines(data, key);
+        if (lines) foundBooks.push(lines);
+      });
+      setApiSoftBooks(foundBooks);
+
+    } catch (e) {
+      console.error(e);
+      alert("Error processing lines.");
+    } finally {
+      setFetchingOdds(false);
+    }
+  };
+
+  const toggleSoftBook = (bookLines: BookLines) => {
+    // Check if book is already in game.softLines
+    const exists = game.softLines.some(sl => sl.bookName === bookLines.bookName);
+    
+    if (exists) {
+      // Remove it
+      const newSoftLines = game.softLines.filter(sl => sl.bookName !== bookLines.bookName);
+      updateGame(game.id, { softLines: newSoftLines });
+    } else {
+      // Add it
+      addSoftLines(game.id, bookLines);
+    }
+  };
+
+  const calculateEdgeInfo = (soft: BookLines) => {
+    if (!game.sharpLines) return null;
+    const sharp = game.sharpLines;
+    
+    // Simple helper to check values
+    const getDiff = (s: string, h: string) => {
+      const sv = parseFloat(s);
+      const hv = parseFloat(h);
+      return (isNaN(sv) || isNaN(hv)) ? 0 : sv - hv;
+    };
+
+    const getJuiceDiff = (s: string, h: string) => {
+       // Convert odds to numbers (implied or American) then diff
+       // For this UI, let's just use approximate juice diff
+       // Actually geminiService has this logic, let's replicate simpler version for UI
+       // Positive means BETTER price on soft.
+       // e.g. Sharp -110, Soft -105 => +5 cents
+       return 0; // Placeholder if not strictly needed for the checklist "sparkle" logic text
+    };
+
+    // Check spread advantage
+    // Dog: +4.5 vs +4.0 (diff +0.5) -> Good
+    // Fav: -3.0 vs -3.5 (diff +0.5) -> Good (Wait, -3 > -3.5 is true)
+    // So if soft > sharp, it's generally "more points" for the bettor
+    const spreadADiff = getDiff(soft.spreadLineA, sharp.spreadLineA);
+    const spreadBDiff = getDiff(soft.spreadLineB, sharp.spreadLineB);
+    
+    // Check juice advantage
+    // Only rough estimate for display
+    const juiceADiff = parseInt(soft.spreadOddsA) - parseInt(sharp.spreadOddsA); // Very rough, ignores decimal/US format mix
+    
+    if (spreadADiff > 0) return `✨+${spreadADiff} pts (Away)`;
+    if (spreadBDiff > 0) return `✨+${spreadBDiff} pts (Home)`;
+    
+    // Price edge (heuristic: just check if odds number is higher)
+    // E.g. +110 > +100 (good), -105 > -110 (good)
+    const sOddsA = parseFloat(soft.spreadOddsA);
+    const pOddsA = parseFloat(sharp.spreadOddsA);
+    if (!isNaN(sOddsA) && !isNaN(pOddsA) && sOddsA > pOddsA) return `✨+${Math.round(sOddsA - pOddsA)}¢ (Away)`;
+
+    const sOddsB = parseFloat(soft.spreadOddsB);
+    const pOddsB = parseFloat(sharp.spreadOddsB);
+    if (!isNaN(sOddsB) && !isNaN(pOddsB) && sOddsB > pOddsB) return `✨+${Math.round(sOddsB - pOddsB)}¢ (Home)`;
+
+    return null;
   };
 
   const getEdgeColor = (signal?: string) => {
@@ -103,9 +203,11 @@ const QueuedGameCard: React.FC<Props> = ({
     </div>
   );
 
+  const loadingState = parentLoading || fetchingOdds;
+
   return (
     <div className="bg-white rounded-2xl overflow-hidden shadow-lg border border-slate-200 relative">
-      {loading && (
+      {loadingState && (
         <div className="absolute inset-0 bg-white/80 backdrop-blur-sm z-20 flex items-center justify-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-coral-500"></div>
         </div>
@@ -161,31 +263,32 @@ const QueuedGameCard: React.FC<Props> = ({
         <div className="flex justify-between items-center mb-3">
           <span className="text-xs text-slate-500 font-medium uppercase tracking-wide">Line Shopping</span>
           <div className="flex gap-2">
+            {/* New Fetch Button */}
             <button 
-              onClick={() => sharpInputRef.current?.click()} 
-              className="text-xs bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg text-slate-600 font-medium transition-colors"
+              onClick={handleFetchLines}
+              className="text-xs bg-slate-800 hover:bg-slate-900 text-white px-3 py-1.5 rounded-lg font-bold transition-colors shadow-sm flex items-center gap-1"
             >
-              + Sharp
-            </button>
-            <button 
-              onClick={() => softInputRef.current?.click()} 
-              className="text-xs bg-teal-50 hover:bg-teal-100 px-3 py-1.5 rounded-lg text-teal-600 font-medium transition-colors"
-            >
-              + Soft
+              <span>🔄</span> Fetch Live Lines
             </button>
           </div>
           <input type="file" hidden ref={sharpInputRef} accept="image/*" onChange={(e) => handleFileChange(e, 'SHARP')} />
           <input type="file" hidden ref={softInputRef} accept="image/*" onChange={(e) => handleFileChange(e, 'SOFT')} />
         </div>
 
-        {/* Column Headers */}
-        <div className="flex items-center gap-2 mb-2 text-[10px] font-bold text-slate-400 uppercase">
-          <div className="min-w-[140px]">Team</div>
-          <div className="flex gap-2 flex-1 justify-end">
-            <div className="min-w-[70px] text-center">Spread</div>
-            <div className="min-w-[70px] text-center">Total</div>
-            <div className="min-w-[70px] text-center">Money</div>
-          </div>
+        {/* Manual Upload Options (Small) */}
+        <div className="flex justify-end gap-2 mb-3">
+          <button 
+            onClick={() => sharpInputRef.current?.click()} 
+            className="text-[10px] text-slate-400 hover:text-slate-600 underline"
+          >
+            Upload Sharp Img
+          </button>
+          <button 
+            onClick={() => softInputRef.current?.click()} 
+            className="text-[10px] text-slate-400 hover:text-slate-600 underline"
+          >
+            Upload Soft Img
+          </button>
         </div>
 
         {/* Sharp Lines (Pinnacle) */}
@@ -217,15 +320,51 @@ const QueuedGameCard: React.FC<Props> = ({
           </div>
         ) : (
           <div className="border-2 border-dashed border-slate-200 rounded-xl p-6 text-center mb-3">
-            <p className="text-slate-400 text-sm">Upload Pinnacle screenshot</p>
+            <p className="text-slate-400 text-sm">Fetch lines or upload Pinnacle screenshot</p>
           </div>
         )}
 
-        {/* Soft Lines */}
+        {/* Fetched Books Checklist */}
+        {apiSoftBooks.length > 0 && game.sharpLines && (
+          <div className="mb-4 bg-slate-50 rounded-xl p-3 border border-slate-200">
+            <h4 className="text-[10px] font-bold text-slate-500 uppercase mb-2">Available Soft Books</h4>
+            <div className="grid grid-cols-1 gap-2">
+              {apiSoftBooks.map((book) => {
+                const isSelected = game.softLines.some(sl => sl.bookName === book.bookName);
+                const edgeText = calculateEdgeInfo(book);
+
+                return (
+                  <label key={book.bookName} className="flex items-center gap-3 p-2 bg-white rounded-lg border border-slate-100 cursor-pointer hover:border-teal-200 transition-colors">
+                    <input 
+                      type="checkbox" 
+                      checked={isSelected} 
+                      onChange={() => toggleSoftBook(book)}
+                      className="w-5 h-5 text-teal-600 rounded focus:ring-teal-500 border-gray-300" 
+                    />
+                    <div className="flex-1">
+                      <div className="flex justify-between items-center">
+                        <span className="font-bold text-slate-700 text-sm">{book.bookName}</span>
+                        {edgeText && (
+                          <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
+                            {edgeText}
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-xs text-slate-500 font-mono mt-0.5">
+                        {game.awayTeam.name}: {book.spreadLineA} ({book.spreadOddsA})
+                      </div>
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Selected Soft Lines Display (Manually Added or Checked) */}
         {game.softLines.map((line, idx) => {
           const isEditing = editingLineIndex === idx;
           
-          // Calculate which side has VALUE (not just difference)
           let awaySpreadValue = false;
           let homeSpreadValue = false;
           let overValue = false;
@@ -235,37 +374,24 @@ const QueuedGameCard: React.FC<Props> = ({
 
           if (game.sharpLines) {
             const sharp = game.sharpLines;
-            
-            // Spread value: soft - sharp, positive = value on that side
-            // Away: getting MORE points is good (e.g., +4 vs +3.5 = +0.5 value)
-            // Home: laying FEWER points is good (e.g., -3 vs -3.5 = +0.5 value)
             const awaySpreadDiff = parseFloat(line.spreadLineA) - parseFloat(sharp.spreadLineA);
             const homeSpreadDiff = parseFloat(line.spreadLineB) - parseFloat(sharp.spreadLineB);
             awaySpreadValue = !isNaN(awaySpreadDiff) && awaySpreadDiff > 0;
             homeSpreadValue = !isNaN(homeSpreadDiff) && homeSpreadDiff > 0;
             
-            // Total value: lower line = value on Over, higher line = value on Under
             const totalDiff = parseFloat(line.totalLine) - parseFloat(sharp.totalLine);
             if (!isNaN(totalDiff)) {
               overValue = totalDiff < 0;  // Lower line = easier over
               underValue = totalDiff > 0; // Higher line = easier under
             }
             
-            // ML value: better odds = value
-            // Convert to comparable numbers and check if soft is better
             const sharpMLA = parseFloat(sharp.mlOddsA);
             const softMLA = parseFloat(line.mlOddsA);
             const sharpMLB = parseFloat(sharp.mlOddsB);
             const softMLB = parseFloat(line.mlOddsB);
             
-            if (!isNaN(sharpMLA) && !isNaN(softMLA)) {
-              // For positive odds: higher is better. For negative: less negative is better
-              // Both cases: soft > sharp means better odds
-              awayMLValue = softMLA > sharpMLA;
-            }
-            if (!isNaN(sharpMLB) && !isNaN(softMLB)) {
-              homeMLValue = softMLB > sharpMLB;
-            }
+            if (!isNaN(sharpMLA) && !isNaN(softMLA)) awayMLValue = softMLA > sharpMLA;
+            if (!isNaN(sharpMLB) && !isNaN(softMLB)) homeMLValue = softMLB > sharpMLB;
           }
 
           return (
@@ -285,12 +411,15 @@ const QueuedGameCard: React.FC<Props> = ({
                     {COMMON_BOOKS.map(b => <option key={b} value={b}>{b}</option>)}
                   </select>
                 ) : (
-                  <button 
-                    onClick={() => setEditingLineIndex(idx)} 
-                    className="text-[10px] font-bold text-slate-600 uppercase flex items-center gap-1 hover:text-teal-600"
-                  >
-                    <span>🏷️</span> {line.bookName}
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button 
+                      onClick={() => setEditingLineIndex(idx)} 
+                      className="text-[10px] font-bold text-slate-600 uppercase flex items-center gap-1 hover:text-teal-600"
+                    >
+                      <span>🏷️</span> {line.bookName}
+                    </button>
+                    {/* Allow removing manually added lines or unchecked ones via this X if desired, but toggle is better for API ones */}
+                  </div>
                 )}
               </div>
               <TeamRow
@@ -392,7 +521,7 @@ const QueuedGameCard: React.FC<Props> = ({
             }`}
           >
             {!game.sharpLines || game.softLines.length === 0 
-              ? 'Upload Sharp + Soft Lines First'
+              ? 'Select Sharp + Soft Lines First'
               : '🎯 Run v3 Analysis'
             }
           </button>

@@ -173,6 +173,17 @@ const generateWithRetry = async (ai: GoogleGenAI, params: any, retries = 1) => {
   return { text: undefined };
 };
 
+// Helper to get reference lines (safe for SSR/Node, though this runs in browser)
+const getReferenceLines = (gameId: string) => {
+  if (typeof window === 'undefined') return null;
+  try {
+    const stored = localStorage.getItem(`edgelab_reference_${gameId}`);
+    return stored ? JSON.parse(stored) : null;
+  } catch {
+    return null;
+  }
+};
+
 // ============================================
 // LINE VALUE CALCULATOR - ANALYZES ALL SIDES
 // ============================================
@@ -214,8 +225,18 @@ const analyzeAllSides = (sharp: BookLines, softLines: BookLines[]): SideValue[] 
       
       if (!softOdds || softOdds === 'N/A' || !sharpOdds || sharpOdds === 'N/A') return;
 
+      // SANITY CHECK 1: Filter out bad OCR scans 
+      // Odds > 2000 or < -2000 are usually errors or massive longshots we ignore
+      const sVal = parseFloat(softOdds);
+      if (Math.abs(sVal) > 2000) return;
+
       const lineValue = calculateLineDiff(sharpLine, softLine);
       const priceValue = calculateJuiceDiff(sharpOdds, softOdds);
+      
+      // SANITY CHECK 2: The "Ghost Edge" Killer
+      // If the price difference is massive (> 50 cents), it's likely a data error, not a real edge.
+      // Real edges are boring: +5 to +15 cents. Not +219 cents.
+      if (Math.abs(priceValue) > 50) return;
 
       // For underdogs (positive spread), MORE points is better (positive lineValue)
       // For favorites (negative spread), FEWER points is better (lineValue should be positive when soft is less negative)
@@ -366,11 +387,35 @@ export const analyzeGame = async (game: QueuedGame): Promise<HighHitAnalysis> =>
       lineValuePoints: 0
     };
   }
-  
-  // ========== STEP 4: AI HOLISTIC ANALYSIS ==========
+
+  // ========== STEP 4: PREPARE DATA FOR AI ==========
   const dateObj = new Date(game.date);
   const readableDate = dateObj.toLocaleDateString('en-US', { weekday: 'short', month: 'long', day: 'numeric' });
   
+  // Retrieve Reference Lines
+  const refLines = getReferenceLines(game.id);
+
+  // Calculate Movement
+  let movementNarrative = "Movement: No reference line data available (first time seen).";
+  if (refLines && game.sharpLines) {
+    const refA = parseFloat(refLines.spreadLineA);
+    const currA = parseFloat(game.sharpLines.spreadLineA);
+    
+    if (!isNaN(refA) && !isNaN(currA)) {
+      const diff = currA - refA; // e.g. -4.0 - (-3.0) = -1.0
+      const absDiff = Math.abs(diff);
+      
+      if (absDiff < 0.1) {
+        movementNarrative = "Movement: Line is stable (no significant sharp movement).";
+      } else {
+        // If diff is negative (-3 -> -4), line moved TOWARD Away (Away is stronger/favored more)
+        // If diff is positive (-4 -> -3), line moved AGAINST Away (Away is weaker/favored less)
+        const direction = diff < 0 ? "TOWARD" : "AGAINST";
+        movementNarrative = `Movement: Sharps moved ${absDiff.toFixed(1)} points ${direction} ${game.awayTeam.name}.`;
+      }
+    }
+  }
+
   // Build the value summary for AI
   const valueSummary = sidesWithValue.map(s => {
     const teamName = s.side === 'AWAY' ? game.awayTeam.name : 
@@ -390,11 +435,9 @@ export const analyzeGame = async (game: QueuedGame): Promise<HighHitAnalysis> =>
 **Date:** ${readableDate}
 
 ## SHARP LINES (Pinnacle - Market Truth)
-- ${game.awayTeam.name} Spread: ${game.sharpLines?.spreadLineA} (${game.sharpLines?.spreadOddsA})
-- ${game.homeTeam.name} Spread: ${game.sharpLines?.spreadLineB} (${game.sharpLines?.spreadOddsB})
-- Total: ${game.sharpLines?.totalLine}
-- ${game.awayTeam.name} ML: ${game.sharpLines?.mlOddsA}
-- ${game.homeTeam.name} ML: ${game.sharpLines?.mlOddsB}
+Reference Line (First Seen): ${refLines ? `${game.awayTeam.name} ${refLines.spreadLineA}` : 'N/A'}
+Current Pinnacle: ${game.awayTeam.name} ${game.sharpLines?.spreadLineA} (${game.sharpLines?.spreadOddsA})
+${movementNarrative}
 
 ## SIDES WITH POSITIVE VALUE (Soft Books Offering Better Numbers)
 ${valueSummary}
@@ -411,26 +454,26 @@ ${valueSummary}
 - Which team is healthier and more likely to perform to expectations?
 - Do the injuries favor one side covering the spread?
 - Does the LINE VALUE align with the SITUATIONAL EDGE?
+- Does the SHARP MOVEMENT align with the VALUE?
 
 ## DECISION FRAMEWORK
 
-**PLAYABLE** = Line value + Situation ALIGN
-Example: Team A is healthier AND you get +1 point on them → PLAYABLE
+**PLAYABLE** requires ALL of the following:
+1. **Value:** Positive line/price value exists on a side (soft book vs current sharp).
+2. **Alignment:** Sharp movement is TOWARD that same side (or neutral).
+3. **Situation:** Situational factors (injuries, rest) favor that side (or are neutral).
 
-**PASS** = Line value and Situation CONFLICT or unclear
-Example: Team A has value but they're missing their QB → PASS
-
-**IMPORTANT:** 
-- Getting MORE points on an underdog is GOOD (+1 point value)
-- Laying MORE points on a favorite is BAD (-1 point value)
-- A healthy team getting extra points vs an injured opponent = IDEAL
+**PASS** if ANY of the following are true:
+- Sharps moved AGAINST the side showing value (Trap Line).
+- Situation favors the opponent (betting on bad team just for value).
+- Information is unclear.
 
 ## OUTPUT JSON
 {
   "decision": "PLAYABLE" or "PASS",
   "recommendedSide": "AWAY" or "HOME" or "OVER" or "UNDER",
   "recommendedMarket": "Spread" or "Moneyline" or "Total",
-  "reasoning": "2-3 sentences explaining why math + situation align (or don't)",
+  "reasoning": "2-3 sentences explaining why math + situation + movement align (or don't)",
   "awayTeamInjuries": "Key injuries for away team",
   "homeTeamInjuries": "Key injuries for home team", 
   "situationFavors": "AWAY" or "HOME" or "NEUTRAL",
@@ -442,17 +485,17 @@ Example: Team A has value but they're missing their QB → PASS
     model: 'gemini-2.5-flash',
     contents: holisticPrompt,
     config: {
-      systemInstruction: `You are EdgeLab v3, a sports betting analyst that synthesizes LINE VALUE and SITUATIONAL FACTORS to find aligned edges.
+      systemInstruction: `You are EdgeLab v3, a sports betting analyst that synthesizes LINE VALUE, LINE MOVEMENT, and SITUATIONAL FACTORS to find aligned edges.
 
 Your job:
 1. Search for injuries and news on BOTH teams
-2. Determine which team is in a better situation
-3. Check if the situational edge ALIGNS with the mathematical value
-4. Only recommend PLAYABLE when both factors point the same direction
+2. Check if Sharp Movement aligns with the Value Side (e.g. if we have value on Home, did Sharps move Toward Home?)
+3. Check if Situation aligns with the Value Side (e.g. is Home healthy?)
+4. Only recommend PLAYABLE when ALL factors align.
 
-Key principle: We want to bet on healthier teams when we're also getting better numbers. If we'd be betting on the injured team just for line value, that's a PASS.
+Key Rule: NEVER recommend a side where sharps have moved significantly AGAINST the value (e.g. Value on Home -3, but sharps moved from -5 to -3). This is a trap.
 
-DEFAULT TO PASS if situation is unclear or conflicts with the math.`,
+DEFAULT TO PASS if any factor conflicts.`,
       tools: [{ googleSearch: {} }],
       temperature: 0.2
     }
