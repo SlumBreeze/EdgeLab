@@ -14,16 +14,23 @@ const SPORT_KEYS: Record<Sport, string> = {
 };
 
 export const SOFT_BOOK_KEYS = [
-  'draftkings', 'fanduel', 'betmgm', 'williamhill_us', 'betrivers', 'bovada'
+  'draftkings',
+  'fanduel', 
+  'bovada',
+  'betmgm',
+  'betrivers',
+  'fliff',
+  'espnbet'
 ];
 
 export const BOOK_DISPLAY_NAMES: Record<string, string> = {
   'draftkings': 'DraftKings',
   'fanduel': 'FanDuel',
-  'betmgm': 'BetMGM',
-  'williamhill_us': 'Caesars',
-  'betrivers': 'BetRivers',
   'bovada': 'Bovada',
+  'betmgm': 'BetMGM',
+  'betrivers': 'BetRivers',
+  'fliff': 'Fliff',
+  'espnbet': 'ESPN BET',
   'pinnacle': 'Pinnacle'
 };
 
@@ -62,8 +69,8 @@ export const fetchOddsForSport = async (sport: Sport): Promise<any[]> => {
     return [];
   }
 
-  // Request US and EU regions to cover US books and Pinnacle (often EU)
-  const url = `${BASE_URL}/${sportKey}/odds?apiKey=${API_KEY}&regions=us,eu&markets=h2h,spreads,totals&oddsFormat=american`;
+  // Request US, US2 (offshore), and EU regions to cover all requested books
+  const url = `${BASE_URL}/${sportKey}/odds?apiKey=${API_KEY}&regions=us,us2,eu&markets=h2h,spreads,totals&oddsFormat=american`;
   
   try {
     const response = await fetch(url);
@@ -95,7 +102,7 @@ export const fetchOddsForGame = async (sport: Sport, gameId: string): Promise<an
   if (!sportKey || !API_KEY) return null;
 
   // Use the specific event endpoint
-  const url = `${BASE_URL}/${sportKey}/events/${gameId}/odds?apiKey=${API_KEY}&regions=us,eu&markets=h2h,spreads,totals&oddsFormat=american`;
+  const url = `${BASE_URL}/${sportKey}/events/${gameId}/odds?apiKey=${API_KEY}&regions=us,us2,eu&markets=h2h,spreads,totals&oddsFormat=american`;
 
   try {
     const response = await fetch(url);
