@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { QueuedGame, BookLines } from '../types';
-import { detectMarketDiff, formatOddsForDisplay } from '../services/geminiService';
+import { formatOddsForDisplay } from '../services/geminiService';
 import { COMMON_BOOKS } from '../constants';
 
 interface Props {
@@ -224,9 +224,49 @@ const QueuedGameCard: React.FC<Props> = ({
         {/* Soft Lines */}
         {game.softLines.map((line, idx) => {
           const isEditing = editingLineIndex === idx;
-          const diffSpread = game.sharpLines ? detectMarketDiff(game.sharpLines.spreadLineA, line.spreadLineA, 'SPREAD') : false;
-          const diffTotal = game.sharpLines ? detectMarketDiff(game.sharpLines.totalLine, line.totalLine, 'TOTAL') : false;
-          const diffML = game.sharpLines ? detectMarketDiff(game.sharpLines.mlOddsA, line.mlOddsA, 'ML') : false;
+          
+          // Calculate which side has VALUE (not just difference)
+          let awaySpreadValue = false;
+          let homeSpreadValue = false;
+          let overValue = false;
+          let underValue = false;
+          let awayMLValue = false;
+          let homeMLValue = false;
+
+          if (game.sharpLines) {
+            const sharp = game.sharpLines;
+            
+            // Spread value: soft - sharp, positive = value on that side
+            // Away: getting MORE points is good (e.g., +4 vs +3.5 = +0.5 value)
+            // Home: laying FEWER points is good (e.g., -3 vs -3.5 = +0.5 value)
+            const awaySpreadDiff = parseFloat(line.spreadLineA) - parseFloat(sharp.spreadLineA);
+            const homeSpreadDiff = parseFloat(line.spreadLineB) - parseFloat(sharp.spreadLineB);
+            awaySpreadValue = !isNaN(awaySpreadDiff) && awaySpreadDiff > 0;
+            homeSpreadValue = !isNaN(homeSpreadDiff) && homeSpreadDiff > 0;
+            
+            // Total value: lower line = value on Over, higher line = value on Under
+            const totalDiff = parseFloat(line.totalLine) - parseFloat(sharp.totalLine);
+            if (!isNaN(totalDiff)) {
+              overValue = totalDiff < 0;  // Lower line = easier over
+              underValue = totalDiff > 0; // Higher line = easier under
+            }
+            
+            // ML value: better odds = value
+            // Convert to comparable numbers and check if soft is better
+            const sharpMLA = parseFloat(sharp.mlOddsA);
+            const softMLA = parseFloat(line.mlOddsA);
+            const sharpMLB = parseFloat(sharp.mlOddsB);
+            const softMLB = parseFloat(line.mlOddsB);
+            
+            if (!isNaN(sharpMLA) && !isNaN(softMLA)) {
+              // For positive odds: higher is better. For negative: less negative is better
+              // Both cases: soft > sharp means better odds
+              awayMLValue = softMLA > sharpMLA;
+            }
+            if (!isNaN(sharpMLB) && !isNaN(softMLB)) {
+              homeMLValue = softMLB > sharpMLB;
+            }
+          }
 
           return (
             <div key={idx} className="bg-white rounded-xl p-3 mb-2 border border-slate-200 shadow-sm">
@@ -262,9 +302,9 @@ const QueuedGameCard: React.FC<Props> = ({
                 totalType="O"
                 mlOdds={line.mlOddsA}
                 isAway
-                highlightSpread={diffSpread}
-                highlightTotal={diffTotal}
-                highlightML={diffML}
+                highlightSpread={awaySpreadValue}
+                highlightTotal={overValue}
+                highlightML={awayMLValue}
               />
               <div className="border-t border-slate-100 my-1"></div>
               <TeamRow
@@ -275,9 +315,9 @@ const QueuedGameCard: React.FC<Props> = ({
                 totalOdds={line.totalOddsUnder}
                 totalType="U"
                 mlOdds={line.mlOddsB}
-                highlightSpread={diffSpread}
-                highlightTotal={diffTotal}
-                highlightML={diffML}
+                highlightSpread={homeSpreadValue}
+                highlightTotal={underValue}
+                highlightML={homeMLValue}
               />
             </div>
           );
