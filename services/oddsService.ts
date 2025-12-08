@@ -16,16 +16,23 @@ const SPORT_KEYS: Record<Sport, string> = {
 };
 
 export const SOFT_BOOK_KEYS = [
-  'draftkings', 'fanduel', 'betmgm', 'williamhill_us', 'betrivers', 'bovada'
+  'draftkings',
+  'fanduel', 
+  'bovada',
+  'betmgm',
+  'betrivers',
+  'fliff',
+  'espnbet'
 ];
 
 export const BOOK_DISPLAY_NAMES: Record<string, string> = {
   'draftkings': 'DraftKings',
   'fanduel': 'FanDuel',
-  'betmgm': 'BetMGM',
-  'williamhill_us': 'Caesars',
-  'betrivers': 'BetRivers',
   'bovada': 'Bovada',
+  'betmgm': 'BetMGM',
+  'betrivers': 'BetRivers',
+  'fliff': 'Fliff',
+  'espnbet': 'ESPN BET',
   'pinnacle': 'Pinnacle'
 };
 
@@ -96,8 +103,8 @@ export const fetchOddsForSport = async (sport: Sport): Promise<any[]> => {
 
   console.log(`[OddsService] Fetching fresh API data for ${sport}...`);
   
-  // Request US and EU regions to cover US books and Pinnacle (often EU)
-  const url = `${BASE_URL}/${sportKey}/odds?apiKey=${API_KEY}&regions=us,eu&markets=h2h,spreads,totals&oddsFormat=american`;
+  // Request US, US2 (offshore), and EU regions to cover all requested books
+  const url = `${BASE_URL}/${sportKey}/odds?apiKey=${API_KEY}&regions=us,us2,eu&markets=h2h,spreads,totals&oddsFormat=american`;
   
   try {
     const response = await fetch(url);
@@ -141,7 +148,7 @@ export const fetchOddsForGame = async (sport: Sport, gameId: string): Promise<an
   const sportKey = SPORT_KEYS[sport];
   if (!sportKey || !API_KEY) return null;
 
-  const url = `${BASE_URL}/${sportKey}/events/${gameId}/odds?apiKey=${API_KEY}&regions=us,eu&markets=h2h,spreads,totals&oddsFormat=american`;
+  const url = `${BASE_URL}/${sportKey}/events/${gameId}/odds?apiKey=${API_KEY}&regions=us,us2,eu&markets=h2h,spreads,totals&oddsFormat=american`;
 
   try {
     const response = await fetch(url);
@@ -151,6 +158,22 @@ export const fetchOddsForGame = async (sport: Sport, gameId: string): Promise<an
     console.error("Error fetching single game odds:", e);
     return null;
   }
+};
+
+// New function to batch load all sports
+export const fetchAllSportsOdds = async (): Promise<Record<Sport, any[]>> => {
+  const results: Record<string, any[]> = {};
+  const sports: Sport[] = ['NBA', 'NFL', 'NHL', 'MLB', 'CFB'];
+  
+  console.log('[OddsService] Batch loading all sports...');
+  
+  for (const sport of sports) {
+    // This will use cache if available, only hit API if needed
+    results[sport] = await fetchOddsForSport(sport);
+  }
+  
+  console.log('[OddsService] Batch load complete.');
+  return results as Record<Sport, any[]>;
 };
 
 // Manually clear cache to force fresh data

@@ -134,6 +134,8 @@ const cleanAndParseJson = (text: string | undefined, fallback: any = {}): any =>
     
     if (firstBrace !== -1 && lastBrace !== -1) {
       clean = clean.substring(firstBrace, lastBrace + 1);
+    } else {
+      throw new Error("No JSON object found in response");
     }
     
     return JSON.parse(clean);
@@ -444,40 +446,22 @@ ${valueSummary}
 
 ## YOUR TASK
 
-**Search for current information on BOTH teams:**
-1. "${game.awayTeam.name} injury report injuries out" 
-2. "${game.homeTeam.name} injury report injuries out"
-3. "${game.awayTeam.name} vs ${game.homeTeam.name} preview"
+1. **Search** for current injury reports and news for BOTH teams using the Google Search tool.
+2. **Analyze** if the situational edge (health, rest) aligns with the math value.
+3. **Output** the result strictly in JSON format.
 
-**Then analyze:**
-- Which team has MORE injuries / key players OUT?
-- Which team is healthier and more likely to perform to expectations?
-- Do the injuries favor one side covering the spread?
-- Does the LINE VALUE align with the SITUATIONAL EDGE?
-- Does the SHARP MOVEMENT align with the VALUE?
-
-## DECISION FRAMEWORK
-
-**PLAYABLE** requires ALL of the following:
-1. **Value:** Positive line/price value exists on a side (soft book vs current sharp).
-2. **Alignment:** Sharp movement is TOWARD that same side (or neutral).
-3. **Situation:** Situational factors (injuries, rest) favor that side (or are neutral).
-
-**PASS** if ANY of the following are true:
-- Sharps moved AGAINST the side showing value (Trap Line).
-- Situation favors the opponent (betting on bad team just for value).
-- Information is unclear.
-
-## OUTPUT JSON
+## CRITICAL: OUTPUT FORMAT
+You MUST return raw JSON. Do not return a markdown report. Do not start with "##".
+Structure:
 {
-  "decision": "PLAYABLE" or "PASS",
-  "recommendedSide": "AWAY" or "HOME" or "OVER" or "UNDER",
-  "recommendedMarket": "Spread" or "Moneyline" or "Total",
-  "reasoning": "2-3 sentences explaining why math + situation + movement align (or don't)",
-  "awayTeamInjuries": "Key injuries for away team",
-  "homeTeamInjuries": "Key injuries for home team", 
-  "situationFavors": "AWAY" or "HOME" or "NEUTRAL",
-  "confidence": "HIGH" or "MEDIUM" or "LOW"
+  "decision": "PLAYABLE" | "PASS",
+  "recommendedSide": "AWAY" | "HOME" | "OVER" | "UNDER" | null,
+  "recommendedMarket": "Spread" | "Moneyline" | "Total" | null,
+  "reasoning": "string",
+  "awayTeamInjuries": "string",
+  "homeTeamInjuries": "string",
+  "situationFavors": "AWAY" | "HOME" | "NEUTRAL",
+  "confidence": "HIGH" | "MEDIUM" | "LOW"
 }
 `;
 
@@ -485,19 +469,26 @@ ${valueSummary}
     model: 'gemini-2.5-flash',
     contents: holisticPrompt,
     config: {
-      systemInstruction: `You are EdgeLab v3, a sports betting analyst that synthesizes LINE VALUE, LINE MOVEMENT, and SITUATIONAL FACTORS to find aligned edges.
-
-Your job:
-1. Search for injuries and news on BOTH teams
-2. Check if Sharp Movement aligns with the Value Side (e.g. if we have value on Home, did Sharps move Toward Home?)
-3. Check if Situation aligns with the Value Side (e.g. is Home healthy?)
-4. Only recommend PLAYABLE when ALL factors align.
-
-Key Rule: NEVER recommend a side where sharps have moved significantly AGAINST the value (e.g. Value on Home -3, but sharps moved from -5 to -3). This is a trap.
-
-DEFAULT TO PASS if any factor conflicts.`,
+      systemInstruction: `You are EdgeLab v3. You analyze sports games for betting value.
+      
+      RULES:
+      1. Search for injuries.
+      2. Check alignment of value, movement, and situation.
+      3. OUTPUT ONLY JSON. No markdown headers.
+      
+      JSON Schema:
+      {
+        "decision": "PLAYABLE" or "PASS",
+        "recommendedSide": "AWAY", "HOME", "OVER", "UNDER",
+        "recommendedMarket": "Spread", "Moneyline", "Total",
+        "reasoning": "...",
+        "awayTeamInjuries": "...",
+        "homeTeamInjuries": "...",
+        "situationFavors": "AWAY", "HOME", "NEUTRAL",
+        "confidence": "HIGH", "MEDIUM", "LOW"
+      }`,
       tools: [{ googleSearch: {} }],
-      temperature: 0.2
+      temperature: 0.1 // Lowered from 0.2
     }
   });
 
@@ -541,10 +532,20 @@ DEFAULT TO PASS if any factor conflicts.`,
     ? formatOddsForDisplay(selectedSide.bestSoftOdds)
     : `${selectedSide.bestSoftLine} (${formatOddsForDisplay(selectedSide.bestSoftOdds)})`;
 
+  // ML JUICE WARNING: Flag plays with juice worse than -180
+  let caution: string | undefined = undefined;
+  if (selectedSide.market === 'Moneyline') {
+    const mlOdds = parseFloat(selectedSide.bestSoftOdds);
+    if (!isNaN(mlOdds) && mlOdds < -180) {
+      caution = `⚠️ Heavy juice alert: ${formatOddsForDisplay(selectedSide.bestSoftOdds)} requires risking $${Math.abs(mlOdds)} to win $100. Consider passing.`;
+    }
+  }
+
   return {
     decision: 'PLAYABLE',
     vetoTriggered: false,
     vetoReason: undefined,
+    caution,
     researchSummary: `Away (${game.awayTeam.name}): ${aiResult.awayTeamInjuries || 'No major injuries'}\nHome (${game.homeTeam.name}): ${aiResult.homeTeamInjuries || 'No major injuries'}\n\nSituation favors: ${aiResult.situationFavors}\nConfidence: ${aiResult.confidence}`,
     edgeNarrative: aiResult.reasoning,
     

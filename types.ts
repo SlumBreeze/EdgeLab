@@ -44,6 +44,7 @@ export interface HighHitAnalysis {
   decision: 'PLAYABLE' | 'PASS';
   vetoTriggered: boolean;
   vetoReason?: string;
+  caution?: string; // New field for yellow card warnings (e.g., bad ML juice)
   
   // Math-derived recommendation
   recommendation?: string;  // "Buffalo Sabres Moneyline"

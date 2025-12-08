@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Sport, Game, BookLines } from '../types';
 import { SPORTS_CONFIG } from '../constants';
-import { fetchOddsForSport, getBookmakerLines } from '../services/oddsService';
+import { fetchOddsForSport, getBookmakerLines, fetchAllSportsOdds } from '../services/oddsService';
 import { quickScanGame } from '../services/geminiService';
 import { useGameContext } from '../hooks/useGameContext';
 
@@ -35,6 +35,8 @@ export default function Scout() {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [loading, setLoading] = useState(false);
   const [apiGames, setApiGames] = useState<any[]>([]);
+  const [allSportsData, setAllSportsData] = useState<Record<string, any[]>>({});
+  const [slatesLoaded, setSlatesLoaded] = useState(false);
   
   // Scanning state
   const [scanningIds, setScanningIds] = useState<Set<string>>(new Set());
@@ -42,22 +44,30 @@ export default function Scout() {
   
   const { addToQueue, queue } = useGameContext();
 
+  const handleLoadSlates = async () => {
+    setLoading(true);
+    const allData = await fetchAllSportsOdds();
+    setAllSportsData(allData);
+    setSlatesLoaded(true);
+    setLoading(false);
+  };
+
   useEffect(() => {
-    const loadGames = async () => {
-      setLoading(true);
-      const data = await fetchOddsForSport(selectedSport);
-      
-      // Filter to show games on or after selected date
-      const filtered = data.filter((g: any) => {
-        const gameDate = new Date(g.commence_time).toLocaleDateString('en-CA');
-        return gameDate >= selectedDate;
-      });
-      
-      setApiGames(filtered);
-      setLoading(false);
-    };
-    loadGames();
-  }, [selectedSport, selectedDate]);
+    if (!slatesLoaded || !allSportsData[selectedSport]) {
+      setApiGames([]);
+      return;
+    }
+    
+    const data = allSportsData[selectedSport];
+    
+    // Filter to show games ON exact date
+    const filtered = data.filter((g: any) => {
+      const gameDate = new Date(g.commence_time).toLocaleDateString('en-CA');
+      return gameDate === selectedDate;
+    });
+    
+    setApiGames(filtered);
+  }, [selectedSport, selectedDate, allSportsData, slatesLoaded]);
 
   const mapToGameObject = (apiGame: any, pinnLines: BookLines | null): Game => {
     return {
@@ -154,42 +164,81 @@ export default function Scout() {
     <div className="p-4 max-w-lg mx-auto">
       <header className="mb-6">
         <h1 className="text-2xl font-bold text-slate-800 mb-4">EdgeLab Scout</h1>
-        <div className="flex overflow-x-auto space-x-2 pb-2 no-scrollbar">
-          {Object.entries(SPORTS_CONFIG).map(([key, config]) => (
-            <button
-              key={key}
-              onClick={() => setSelectedSport(key as Sport)}
-              className={`flex items-center space-x-2 px-4 py-2 rounded-full whitespace-nowrap transition-all shadow-sm ${
-                selectedSport === key 
-                  ? 'bg-gradient-to-r from-coral-500 to-orange-500 text-white font-bold shadow-md' 
-                  : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
-              }`}
-            >
-              <span>{config.icon}</span>
-              <span>{config.label}</span>
-            </button>
-          ))}
-        </div>
+        
+        {/* Load Slates Button */}
+        {!slatesLoaded && (
+          <button
+            onClick={handleLoadSlates}
+            disabled={loading}
+            className="w-full mb-4 py-3 bg-gradient-to-r from-coral-500 to-orange-500 text-white font-bold rounded-xl shadow-lg hover:shadow-xl transition-all disabled:opacity-50"
+          >
+            {loading ? (
+              <span className="flex items-center justify-center gap-2">
+                <span className="animate-spin">🔄</span> Loading All Slates...
+              </span>
+            ) : (
+              <span>📊 Load Today's Slates (All Sports)</span>
+            )}
+          </button>
+        )}
+        
+        {/* Show refresh button if already loaded */}
+        {slatesLoaded && (
+          <button
+            onClick={handleLoadSlates}
+            disabled={loading}
+            className="w-full mb-4 py-2 bg-slate-100 text-slate-600 font-medium rounded-xl text-sm hover:bg-slate-200 transition-colors disabled:opacity-50"
+          >
+            {loading ? 'Refreshing...' : '🔄 Refresh All Slates'}
+          </button>
+        )}
+        
+        {slatesLoaded && (
+          <div className="flex overflow-x-auto space-x-2 pb-2 no-scrollbar">
+            {Object.entries(SPORTS_CONFIG).map(([key, config]) => (
+              <button
+                key={key}
+                onClick={() => setSelectedSport(key as Sport)}
+                className={`flex items-center space-x-2 px-4 py-2 rounded-full whitespace-nowrap transition-all shadow-sm ${
+                  selectedSport === key 
+                    ? 'bg-gradient-to-r from-coral-500 to-orange-500 text-white font-bold shadow-md' 
+                    : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                }`}
+              >
+                <span>{config.icon}</span>
+                <span>{config.label}</span>
+              </button>
+            ))}
+          </div>
+        )}
       </header>
 
-      <div className="mb-6">
-        <input 
-          type="date" 
-          value={selectedDate}
-          onChange={(e) => setSelectedDate(e.target.value)}
-          className="w-full bg-white text-slate-800 p-3 rounded-xl border border-slate-200 focus:outline-none focus:border-coral-400 focus:ring-2 focus:ring-coral-100 shadow-sm"
-        />
-      </div>
+      {slatesLoaded && (
+        <div className="mb-6">
+          <input 
+            type="date" 
+            value={selectedDate}
+            onChange={(e) => setSelectedDate(e.target.value)}
+            className="w-full bg-white text-slate-800 p-3 rounded-xl border border-slate-200 focus:outline-none focus:border-coral-400 focus:ring-2 focus:ring-coral-100 shadow-sm"
+          />
+        </div>
+      )}
 
       <div className="space-y-4">
-        {loading ? (
+        {!slatesLoaded ? (
+          <div className="text-center py-10 text-slate-400 bg-white rounded-2xl border border-slate-200">
+            <p className="text-4xl mb-3">📊</p>
+            <p className="font-medium">Click "Load Today's Slates" to fetch lines</p>
+            <p className="text-xs mt-2 text-slate-300">This loads all sports at once to save API credits</p>
+          </div>
+        ) : loading ? (
           <div className="text-center py-10 text-slate-400">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-coral-500 mx-auto mb-3"></div>
             Searching lines...
           </div>
         ) : apiGames.length === 0 ? (
           <div className="text-center py-10 text-slate-400 bg-white rounded-2xl border border-slate-200">
-            No games found for this date.
+            No {selectedSport} games found for {selectedDate}.
           </div>
         ) : (
           apiGames.map(game => {

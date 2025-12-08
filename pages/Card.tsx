@@ -29,6 +29,9 @@ export default function Card() {
         if (a.lineValueCents && a.lineValueCents > 0) {
           output += `Line Value: +${a.lineValueCents} cents\n`;
         }
+        if (a.caution) {
+          output += `WARNING: ${a.caution}\n`;
+        }
         output += `Edge: ${a.edgeNarrative || 'No specific edge identified'}\n`;
       });
     } else {
@@ -146,13 +149,27 @@ export default function Card() {
 
 const PlayableCard: React.FC<{ game: QueuedGame }> = ({ game }) => {
   const a = game.analysis!;
+  const hasCaution = !!a.caution;
   
   return (
-    <div className="p-4 rounded-2xl bg-gradient-to-br from-teal-500 to-emerald-500 text-white shadow-lg">
+    <div className={`p-4 rounded-2xl shadow-lg ${
+      hasCaution 
+        ? 'bg-gradient-to-br from-amber-400 to-yellow-500 text-slate-800' 
+        : 'bg-gradient-to-br from-teal-500 to-emerald-500 text-white'
+    }`}>
+      {/* Add caution banner at top if exists */}
+      {a.caution && (
+        <div className={`mb-3 p-2 rounded-lg text-xs font-medium ${
+          hasCaution ? 'bg-amber-600/20 text-amber-900' : ''
+        }`}>
+          {a.caution}
+        </div>
+      )}
+
       <div className="flex justify-between items-start mb-2">
-        <span className="text-xs font-bold text-white/70 uppercase">{game.sport}</span>
+        <span className={`text-xs font-bold uppercase ${hasCaution ? 'text-slate-700' : 'text-white/70'}`}>{game.sport}</span>
         {a.recProbability !== undefined && a.recProbability > 0 && (
-          <span className="text-xs font-mono bg-white/20 px-2 py-1 rounded-full">
+          <span className={`text-xs font-mono px-2 py-1 rounded-full ${hasCaution ? 'bg-white/40 text-slate-900' : 'bg-white/20'}`}>
             Fair: {a.recProbability.toFixed(1)}%
           </span>
         )}
@@ -162,35 +179,35 @@ const PlayableCard: React.FC<{ game: QueuedGame }> = ({ game }) => {
       {a.recommendation && (
         <div className="mb-4">
           <div className="text-2xl font-bold leading-tight">
-            {a.recommendation} <span className="text-white/90">{a.recLine}</span>
+            {a.recommendation} <span className={hasCaution ? 'text-slate-900' : 'text-white/90'}>{a.recLine}</span>
           </div>
-          <div className="text-sm text-white/70 mt-1">
+          <div className={`text-sm mt-1 ${hasCaution ? 'text-slate-700' : 'text-white/70'}`}>
             @ {a.softBestBook}
           </div>
         </div>
       )}
       
       {/* Matchup context */}
-      <div className="text-sm text-white/60 mb-3">
+      <div className={`text-sm mb-3 ${hasCaution ? 'text-slate-700' : 'text-white/60'}`}>
         {game.awayTeam.name} @ {game.homeTeam.name}
       </div>
       
       {/* Line Value Badge */}
       {(a.lineValueCents !== undefined && a.lineValueCents > 0) && (
-        <div className="inline-block bg-white/20 text-white text-xs px-3 py-1 rounded-full mb-3">
+        <div className={`inline-block text-xs px-3 py-1 rounded-full mb-3 ${hasCaution ? 'bg-white/30 text-slate-900' : 'bg-white/20 text-white'}`}>
           +{a.lineValueCents}¢ vs sharp
         </div>
       )}
       
       {a.edgeNarrative && (
-        <div className="text-sm text-white/80 mb-3 italic">
+        <div className={`text-sm mb-3 italic ${hasCaution ? 'text-slate-800' : 'text-white/80'}`}>
           "{a.edgeNarrative}"
         </div>
       )}
       
-      <details className="text-xs text-white/70 border-t border-white/20 pt-2">
-        <summary className="cursor-pointer hover:text-white font-medium">Research Summary</summary>
-        <div className="mt-2 p-2 bg-white/10 rounded-xl whitespace-pre-wrap">
+      <details className={`text-xs border-t pt-2 ${hasCaution ? 'text-slate-700 border-slate-800/20' : 'text-white/70 border-white/20'}`}>
+        <summary className={`cursor-pointer font-medium ${hasCaution ? 'hover:text-slate-900' : 'hover:text-white'}`}>Research Summary</summary>
+        <div className={`mt-2 p-2 rounded-xl whitespace-pre-wrap ${hasCaution ? 'bg-white/20 text-slate-800' : 'bg-white/10'}`}>
           {a.researchSummary}
         </div>
       </details>
