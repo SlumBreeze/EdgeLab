@@ -75,13 +75,22 @@ export const calculateNoVigProb = (oddsA: string, oddsB: string): { probA: numbe
   };
 };
 
+// HELPER: Linearizes odds centered around 0 (Even Money)
+// +150 -> 50, +100 -> 0, -110 -> -10, -150 -> -50
+const getLinearOddsValue = (odds: number): number => {
+  return odds >= 100 ? odds - 100 : odds + 100;
+};
+
 export const calculateJuiceDiff = (sharpOdds: string, softOdds: string): number => {
   const sharp = normalizeToAmerican(sharpOdds);
   const soft = normalizeToAmerican(softOdds);
   
   if (isNaN(sharp) || isNaN(soft) || sharp === 0 || soft === 0) return 0;
   
-  return Math.round(soft - sharp);
+  // FIXED: Use linear scale to handle crossing zero (e.g. -105 to +105)
+  // Old logic (soft - sharp) would return 210 for -105 vs +105
+  // New logic returns 10 (5 - (-5))
+  return getLinearOddsValue(soft) - getLinearOddsValue(sharp);
 };
 
 export const calculateLineDiff = (sharpLine: string, softLine: string): number => {
