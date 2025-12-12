@@ -541,13 +541,13 @@ Structure:
     ? formatOddsForDisplay(selectedSide.bestSoftOdds)
     : `${selectedSide.bestSoftLine} (${formatOddsForDisplay(selectedSide.bestSoftOdds)})`;
 
-  // ML JUICE WARNING: Flag plays with juice worse than -180
+  // JUICE WARNING: Flag ANY play with juice worse than -160
   let caution: string | undefined = undefined;
-  if (selectedSide.market === 'Moneyline') {
-    const mlOdds = parseFloat(selectedSide.bestSoftOdds);
-    if (!isNaN(mlOdds) && mlOdds < -180) {
-      caution = `⚠️ Heavy juice alert: ${formatOddsForDisplay(selectedSide.bestSoftOdds)} requires risking $${Math.abs(mlOdds)} to win $100. Consider passing.`;
-    }
+  const bestOdds = parseFloat(selectedSide.bestSoftOdds);
+  
+  // Check if odds exist and are worse than -160 (e.g. -165, -200)
+  if (!isNaN(bestOdds) && bestOdds < -160) {
+    caution = `⚠️ Heavy juice alert: ${formatOddsForDisplay(selectedSide.bestSoftOdds)} requires risking $${Math.abs(bestOdds)} to win $100. This exceeds the -160 limit.`;
   }
 
   return {
