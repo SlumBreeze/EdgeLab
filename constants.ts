@@ -1,9 +1,11 @@
+
 export const SPORTS_CONFIG: Record<string, { label: string, espnSlug: string, icon: string }> = {
   NBA: { label: 'NBA', espnSlug: 'basketball/nba', icon: '🏀' },
   NFL: { label: 'NFL', espnSlug: 'football/nfl', icon: '🏈' },
   NHL: { label: 'NHL', espnSlug: 'hockey/nhl', icon: '🏒' },
   MLB: { label: 'MLB', espnSlug: 'baseball/mlb', icon: '⚾' },
   CFB: { label: 'NCAA FB', espnSlug: 'football/college-football', icon: '🏈' },
+  CBB: { label: 'NCAA BK', espnSlug: 'basketball/mens-college-basketball', icon: '🏀' },
 };
 
 export const COMMON_BOOKS = [

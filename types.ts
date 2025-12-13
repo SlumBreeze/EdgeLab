@@ -1,4 +1,5 @@
-export type Sport = 'NBA' | 'NFL' | 'NHL' | 'MLB' | 'CFB';
+
+export type Sport = 'NBA' | 'NFL' | 'NHL' | 'MLB' | 'CFB' | 'CBB';
 
 export interface Game {
   id: string;
@@ -38,6 +39,7 @@ export interface QueuedGame extends Game {
   softLines: BookLines[];
   analysis?: HighHitAnalysis;
   isAnalyzing?: boolean;
+  cardSlot?: number;
 }
 
 export interface HighHitAnalysis {
@@ -86,4 +88,5 @@ export interface AnalysisState {
   getPlayableCount: () => number;
   canAddMorePlays: () => boolean;
   markAsPlayed: (gameId: string) => void;
+  autoPickBest4: () => void;
 }

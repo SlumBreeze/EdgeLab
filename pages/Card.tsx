@@ -1,10 +1,11 @@
+
 import React from 'react';
 import { useGameContext } from '../hooks/useGameContext';
 import { HighHitAnalysis, QueuedGame } from '../types';
 import { MAX_DAILY_PLAYS } from '../constants';
 
 export default function Card() {
-  const { queue, getPlayableCount } = useGameContext();
+  const { queue, getPlayableCount, autoPickBest4 } = useGameContext();
   
   const analyzedGames = queue.filter(g => g.analysis);
   const playable = analyzedGames.filter(g => g.analysis?.decision === 'PLAYABLE');
@@ -12,15 +13,26 @@ export default function Card() {
   
   const playableCount = getPlayableCount();
   const overLimit = playableCount > MAX_DAILY_PLAYS;
+  
+  const hasAutoPicked = queue.some(g => g.cardSlot !== undefined);
 
   const generateClipboardText = () => {
     const dateStr = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
     let output = `EDGELAB v3 — DAILY CARD\n${dateStr}\n${'='.repeat(35)}\n\n`;
 
-    if (playable.length > 0) {
+    // If auto-picked, sort by slot
+    const sortedPlayable = hasAutoPicked 
+      ? [...playable].sort((a, b) => (a.cardSlot || 999) - (b.cardSlot || 999))
+      : playable;
+
+    if (sortedPlayable.length > 0) {
       output += `✅ PLAYABLE (No Vetoes Triggered)\n`;
-      playable.forEach(g => {
+      sortedPlayable.forEach(g => {
         const a = g.analysis!;
+        // If auto-picked, only mark the slotted ones? Or all? Usually clipboard dumps all playable.
+        // Let's include slot info if available.
+        if (g.cardSlot) output += `[SLOT #${g.cardSlot}] `;
+        
         output += `\n${g.sport}: ${g.awayTeam.name} @ ${g.homeTeam.name}\n`;
         output += `Sharp Fair Prob: ${a.sharpImpliedProb?.toFixed(1) || 'N/A'}%\n`;
         if (a.recommendation) {
@@ -59,6 +71,16 @@ export default function Card() {
           {new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
         </p>
       </header>
+      
+      {/* Auto-Pick Button */}
+      {playable.length > 0 && (
+        <button
+          onClick={autoPickBest4}
+          className="w-full mb-6 py-3 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 text-white font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
+        >
+          <span>🎯</span> Auto-Pick Best 4 (Math-First)
+        </button>
+      )}
 
       {/* DISCIPLINE WARNING */}
       {overLimit && (
@@ -108,8 +130,17 @@ export default function Card() {
                 <span className="mr-2">✅</span> Playable (Your Decision)
               </h2>
               <div className="space-y-3">
-                {playable.map(g => (
-                  <PlayableCard key={g.id} game={g} />
+                {playable
+                  // If auto-picked, sort slots first
+                  .sort((a, b) => {
+                     if (!hasAutoPicked) return 0;
+                     // Slotted items first, sorted by slot number
+                     const slotA = a.cardSlot || 999;
+                     const slotB = b.cardSlot || 999;
+                     return slotA - slotB;
+                  })
+                  .map(g => (
+                    <PlayableCard key={g.id} game={g} dim={hasAutoPicked && !g.cardSlot} />
                 ))}
               </div>
             </section>
@@ -147,16 +178,30 @@ export default function Card() {
   );
 }
 
-const PlayableCard: React.FC<{ game: QueuedGame }> = ({ game }) => {
+const PlayableCard: React.FC<{ game: QueuedGame; dim?: boolean }> = ({ game, dim }) => {
   const a = game.analysis!;
   const hasCaution = !!a.caution;
+  const slot = game.cardSlot;
   
   return (
-    <div className={`p-4 rounded-2xl shadow-lg ${
+    <div className={`p-4 rounded-2xl shadow-lg relative transition-all ${
+      dim ? 'opacity-40 grayscale-[50%]' : ''
+    } ${
+      slot 
+        ? 'border-4 border-amber-400' 
+        : ''
+    } ${
       hasCaution 
         ? 'bg-gradient-to-br from-amber-400 to-yellow-500 text-slate-800' 
         : 'bg-gradient-to-br from-teal-500 to-emerald-500 text-white'
     }`}>
+      {/* SLOT BADGE */}
+      {slot && (
+        <div className="absolute -top-3 -right-2 bg-amber-400 text-amber-900 border-2 border-white shadow-md font-black italic px-3 py-1 rounded-full text-xs z-10">
+          SLOT #{slot}
+        </div>
+      )}
+
       {/* Add caution banner at top if exists */}
       {a.caution && (
         <div className={`mb-3 p-2 rounded-lg text-xs font-medium ${

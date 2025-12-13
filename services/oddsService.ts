@@ -1,3 +1,4 @@
+
 import { BookLines, Sport } from '../types';
 
 // UPDATED: Using the correct key that has usage history
@@ -12,7 +13,8 @@ const SPORT_KEYS: Record<Sport, string> = {
   'NFL': 'americanfootball_nfl',
   'NHL': 'icehockey_nhl',
   'MLB': 'baseball_mlb',
-  'CFB': 'americanfootball_ncaaf'
+  'CFB': 'americanfootball_ncaaf',
+  'CBB': 'basketball_ncaab'
 };
 
 export const SOFT_BOOK_KEYS = [
@@ -163,7 +165,7 @@ export const fetchOddsForGame = async (sport: Sport, gameId: string): Promise<an
 // New function to batch load all sports
 export const fetchAllSportsOdds = async (): Promise<Record<Sport, any[]>> => {
   const results: Record<string, any[]> = {};
-  const sports: Sport[] = ['NBA', 'NFL', 'NHL', 'MLB', 'CFB'];
+  const sports: Sport[] = ['NBA', 'NFL', 'NHL', 'MLB', 'CFB', 'CBB'];
   
   console.log('[OddsService] Batch loading all sports...');
   

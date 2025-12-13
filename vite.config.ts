@@ -8,7 +8,7 @@ export default defineConfig(({ mode }) => {
     plugins: [react()],
     define: {
       'process.env.API_KEY': JSON.stringify(env.API_KEY),
-      'process.env.ODDS_API_KEY': JSON.stringify(env.ODDS_API_KEY || "93d0d9932ba8b9c297edb1858935cd3d"),
+      'process.env.ODDS_API_KEY': JSON.stringify(env.ODDS_API_KEY || "c99ceaaa8dd6ba6be5d5293bfe7be3da"),
     },
   };
 });
