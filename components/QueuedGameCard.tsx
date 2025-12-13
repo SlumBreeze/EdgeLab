@@ -4,6 +4,7 @@ import { formatOddsForDisplay } from '../services/geminiService';
 import { COMMON_BOOKS } from '../constants';
 import { fetchOddsForGame, getBookmakerLines, SOFT_BOOK_KEYS } from '../services/oddsService';
 import { useGameContext } from '../hooks/useGameContext';
+import { CompactSoftLines } from './CompactSoftLines';
 
 interface Props {
   game: QueuedGame;
@@ -92,38 +93,18 @@ const QueuedGameCard: React.FC<Props> = ({
     if (!game.sharpLines) return null;
     const sharp = game.sharpLines;
     
-    // Simple helper to check values
     const getDiff = (s: string, h: string) => {
       const sv = parseFloat(s);
       const hv = parseFloat(h);
       return (isNaN(sv) || isNaN(hv)) ? 0 : sv - hv;
     };
 
-    const getJuiceDiff = (s: string, h: string) => {
-       // Convert odds to numbers (implied or American) then diff
-       // For this UI, let's just use approximate juice diff
-       // Actually geminiService has this logic, let's replicate simpler version for UI
-       // Positive means BETTER price on soft.
-       // e.g. Sharp -110, Soft -105 => +5 cents
-       return 0; // Placeholder if not strictly needed for the checklist "sparkle" logic text
-    };
-
-    // Check spread advantage
-    // Dog: +4.5 vs +4.0 (diff +0.5) -> Good
-    // Fav: -3.0 vs -3.5 (diff +0.5) -> Good (Wait, -3 > -3.5 is true)
-    // So if soft > sharp, it's generally "more points" for the bettor
     const spreadADiff = getDiff(soft.spreadLineA, sharp.spreadLineA);
     const spreadBDiff = getDiff(soft.spreadLineB, sharp.spreadLineB);
-    
-    // Check juice advantage
-    // Only rough estimate for display
-    const juiceADiff = parseInt(soft.spreadOddsA) - parseInt(sharp.spreadOddsA); // Very rough, ignores decimal/US format mix
     
     if (spreadADiff > 0) return `✨+${spreadADiff} pts (Away)`;
     if (spreadBDiff > 0) return `✨+${spreadBDiff} pts (Home)`;
     
-    // Price edge (heuristic: just check if odds number is higher)
-    // E.g. +110 > +100 (good), -105 > -110 (good)
     const sOddsA = parseFloat(soft.spreadOddsA);
     const pOddsA = parseFloat(sharp.spreadOddsA);
     if (!isNaN(sOddsA) && !isNaN(pOddsA) && sOddsA > pOddsA) return `✨+${Math.round(sOddsA - pOddsA)}¢ (Away)`;
@@ -361,96 +342,13 @@ const QueuedGameCard: React.FC<Props> = ({
           </div>
         )}
 
-        {/* Selected Soft Lines Display (Manually Added or Checked) */}
-        {game.softLines.map((line, idx) => {
-          const isEditing = editingLineIndex === idx;
-          
-          let awaySpreadValue = false;
-          let homeSpreadValue = false;
-          let overValue = false;
-          let underValue = false;
-          let awayMLValue = false;
-          let homeMLValue = false;
-
-          if (game.sharpLines) {
-            const sharp = game.sharpLines;
-            const awaySpreadDiff = parseFloat(line.spreadLineA) - parseFloat(sharp.spreadLineA);
-            const homeSpreadDiff = parseFloat(line.spreadLineB) - parseFloat(sharp.spreadLineB);
-            awaySpreadValue = !isNaN(awaySpreadDiff) && awaySpreadDiff > 0;
-            homeSpreadValue = !isNaN(homeSpreadDiff) && homeSpreadDiff > 0;
-            
-            const totalDiff = parseFloat(line.totalLine) - parseFloat(sharp.totalLine);
-            if (!isNaN(totalDiff)) {
-              overValue = totalDiff < 0;  // Lower line = easier over
-              underValue = totalDiff > 0; // Higher line = easier under
-            }
-            
-            const sharpMLA = parseFloat(sharp.mlOddsA);
-            const softMLA = parseFloat(line.mlOddsA);
-            const sharpMLB = parseFloat(sharp.mlOddsB);
-            const softMLB = parseFloat(line.mlOddsB);
-            
-            if (!isNaN(sharpMLA) && !isNaN(softMLA)) awayMLValue = softMLA > sharpMLA;
-            if (!isNaN(sharpMLB) && !isNaN(softMLB)) homeMLValue = softMLB > sharpMLB;
-          }
-
-          return (
-            <div key={idx} className="bg-white rounded-xl p-3 mb-2 border border-slate-200 shadow-sm">
-              <div className="flex items-center justify-between mb-2">
-                {isEditing ? (
-                  <select 
-                    value={line.bookName} 
-                    onChange={(e) => {
-                      onUpdateSoftBook(idx, e.target.value);
-                      setEditingLineIndex(null);
-                    }}
-                    onBlur={() => setEditingLineIndex(null)}
-                    autoFocus
-                    className="text-xs bg-white text-slate-800 rounded-lg px-2 py-1 border-2 border-teal-400 outline-none"
-                  >
-                    {COMMON_BOOKS.map(b => <option key={b} value={b}>{b}</option>)}
-                  </select>
-                ) : (
-                  <div className="flex items-center gap-2">
-                    <button 
-                      onClick={() => setEditingLineIndex(idx)} 
-                      className="text-[10px] font-bold text-slate-600 uppercase flex items-center gap-1 hover:text-teal-600"
-                    >
-                      <span>🏷️</span> {line.bookName}
-                    </button>
-                    {/* Allow removing manually added lines or unchecked ones via this X if desired, but toggle is better for API ones */}
-                  </div>
-                )}
-              </div>
-              <TeamRow
-                team={game.awayTeam}
-                spreadLine={line.spreadLineA}
-                spreadOdds={line.spreadOddsA}
-                totalLine={line.totalLine}
-                totalOdds={line.totalOddsOver}
-                totalType="O"
-                mlOdds={line.mlOddsA}
-                isAway
-                highlightSpread={awaySpreadValue}
-                highlightTotal={overValue}
-                highlightML={awayMLValue}
-              />
-              <div className="border-t border-slate-100 my-1"></div>
-              <TeamRow
-                team={game.homeTeam}
-                spreadLine={line.spreadLineB}
-                spreadOdds={line.spreadOddsB}
-                totalLine={line.totalLine}
-                totalOdds={line.totalOddsUnder}
-                totalType="U"
-                mlOdds={line.mlOddsB}
-                highlightSpread={homeSpreadValue}
-                highlightTotal={underValue}
-                highlightML={homeMLValue}
-              />
-            </div>
-          );
-        })}
+        {/* Selected Soft Lines Display (Compact View) */}
+        <CompactSoftLines 
+           game={game} 
+           editingLineIndex={editingLineIndex} 
+           setEditingLineIndex={setEditingLineIndex} 
+           onUpdateSoftBook={onUpdateSoftBook} 
+        />
       </div>
 
       {/* Analysis Result / Action */}
