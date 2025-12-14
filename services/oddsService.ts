@@ -2,7 +2,7 @@
 import { BookLines, Sport } from '../types';
 
 // UPDATED: Using the correct key that has usage history
-const API_KEY = process.env.ODDS_API_KEY || "93d0d9932ba8b9c297edb1858935cd3d";
+const API_KEY = process.env.ODDS_API_KEY || "c99ceaaa8dd6ba6be5d5293bfe7be3da";
 const BASE_URL = 'https://api.the-odds-api.com/v4/sports';
 
 // Cache Duration: 60 minutes (keeps "Scout" free for an hour)
