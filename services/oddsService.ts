@@ -13,8 +13,7 @@ const SPORT_KEYS: Record<Sport, string> = {
   'NFL': 'americanfootball_nfl',
   'NHL': 'icehockey_nhl',
   'MLB': 'baseball_mlb',
-  'CFB': 'americanfootball_ncaaf',
-  'CBB': 'basketball_ncaab'
+  'CFB': 'americanfootball_ncaaf'
 };
 
 export const SOFT_BOOK_KEYS = [
@@ -165,7 +164,7 @@ export const fetchOddsForGame = async (sport: Sport, gameId: string): Promise<an
 // New function to batch load all sports
 export const fetchAllSportsOdds = async (): Promise<Record<Sport, any[]>> => {
   const results: Record<string, any[]> = {};
-  const sports: Sport[] = ['NBA', 'NFL', 'NHL', 'MLB', 'CFB', 'CBB'];
+  const sports: Sport[] = ['NBA', 'NFL', 'NHL', 'MLB', 'CFB'];
   
   console.log('[OddsService] Batch loading all sports...');
   
