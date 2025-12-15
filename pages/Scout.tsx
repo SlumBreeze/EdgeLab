@@ -72,10 +72,16 @@ export default function Scout() {
 
   const handleLoadSlates = async () => {
     setLoading(true);
-    const allData = await fetchAllSportsOdds();
-    setAllSportsData(allData);
-    setSlatesLoaded(true);
-    setLoading(false);
+    try {
+      const allData = await fetchAllSportsOdds();
+      setAllSportsData(allData);
+      setSlatesLoaded(true);
+    } catch (e) {
+      console.error("Failed to load slates:", e);
+      alert("Failed to load slates. Try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {

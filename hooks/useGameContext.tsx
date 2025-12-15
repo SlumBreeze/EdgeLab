@@ -124,7 +124,11 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         // Tertiary: Soft Odds (Desc - higher payout is better)
         const parseOdds = (o?: string) => o ? parseFloat(o) : -9999;
-        return parseOdds(bVal.softBestOdds) - parseOdds(aVal.softBestOdds);
+        const oddsDiff = parseOdds(bVal.softBestOdds) - parseOdds(aVal.softBestOdds);
+        if (oddsDiff !== 0) return oddsDiff;
+
+        // Quaternary: Game ID (Deterministic tiebreaker)
+        return a.id.localeCompare(b.id);
       });
       
       // 4. Take top 4 IDs
