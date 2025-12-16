@@ -88,5 +88,5 @@ export interface AnalysisState {
   getPlayableCount: () => number;
   canAddMorePlays: () => boolean;
   markAsPlayed: (gameId: string) => void;
-  autoPickBest4: () => void;
+  autoPickBestGames: () => void;
 }

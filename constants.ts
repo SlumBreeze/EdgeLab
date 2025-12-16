@@ -12,7 +12,7 @@ export const COMMON_BOOKS = [
   "Caesars", "Bet365", "BetRivers", "Hard Rock", "PointsBet", "Fanatics", "Fliff"
 ];
 
-export const MAX_DAILY_PLAYS = 8;
+export const MAX_DAILY_PLAYS = 6;
 
 export const VETO_RULES = {
   EFFICIENCY_FLOOR: {

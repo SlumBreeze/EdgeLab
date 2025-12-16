@@ -5,7 +5,7 @@ import { HighHitAnalysis, QueuedGame } from '../types';
 import { MAX_DAILY_PLAYS } from '../constants';
 
 export default function Card() {
-  const { queue, getPlayableCount, autoPickBest4 } = useGameContext();
+  const { queue, getPlayableCount, autoPickBestGames } = useGameContext();
   
   const analyzedGames = queue.filter(g => g.analysis);
   const playable = analyzedGames.filter(g => g.analysis?.decision === 'PLAYABLE');
@@ -75,10 +75,10 @@ export default function Card() {
       {/* Auto-Pick Button */}
       {playable.length > 0 && (
         <button
-          onClick={autoPickBest4}
+          onClick={autoPickBestGames}
           className="w-full mb-6 py-3 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 text-white font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
         >
-          <span>🎯</span> Auto-Pick Best 4 (Math-First)
+          <span>🎯</span> Auto-Pick Top 6 (No Heavy Juice)
         </button>
       )}
 

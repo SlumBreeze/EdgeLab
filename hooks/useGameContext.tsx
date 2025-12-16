@@ -99,7 +99,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }));
   };
 
-  const autoPickBest4 = () => {
+  const autoPickBestGames = () => {
     setQueue(prev => {
       // 1. Reset all card slots
       const reset = prev.map(g => ({ ...g, cardSlot: undefined }));
@@ -107,36 +107,54 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // 2. Identify Playable games
       const playable = reset.filter(g => g.analysis?.decision === 'PLAYABLE');
       
-      // 3. Sort strictly by value
-      playable.sort((a, b) => {
+      // 3. Strict Price Veto Filter (-160 Limit)
+      const validPlayable = playable.filter(g => {
+        const oddsStr = g.analysis?.softBestOdds;
+        if (!oddsStr) return false;
+        
+        const odds = parseFloat(oddsStr);
+        if (isNaN(odds)) return false;
+
+        // If odds are negative and worse than -160 (e.g. -165, -200), exclude
+        if (odds < 0 && odds < -160) return false;
+        
+        return true;
+      });
+
+      // 4. Sort strictly by value + payout
+      validPlayable.sort((a, b) => {
         const aVal = a.analysis!;
         const bVal = b.analysis!;
         
         // Primary: Line Value Points (Desc)
+        // Getting +4.5 when sharp is +3.5 (1.0 diff) is the strongest signal
         const aPts = aVal.lineValuePoints || 0;
         const bPts = bVal.lineValuePoints || 0;
         if (aPts !== bPts) return bPts - aPts;
         
-        // Secondary: Line Value Cents (Desc)
+        // Secondary: Odds / Payout (Desc)
+        // Prioritize Plus Money (+105 > -110)
+        const parseOdds = (o?: string) => o ? parseFloat(o) : -9999;
+        const aOdds = parseOdds(aVal.softBestOdds);
+        const bOdds = parseOdds(bVal.softBestOdds);
+        if (aOdds !== bOdds) return bOdds - aOdds;
+        
+        // Tertiary: Line Value Cents (Desc)
+        // Difference between Sharp and Soft price (e.g. +15 cents edge)
         const aCents = aVal.lineValueCents || 0;
         const bCents = bVal.lineValueCents || 0;
         if (aCents !== bCents) return bCents - aCents;
-        
-        // Tertiary: Soft Odds (Desc - higher payout is better)
-        const parseOdds = (o?: string) => o ? parseFloat(o) : -9999;
-        const oddsDiff = parseOdds(bVal.softBestOdds) - parseOdds(aVal.softBestOdds);
-        if (oddsDiff !== 0) return oddsDiff;
 
         // Quaternary: Game ID (Deterministic tiebreaker)
         return a.id.localeCompare(b.id);
       });
       
-      // 4. Take top 4 IDs
-      const top4Ids = playable.slice(0, 4).map(g => g.id);
+      // 5. Take top 6 IDs (Increased from 4)
+      const top6Ids = validPlayable.slice(0, 6).map(g => g.id);
       
-      // 5. Update queue with slots
+      // 6. Update queue with slots
       return reset.map(g => {
-        const slotIndex = top4Ids.indexOf(g.id);
+        const slotIndex = top6Ids.indexOf(g.id);
         if (slotIndex !== -1) {
           return { ...g, cardSlot: slotIndex + 1 };
         }
@@ -159,7 +177,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       getPlayableCount,
       canAddMorePlays,
       markAsPlayed,
-      autoPickBest4,
+      autoPickBestGames, // Renamed from autoPickBest4
     }}>
       {children}
     </GameContext.Provider>
