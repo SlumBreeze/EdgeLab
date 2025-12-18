@@ -1,5 +1,5 @@
 
-export type Sport = 'NBA' | 'NFL' | 'NHL' | 'MLB' | 'CFB';
+export type Sport = 'NBA' | 'NFL' | 'NHL' | 'CFB';
 
 export interface Game {
   id: string;

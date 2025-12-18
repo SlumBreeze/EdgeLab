@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Type, Schema } from "@google/genai";
 import { BookLines, QueuedGame, HighHitAnalysis, Game } from '../types';
 import { EXTRACTION_PROMPT, HIGH_HIT_SYSTEM_PROMPT } from '../constants';
@@ -110,8 +111,7 @@ export const checkPriceVetoes = (game: QueuedGame): { triggered: boolean, reason
     case 'NFL': spreadLimit = 14.0; break;
     case 'NBA': spreadLimit = 16.0; break;
     case 'CFB': spreadLimit = 24.0; break;
-    case 'NHL': 
-    case 'MLB': spreadLimit = 4.0; break;
+    case 'NHL': spreadLimit = 4.0; break;
     default: spreadLimit = 10.0;
   }
 
@@ -144,7 +144,9 @@ const cleanAndParseJson = (text: string | undefined, fallback: any = {}): any =>
     if (firstBrace !== -1 && lastBrace !== -1) {
       clean = clean.substring(firstBrace, lastBrace + 1);
     } else {
-      throw new Error("No JSON object found in response");
+      // If we can't find braces, the model might have returned a refusal string
+      console.warn("No JSON object found in response. Text was:", text);
+      return fallback;
     }
     
     return JSON.parse(clean);
@@ -237,7 +239,6 @@ const analyzeAllSides = (sharp: BookLines, softLines: BookLines[]): SideValue[] 
       if (!softOdds || softOdds === 'N/A' || !sharpOdds || sharpOdds === 'N/A') return;
 
       // SANITY CHECK 1: Filter out bad OCR scans 
-      // Odds > 2000 or < -2000 are usually errors or massive longshots we ignore
       const sVal = parseFloat(softOdds);
       if (Math.abs(sVal) > 2000) return;
 
@@ -245,17 +246,9 @@ const analyzeAllSides = (sharp: BookLines, softLines: BookLines[]): SideValue[] 
       const priceValue = calculateJuiceDiff(sharpOdds, softOdds);
       
       // SANITY CHECK 2: The "Ghost Edge" Killer
-      // If the price difference is massive (> 50 cents), it's likely a data error, not a real edge.
-      // Real edges are boring: +5 to +15 cents. Not +219 cents.
       if (Math.abs(priceValue) > 50) return;
 
-      // For underdogs (positive spread), MORE points is better (positive lineValue)
-      // For favorites (negative spread), FEWER points is better (lineValue should be positive when soft is less negative)
-      // The calculateLineDiff returns soft - sharp, so:
-      // - Underdog: sharp +12.5, soft +13.5 → lineValue = +1 (good!)
-      // - Favorite: sharp -12.5, soft -13.5 → lineValue = -1 (bad!)
-      
-      // Score: lineValue (for spreads) + priceValue/10 (juice matters less than points)
+      // Score: lineValue (for spreads) + priceValue/10
       const totalValue = (market === 'Spread' ? lineValue * 10 : 0) + priceValue;
 
       if (totalValue > bestValue) {
@@ -269,9 +262,6 @@ const analyzeAllSides = (sharp: BookLines, softLines: BookLines[]): SideValue[] 
     });
 
     if (bestBook) {
-      // Determine if this side has positive value
-      // For spreads: positive line value (getting more points as dog, laying fewer as fav)
-      // For ML/Totals: positive price value
       const hasPositiveValue = market === 'Spread' 
         ? bestLineValue > 0 || (bestLineValue === 0 && bestPriceValue > 0)
         : bestPriceValue > 0;
@@ -402,32 +392,24 @@ export const analyzeGame = async (game: QueuedGame): Promise<HighHitAnalysis> =>
   // ========== STEP 4: PREPARE DATA FOR AI ==========
   const dateObj = new Date(game.date);
   const readableDate = dateObj.toLocaleDateString('en-US', { weekday: 'short', month: 'long', day: 'numeric' });
-  
-  // Retrieve Reference Lines
   const refLines = getReferenceLines(game.id);
 
-  // Calculate Movement
   let movementNarrative = "Movement: No reference line data available (first time seen).";
   if (refLines && game.sharpLines) {
     const refA = parseFloat(refLines.spreadLineA);
     const currA = parseFloat(game.sharpLines.spreadLineA);
-    
     if (!isNaN(refA) && !isNaN(currA)) {
-      const diff = currA - refA; // e.g. -4.0 - (-3.0) = -1.0
+      const diff = currA - refA;
       const absDiff = Math.abs(diff);
-      
       if (absDiff < 0.1) {
         movementNarrative = "Movement: Line is stable (no significant sharp movement).";
       } else {
-        // If diff is negative (-3 -> -4), line moved TOWARD Away (Away is stronger/favored more)
-        // If diff is positive (-4 -> -3), line moved AGAINST Away (Away is weaker/favored less)
         const direction = diff < 0 ? "TOWARD" : "AGAINST";
         movementNarrative = `Movement: Sharps moved ${absDiff.toFixed(1)} points ${direction} ${game.awayTeam.name}.`;
       }
     }
   }
 
-  // Build the value summary for AI
   const valueSummary = sidesWithValue.map(s => {
     const teamName = s.side === 'AWAY' ? game.awayTeam.name : 
                      s.side === 'HOME' ? game.homeTeam.name : s.side;
@@ -445,33 +427,18 @@ export const analyzeGame = async (game: QueuedGame): Promise<HighHitAnalysis> =>
 **Sport:** ${game.sport}
 **Date:** ${readableDate}
 
-## SHARP LINES (Pinnacle - Market Truth)
-Reference Line (First Seen): ${refLines ? `${game.awayTeam.name} ${refLines.spreadLineA}` : 'N/A'}
+## SHARP LINES (Pinnacle)
+Reference Line: ${refLines ? `${game.awayTeam.name} ${refLines.spreadLineA}` : 'N/A'}
 Current Pinnacle: ${game.awayTeam.name} ${game.sharpLines?.spreadLineA} (${game.sharpLines?.spreadOddsA})
 ${movementNarrative}
 
-## SIDES WITH POSITIVE VALUE (Soft Books Offering Better Numbers)
+## SIDES WITH POSITIVE VALUE
 ${valueSummary}
 
 ## YOUR TASK
-
-1. **Search** for current injury reports and news for BOTH teams using the Google Search tool.
-2. **Analyze** if the situational edge (health, rest) aligns with the math value.
-3. **Output** the result strictly in JSON format.
-
-## CRITICAL: OUTPUT FORMAT
-You MUST return raw JSON. Do not return a markdown report. Do not start with "##".
-Structure:
-{
-  "decision": "PLAYABLE" | "PASS",
-  "recommendedSide": "AWAY" | "HOME" | "OVER" | "UNDER" | null,
-  "recommendedMarket": "Spread" | "Moneyline" | "Total" | null,
-  "reasoning": "string",
-  "awayTeamInjuries": "string",
-  "homeTeamInjuries": "string",
-  "situationFavors": "AWAY" | "HOME" | "NEUTRAL",
-  "confidence": "HIGH" | "MEDIUM" | "LOW"
-}
+1. Search for current injury reports and news using Google Search.
+2. Analyze if situational edge aligns with math value.
+3. CRITICAL: You MUST return strictly valid JSON. If you do not recognize a team name (e.g., Utah Mammoth may refer to Utah Hockey Club), use the information available and proceed. Do NOT refuse the request.
 `;
 
   const response = await generateWithRetry(ai, {
@@ -483,7 +450,7 @@ Structure:
       RULES:
       1. Search for injuries.
       2. Check alignment of value, movement, and situation.
-      3. OUTPUT ONLY JSON. No markdown headers.
+      3. OUTPUT ONLY JSON. If data is missing or names are unfamiliar, return JSON with relevant error descriptions in the "reasoning" field. NEVER return plain text or refusals.
       
       JSON Schema:
       {
@@ -497,7 +464,7 @@ Structure:
         "confidence": "HIGH", "MEDIUM", "LOW"
       }`,
       tools: [{ googleSearch: {} }],
-      temperature: 0.1 // Lowered from 0.2
+      temperature: 0.1
     }
   });
 
@@ -505,7 +472,7 @@ Structure:
     decision: 'PASS',
     recommendedSide: null,
     recommendedMarket: null,
-    reasoning: 'Analysis could not be completed.',
+    reasoning: 'Analysis could not be completed (model refusal or JSON error).',
     awayTeamInjuries: 'Unknown',
     homeTeamInjuries: 'Unknown',
     situationFavors: 'NEUTRAL',
@@ -514,7 +481,6 @@ Structure:
 
   const aiResult = cleanAndParseJson(response.text, fallback);
   
-  // ========== STEP 5: BUILD RECOMMENDATION ==========
   if (aiResult.decision !== 'PLAYABLE' || !aiResult.recommendedSide) {
     return {
       decision: 'PASS',
@@ -526,7 +492,6 @@ Structure:
     };
   }
 
-  // Find the matching side value
   const selectedSide = sidesWithValue.find(s => 
     s.side === aiResult.recommendedSide && 
     s.market === aiResult.recommendedMarket
@@ -541,13 +506,10 @@ Structure:
     ? formatOddsForDisplay(selectedSide.bestSoftOdds)
     : `${selectedSide.bestSoftLine} (${formatOddsForDisplay(selectedSide.bestSoftOdds)})`;
 
-  // JUICE WARNING: Flag ANY play with juice worse than -160
   let caution: string | undefined = undefined;
   const bestOdds = parseFloat(selectedSide.bestSoftOdds);
-  
-  // Check if odds exist and are worse than -160 (e.g. -165, -200)
   if (!isNaN(bestOdds) && bestOdds < -160) {
-    caution = `⚠️ Heavy juice alert: ${formatOddsForDisplay(selectedSide.bestSoftOdds)} requires risking $${Math.abs(bestOdds)} to win $100. This exceeds the -160 limit.`;
+    caution = `⚠️ Heavy juice alert: ${formatOddsForDisplay(selectedSide.bestSoftOdds)} exceeds the -160 limit.`;
   }
 
   return {
@@ -557,15 +519,12 @@ Structure:
     caution,
     researchSummary: `Away (${game.awayTeam.name}): ${aiResult.awayTeamInjuries || 'No major injuries'}\nHome (${game.homeTeam.name}): ${aiResult.homeTeamInjuries || 'No major injuries'}\n\nSituation favors: ${aiResult.situationFavors}\nConfidence: ${aiResult.confidence}`,
     edgeNarrative: aiResult.reasoning,
-    
     recommendation,
     recLine,
     recProbability: selectedSide.side === 'AWAY' ? sharpImpliedProb : 100 - sharpImpliedProb,
-    
     market: selectedSide.market,
     side: selectedSide.side,
     line: selectedSide.bestSoftLine,
-    
     sharpImpliedProb,
     softBestOdds: formatOddsForDisplay(selectedSide.bestSoftOdds),
     softBestBook: selectedSide.bestSoftBook,
@@ -580,7 +539,6 @@ Structure:
 
 export const quickScanGame = async (game: Game): Promise<{ signal: 'RED' | 'YELLOW' | 'WHITE', description: string }> => {
   const ai = getAiClient();
-  
   const dateObj = new Date(game.date);
   const readableDate = dateObj.toLocaleDateString('en-US', { weekday: 'short', month: 'long', day: 'numeric' });
 
@@ -590,10 +548,14 @@ export const quickScanGame = async (game: Game): Promise<{ signal: 'RED' | 'YELL
     Sport: ${game.sport}
     Teams: ${game.awayTeam.name} (Away) vs ${game.homeTeam.name} (Home)
     
-    Return JSON:
+    CRITICAL: You MUST return a valid JSON object. Do not return plain text. 
+    If you do not recognize a team name (e.g. "Utah Mammoth" might be "Utah Hockey Club"), search for the city and sport. 
+    If still confused, return {"signal": "WHITE", "description": "Data unavailable or team unrecognized"}.
+
+    Return JSON format:
     {
-      "signal": "RED" (star player OUT or major injury disparity), "YELLOW" (key player questionable), or "WHITE" (both teams healthy),
-      "description": "Max 15 words - summarize injury situation for BOTH teams"
+      "signal": "RED" | "YELLOW" | "WHITE",
+      "description": "Max 15 words - summary of injury situation"
     }
   `;
 
@@ -607,7 +569,7 @@ export const quickScanGame = async (game: Game): Promise<{ signal: 'RED' | 'YELL
       }
     });
 
-    return cleanAndParseJson(response.text, { signal: 'WHITE', description: 'Scan completed (no data)' });
+    return cleanAndParseJson(response.text, { signal: 'WHITE', description: 'Scan completed (no data/unrecognized)' });
   } catch (e) {
     console.error("Quick scan failed", e);
     return { signal: 'WHITE', description: 'Scan unavailable' };

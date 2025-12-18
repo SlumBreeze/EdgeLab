@@ -3,7 +3,6 @@ export const SPORTS_CONFIG: Record<string, { label: string, espnSlug: string, ic
   NBA: { label: 'NBA', espnSlug: 'basketball/nba', icon: '🏀' },
   NFL: { label: 'NFL', espnSlug: 'football/nfl', icon: '🏈' },
   NHL: { label: 'NHL', espnSlug: 'hockey/nhl', icon: '🏒' },
-  MLB: { label: 'MLB', espnSlug: 'baseball/mlb', icon: '⚾' },
   CFB: { label: 'NCAA FB', espnSlug: 'football/college-football', icon: '🏈' },
 };
 
@@ -33,17 +32,12 @@ export const VETO_RULES = {
   SPREAD_CAP: {
     id: 'SPREAD_CAP',
     name: 'Dynamic Spread Cap Veto',
-    description: 'Spread exceeds sport-specific limit (NFL: 14, NBA: 16, CFB: 24, NHL/MLB: 4)'
+    description: 'Spread exceeds sport-specific limit (NFL: 14, NBA: 16, CFB: 24, NHL: 4)'
   },
   GOALIE_UNKNOWN: {
     id: 'GOALIE_UNKNOWN',
     name: 'Goalie Unknown Veto (NHL)',
     description: 'Starting goalie not confirmed for NHL game'
-  },
-  PITCHER_UNKNOWN: {
-    id: 'PITCHER_UNKNOWN',
-    name: 'Pitcher Unknown Veto (MLB)',
-    description: 'Starting pitcher not confirmed for MLB game'
   },
   QB_UNCERTAINTY: {
     id: 'QB_UNCERTAINTY',
