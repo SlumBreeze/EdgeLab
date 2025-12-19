@@ -8,10 +8,21 @@ const GameContext = createContext<AnalysisState | undefined>(undefined);
 const getTodayKey = () => new Date().toISOString().split('T')[0];
 
 export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  // Logic to handle Daily Reset
+  const today = getTodayKey();
+  
   const [queue, setQueue] = useState<QueuedGame[]>(() => {
     try {
-      const saved = localStorage.getItem('edgelab_queue_v2');
-      return saved ? JSON.parse(saved) : [];
+      const lastDate = localStorage.getItem('edgelab_last_date');
+      const savedQueue = localStorage.getItem('edgelab_queue_v2');
+      
+      // If date has rolled over, start with an empty queue
+      if (lastDate && lastDate !== today) {
+        console.log("[GameContext] New day detected. Clearing queue...");
+        return [];
+      }
+      
+      return savedQueue ? JSON.parse(savedQueue) : [];
     } catch {
       return [];
     }
@@ -20,16 +31,23 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [dailyPlays, setDailyPlays] = useState<DailyPlayTracker>(() => {
     try {
       const saved = localStorage.getItem('edgelab_daily_plays');
-      const parsed = saved ? JSON.parse(saved) : { date: getTodayKey(), playCount: 0, gameIds: [] };
+      const parsed = saved ? JSON.parse(saved) : { date: today, playCount: 0, gameIds: [] };
+      
       // Reset if it's a new day
-      if (parsed.date !== getTodayKey()) {
-        return { date: getTodayKey(), playCount: 0, gameIds: [] };
+      if (parsed.date !== today) {
+        console.log("[GameContext] New day detected. Resetting daily plays...");
+        return { date: today, playCount: 0, gameIds: [] };
       }
       return parsed;
     } catch {
-      return { date: getTodayKey(), playCount: 0, gameIds: [] };
+      return { date: today, playCount: 0, gameIds: [] };
     }
   });
+
+  // Keep track of the last date we were active
+  useEffect(() => {
+    localStorage.setItem('edgelab_last_date', today);
+  }, [today]);
 
   useEffect(() => {
     localStorage.setItem('edgelab_queue_v2', JSON.stringify(queue));
@@ -127,29 +145,26 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const bVal = b.analysis!;
         
         // Primary: Line Value Points (Desc)
-        // Getting +4.5 when sharp is +3.5 (1.0 diff) is the strongest signal
         const aPts = aVal.lineValuePoints || 0;
         const bPts = bVal.lineValuePoints || 0;
         if (aPts !== bPts) return bPts - aPts;
         
         // Secondary: Odds / Payout (Desc)
-        // Prioritize Plus Money (+105 > -110)
         const parseOdds = (o?: string) => o ? parseFloat(o) : -9999;
         const aOdds = parseOdds(aVal.softBestOdds);
         const bOdds = parseOdds(bVal.softBestOdds);
         if (aOdds !== bOdds) return bOdds - aOdds;
         
         // Tertiary: Line Value Cents (Desc)
-        // Difference between Sharp and Soft price (e.g. +15 cents edge)
         const aCents = aVal.lineValueCents || 0;
         const bCents = bVal.lineValueCents || 0;
         if (aCents !== bCents) return bCents - aCents;
 
-        // Quaternary: Game ID (Deterministic tiebreaker)
+        // Quaternary: Game ID
         return a.id.localeCompare(b.id);
       });
       
-      // 5. Take top 6 IDs (Increased from 4)
+      // 5. Take top 6 IDs
       const top6Ids = validPlayable.slice(0, 6).map(g => g.id);
       
       // 6. Update queue with slots
@@ -172,12 +187,11 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       addSoftLines,
       updateSoftLineBook,
       setSharpLines,
-      // New v2.1 additions
       dailyPlays,
       getPlayableCount,
       canAddMorePlays,
       markAsPlayed,
-      autoPickBestGames, // Renamed from autoPickBest4
+      autoPickBestGames,
     }}>
       {children}
     </GameContext.Provider>
