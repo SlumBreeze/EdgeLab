@@ -8,11 +8,17 @@ interface Props {
 }
 
 export const BankrollModal: React.FC<Props> = ({ isOpen, onClose }) => {
-  const { bankroll, updateBankroll, totalBankroll, unitSizePercent, setUnitSizePercent, userId, setUserId } = useGameContext();
+  const { bankroll, updateBankroll, totalBankroll, unitSizePercent, setUnitSizePercent, userId, setUserId, saveNow } = useGameContext() as any;
   const [inputUserId, setInputUserId] = useState('');
   const [showSync, setShowSync] = useState(false);
 
   if (!isOpen) return null;
+
+  const handleClose = async () => {
+    // Force a save immediately before closing modal
+    await saveNow();
+    onClose();
+  };
 
   const handleCopyId = () => {
     navigator.clipboard.writeText(userId);
@@ -36,7 +42,7 @@ export const BankrollModal: React.FC<Props> = ({ isOpen, onClose }) => {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={handleClose} />
       
       {/* Modal - Reduced Height to 70vh */}
       <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl relative z-10 overflow-hidden flex flex-col max-h-[70vh]">
@@ -47,7 +53,7 @@ export const BankrollModal: React.FC<Props> = ({ isOpen, onClose }) => {
             <h2 className="text-sm font-bold text-slate-800">Bankroll</h2>
           </div>
           <button 
-            onClick={onClose}
+            onClick={handleClose}
             className="w-6 h-6 flex items-center justify-center rounded-full bg-slate-200 text-slate-500 hover:bg-slate-300 transition-colors text-xs"
           >
             ✕
@@ -89,7 +95,7 @@ export const BankrollModal: React.FC<Props> = ({ isOpen, onClose }) => {
 
           {/* Book List - Dense */}
           <div className="space-y-1.5">
-            {bankroll.map((account) => {
+            {bankroll.map((account: any) => {
               const percent = totalBankroll > 0 ? (account.balance / totalBankroll) * 100 : 0;
               
               return (
@@ -175,10 +181,10 @@ export const BankrollModal: React.FC<Props> = ({ isOpen, onClose }) => {
         {/* Footer */}
         <div className="p-3 border-t border-slate-100 bg-slate-50 shrink-0">
             <button 
-                onClick={onClose}
+                onClick={handleClose}
                 className="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold py-2 rounded-lg transition-all shadow-sm text-xs"
             >
-                Done
+                Done & Save
             </button>
         </div>
       </div>

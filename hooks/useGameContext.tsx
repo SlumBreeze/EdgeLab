@@ -54,7 +54,6 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!newId || newId.length < 5) return;
     setUserIdState(newId);
     localStorage.setItem('edgelab_user_id', newId);
-    // Force a reload of data happens automatically via the userId dependency in useEffect below
     console.log("[Auth] Switched to User ID:", newId);
   };
 
@@ -170,32 +169,53 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     initData();
   }, [userId, today]);
 
+  // Save Function (Debounced or Immediate)
+  const saveDataToCloud = async (immediate = false) => {
+    if (!userId || !isSyncEnabled) return;
+    
+    setSyncStatus('saving');
+    
+    const performSave = async () => {
+        const bankrollPromise = supabase
+            .from('bankrolls')
+            .upsert({ user_id: userId, data: bankroll });
+            
+        const slatePromise = supabase
+            .from('daily_slates')
+            .upsert({ 
+              user_id: userId, 
+              date: today, 
+              queue: queue, 
+              daily_plays: dailyPlays,
+              scan_results: scanResults,
+              reference_lines: referenceLines
+            });
+
+        const [bRes, sRes] = await Promise.all([bankrollPromise, slatePromise]);
+        
+        if (bRes.error || sRes.error) {
+            console.error("Sync Error", bRes.error, sRes.error);
+            setSyncStatus('error');
+        } else {
+            setSyncStatus('saved');
+        }
+    };
+
+    if (immediate) {
+        await performSave();
+    } else {
+        performSave();
+    }
+  };
+
   // 2. Persist Bankroll (Instant Local, Debounced Cloud)
   useEffect(() => {
     localStorage.setItem('edgelab_bankroll', JSON.stringify(bankroll));
     localStorage.setItem('edgelab_unit_pct', unitSizePercent.toString());
 
-    setSyncStatus('saving');
-    const timer = setTimeout(async () => {
-      if (!userId || !isSyncEnabled) {
-        setSyncStatus('idle');
-        return;
-      }
-      
-      const { error } = await supabase
-        .from('bankrolls')
-        .upsert({ user_id: userId, data: bankroll });
-      
-      if (error) {
-         console.error("[Supabase] Bankroll sync failed", error.message);
-         setSyncStatus('error');
-         if (error.message.includes("Invalid API key")) setIsSyncEnabled(false);
-      } else {
-         setSyncStatus('saved');
-      }
-    }, 2500);
+    const timer = setTimeout(() => saveDataToCloud(false), 2000);
     return () => clearTimeout(timer);
-  }, [bankroll, unitSizePercent, userId, isSyncEnabled]);
+  }, [bankroll, unitSizePercent]);
 
   // 3. Persist Daily Slate (Instant Local, Debounced Cloud)
   useEffect(() => {
@@ -205,33 +225,9 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.setItem(`edgelab_scan_results_${today}`, JSON.stringify(scanResults));
     localStorage.setItem(`edgelab_reference_lines_${today}`, JSON.stringify(referenceLines));
 
-    setSyncStatus('saving');
-    const timer = setTimeout(async () => {
-      if (!userId || !isSyncEnabled) {
-        setSyncStatus('idle');
-        return;
-      }
-
-      const { error } = await supabase
-        .from('daily_slates')
-        .upsert({ 
-          user_id: userId, 
-          date: today, 
-          queue: queue, 
-          daily_plays: dailyPlays,
-          scan_results: scanResults,
-          reference_lines: referenceLines
-        });
-      
-      if (error) {
-        console.error("[Supabase] Slate sync failed", error.message);
-        setSyncStatus('error');
-      } else {
-        setSyncStatus('saved');
-      }
-    }, 3000);
+    const timer = setTimeout(() => saveDataToCloud(false), 2000);
     return () => clearTimeout(timer);
-  }, [queue, dailyPlays, scanResults, referenceLines, userId, today, isSyncEnabled]);
+  }, [queue, dailyPlays, scanResults, referenceLines]);
 
   // Actions
   const addToQueue = (game: Game) => {
@@ -309,6 +305,10 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.setItem('edgelab_raw_slate', JSON.stringify(data));
   };
 
+  const saveNow = async () => {
+    await saveDataToCloud(true);
+  };
+
   return (
     <GameContext.Provider value={{
       queue, addToQueue, removeFromQueue, updateGame, addSoftLines, updateSoftLineBook, setSharpLines,
@@ -317,7 +317,9 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       markAsPlayed, autoPickBestGames, bankroll, updateBankroll, totalBankroll: bankroll.reduce((s, b) => s + b.balance, 0),
       unitSizePercent, setUnitSizePercent, scanResults, setScanResult, referenceLines, setReferenceLine,
       allSportsData, loadSlates, syncStatus,
-      userId, setUserId: setUserIdManual
+      userId, setUserId: setUserIdManual,
+      // @ts-ignore - added custom prop for manual save
+      saveNow 
     }}>
       {children}
     </GameContext.Provider>
