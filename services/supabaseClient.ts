@@ -1,12 +1,10 @@
-
 import { createClient } from '@supabase/supabase-js';
 
-// Credentials provided for the project
-const supabaseUrl = "https://thcstqwbinhbkpstcvme.supabase.co";
-const supabaseKey = "sb_publishable_DhIPIKNjey_m1laa3ntp_Q_vVIkoBYV";
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-if (!supabaseUrl) {
-  console.error("Supabase URL is missing");
+if (!supabaseUrl || !supabaseKey) {
+  console.error("Supabase credentials are missing. Check your .env file.");
 }
 
 export const supabase = createClient(supabaseUrl, supabaseKey);

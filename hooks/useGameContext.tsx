@@ -21,7 +21,7 @@ const INITIAL_BOOKS: SportsbookAccount[] = [
 export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Logic to handle Daily Reset
   const today = getTodayKey();
-  
+
   // State to track if cloud sync is healthy
   const [isSyncEnabled, setIsSyncEnabled] = useState(true);
 
@@ -38,18 +38,18 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return 'guest-user';
     }
   });
-  
+
   const [queue, setQueue] = useState<QueuedGame[]>(() => {
     try {
       const lastDate = localStorage.getItem('edgelab_last_date');
       const savedQueue = localStorage.getItem('edgelab_queue_v2');
-      
+
       // If date has rolled over, start with an empty queue
       if (lastDate && lastDate !== today) {
         console.log("[GameContext] New day detected. Clearing queue...");
         return [];
       }
-      
+
       return savedQueue ? JSON.parse(savedQueue) : [];
     } catch {
       return [];
@@ -60,7 +60,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const saved = localStorage.getItem('edgelab_daily_plays');
       const parsed = saved ? JSON.parse(saved) : { date: today, playCount: 0, gameIds: [] };
-      
+
       // Reset if it's a new day
       if (parsed.date !== today) {
         console.log("[GameContext] New day detected. Resetting daily plays...");
@@ -80,13 +80,13 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const parsed = JSON.parse(saved) as SportsbookAccount[];
         const unwanted = ['Bet365', 'BetMGM', 'Caesars'];
         const cleaned = parsed.filter(b => !unwanted.includes(b.name));
-        
+
         const newOnes = ['BetOnline', 'Bovada'];
         newOnes.forEach(name => {
-           if (!cleaned.some(b => b.name === name)) {
-              const def = INITIAL_BOOKS.find(b => b.name === name);
-              if (def) cleaned.push(def);
-           }
+          if (!cleaned.some(b => b.name === name)) {
+            const def = INITIAL_BOOKS.find(b => b.name === name);
+            if (def) cleaned.push(def);
+          }
         });
         return cleaned;
       }
@@ -99,9 +99,28 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [unitSizePercent, setUnitSizePercent] = useState<number>(() => {
     try {
       const saved = localStorage.getItem('edgelab_unit_pct');
-      return saved ? parseFloat(saved) : 2.0; 
+      return saved ? parseFloat(saved) : 2.0;
     } catch {
       return 2.0;
+    }
+  });
+
+  // Slate State (Queue, Plays, Reference Lines)
+  const [referenceLines, setReferenceLines] = useState<Record<string, { spreadLineA: string, spreadLineB: string }>>(() => {
+    try {
+      const saved = localStorage.getItem('edgelab_reference_lines');
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  const [scanResults, setScanResults] = useState<Record<string, { signal: 'RED' | 'YELLOW' | 'WHITE', description: string }>>(() => {
+    try {
+      const saved = localStorage.getItem('edgelab_scan_results');
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
     }
   });
 
@@ -109,6 +128,16 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const fetchRemoteBankroll = async () => {
       if (!userId || !isSyncEnabled) return;
+
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+      if (!supabaseUrl || !supabaseKey) {
+        console.warn("[Supabase] Missing credentials in .env. Cloud sync disabled.");
+        setIsSyncEnabled(false);
+        return;
+      }
+
       try {
         const { data, error } = await supabase
           .from('bankrolls')
@@ -124,7 +153,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
           // Ignore "row not found" errors as that just means new user
           if (error.code !== 'PGRST116') {
-             console.warn("[Supabase] Fetch error:", error.message);
+            console.warn("[Supabase] Fetch error:", error.message);
           }
         }
 
@@ -132,16 +161,16 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
           console.log("[Supabase] Restored bankroll:", data.data);
           // Merge logic to ensure we don't lose structure if schema changed
           const remote = data.data as SportsbookAccount[];
-          
+
           // Ensure mandatory fields exist
           const merged = [...remote];
-           ['BetOnline', 'Bovada'].forEach(name => {
-             if (!merged.some(b => b.name === name)) {
-                const def = INITIAL_BOOKS.find(b => b.name === name);
-                if (def) merged.push(def);
-             }
-           });
-           
+          ['BetOnline', 'Bovada'].forEach(name => {
+            if (!merged.some(b => b.name === name)) {
+              const def = INITIAL_BOOKS.find(b => b.name === name);
+              if (def) merged.push(def);
+            }
+          });
+
           setBankroll(merged);
         }
       } catch (err) {
@@ -149,7 +178,33 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     };
     fetchRemoteBankroll();
-  }, [userId]);
+
+    const fetchRemoteSlate = async () => {
+      if (!userId || !isSyncEnabled) return;
+      try {
+        const { data, error } = await supabase
+          .from('daily_slates')
+          .select('queue, daily_plays, reference_lines')
+          .eq('user_id', userId)
+          .eq('date', today)
+          .single();
+
+        if (error && error.code !== 'PGRST116') {
+          console.warn("[Supabase] Fetch slate error:", error.message);
+        }
+
+        if (data) {
+          if (data.queue) setQueue(data.queue);
+          if (data.daily_plays) setDailyPlays(data.daily_plays);
+          if (data.reference_lines) setReferenceLines(data.reference_lines);
+          if (data.scan_results) setScanResults(data.scan_results);
+        }
+      } catch (err) {
+        console.warn("[Supabase] Could not fetch slate (network/config issue).", err);
+      }
+    };
+    fetchRemoteSlate();
+  }, [userId, today]);
 
   // Sync Bankroll to Supabase (Debounced)
   useEffect(() => {
@@ -158,12 +213,15 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const { error } = await supabase
           .from('bankrolls')
           .upsert({ user_id: userId, data: bankroll });
-          
+
         if (error) {
-          console.error("[Supabase] Save failed:", error.message);
-          // If authorization fails, disable sync to stop spamming
-          if (error.message?.includes("Invalid API key") || error.code === 'PGRST301') {
-             setIsSyncEnabled(false);
+          console.error("[Supabase] Save failed:", error);
+          // If authorization fails or table doesn't exist, disable sync to stop spamming
+          if (error.message?.includes("Invalid API key") ||
+            error.code === 'PGRST301' ||
+            error.message?.includes("relation \"public.bankrolls\" does not exist")) {
+            console.warn("[Supabase] Permanent error detected. Disabling cloud sync until reload.");
+            setIsSyncEnabled(false);
           }
         } else {
           console.log("[Supabase] Bankroll saved.");
@@ -176,6 +234,35 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     return () => clearTimeout(saveToSupabase);
   }, [bankroll, userId, isSyncEnabled]);
+
+  // Sync Daily Slate to Supabase (Debounced)
+  useEffect(() => {
+    const saveSlate = setTimeout(async () => {
+      if (userId && isSyncEnabled) {
+        const { error } = await supabase
+          .from('daily_slates')
+          .upsert({
+            user_id: userId,
+            date: today,
+            queue,
+            daily_plays: dailyPlays,
+            reference_lines: referenceLines,
+            scan_results: scanResults
+          });
+
+        if (error) {
+          console.error("[Supabase] Slate save failed:", error);
+          if (error.message?.includes("relation \"public.daily_slates\" does not exist")) {
+            setIsSyncEnabled(false);
+          }
+        }
+      }
+    }, 2000);
+
+    localStorage.setItem('edgelab_reference_lines', JSON.stringify(referenceLines));
+    localStorage.setItem('edgelab_scan_results', JSON.stringify(scanResults));
+    return () => clearTimeout(saveSlate);
+  }, [queue, dailyPlays, referenceLines, scanResults, userId, today, isSyncEnabled]);
 
   // Keep track of the last date we were active
   useEffect(() => {
@@ -258,7 +345,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setQueue(prev => {
       const reset = prev.map(g => ({ ...g, cardSlot: undefined }));
       const playable = reset.filter(g => g.analysis?.decision === 'PLAYABLE');
-      
+
       const validPlayable = playable.filter(g => {
         const oddsStr = g.analysis?.softBestOdds;
         if (!oddsStr) return false;
@@ -283,7 +370,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (aCents !== bCents) return bCents - aCents;
         return a.id.localeCompare(b.id);
       });
-      
+
       const top6Ids = validPlayable.slice(0, 6).map(g => g.id);
       return reset.map(g => {
         const slotIndex = top6Ids.indexOf(g.id);
@@ -308,6 +395,14 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const totalBankroll = bankroll.reduce((sum, b) => sum + (b.balance || 0), 0);
 
+  const setReferenceLine = (gameId: string, ref: { spreadLineA: string, spreadLineB: string }) => {
+    setReferenceLines(prev => ({ ...prev, [gameId]: ref }));
+  };
+
+  const setScanResult = (gameId: string, result: { signal: 'RED' | 'YELLOW' | 'WHITE', description: string }) => {
+    setScanResults(prev => ({ ...prev, [gameId]: result }));
+  };
+
   return (
     <GameContext.Provider value={{
       queue,
@@ -326,7 +421,11 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       updateBankroll,
       totalBankroll,
       unitSizePercent,
-      setUnitSizePercent
+      setUnitSizePercent,
+      referenceLines,
+      setReferenceLine,
+      scanResults,
+      setScanResult
     }}>
       {children}
     </GameContext.Provider>
