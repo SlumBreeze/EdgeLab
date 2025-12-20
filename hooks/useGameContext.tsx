@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
-import { QueuedGame, AnalysisState, Game, BookLines, DailyPlayTracker, SportsbookAccount } from '../types';
+import { QueuedGame, AnalysisState, Game, BookLines, DailyPlayTracker, SportsbookAccount, ScanResult, ReferenceLineData } from '../types';
 import { MAX_DAILY_PLAYS } from '../constants';
 import { supabase } from '../services/supabaseClient';
 
@@ -19,14 +19,12 @@ const INITIAL_BOOKS: SportsbookAccount[] = [
 ];
 
 export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Logic to handle Daily Reset
   const today = getTodayKey();
-
-  // State to track if cloud sync is healthy
   const [isSyncEnabled, setIsSyncEnabled] = useState(true);
+  const [syncStatus, setSyncStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
   // User ID for Database Persistence
-  const [userId] = useState(() => {
+  const [userId, setUserIdState] = useState(() => {
     try {
       let id = localStorage.getItem('edgelab_user_id');
       if (!id) {
@@ -39,267 +37,194 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   });
 
-  const [queue, setQueue] = useState<QueuedGame[]>(() => {
+  const setUserIdManual = (newId: string) => {
+    if (!newId || newId.length < 5) return;
+    setUserIdState(newId);
+    localStorage.setItem('edgelab_user_id', newId);
+    // Force a reload of data happens automatically via the userId dependency in useEffect below
+    console.log("[Auth] Switched to User ID:", newId);
+  };
+
+  // State
+  const [queue, setQueue] = useState<QueuedGame[]>([]);
+  const [dailyPlays, setDailyPlays] = useState<DailyPlayTracker>({ date: today, playCount: 0, gameIds: [] });
+  const [bankroll, setBankroll] = useState<SportsbookAccount[]>(INITIAL_BOOKS);
+  const [unitSizePercent, setUnitSizePercent] = useState<number>(2.0);
+  const [scanResults, setScanResults] = useState<Record<string, ScanResult>>({});
+  const [referenceLines, setReferenceLines] = useState<Record<string, ReferenceLineData>>({});
+  
+  // NEW: Raw Slate Persistence
+  const [allSportsData, setAllSportsData] = useState<Record<string, any[]>>(() => {
     try {
-      const lastDate = localStorage.getItem('edgelab_last_date');
-      const savedQueue = localStorage.getItem('edgelab_queue_v2');
-
-      // If date has rolled over, start with an empty queue
-      if (lastDate && lastDate !== today) {
-        console.log("[GameContext] New day detected. Clearing queue...");
-        return [];
-      }
-
-      return savedQueue ? JSON.parse(savedQueue) : [];
-    } catch {
-      return [];
-    }
-  });
-
-  const [dailyPlays, setDailyPlays] = useState<DailyPlayTracker>(() => {
-    try {
-      const saved = localStorage.getItem('edgelab_daily_plays');
-      const parsed = saved ? JSON.parse(saved) : { date: today, playCount: 0, gameIds: [] };
-
-      // Reset if it's a new day
-      if (parsed.date !== today) {
-        console.log("[GameContext] New day detected. Resetting daily plays...");
-        return { date: today, playCount: 0, gameIds: [] };
-      }
-      return parsed;
-    } catch {
-      return { date: today, playCount: 0, gameIds: [] };
-    }
-  });
-
-  // Bankroll State - Initialize from LocalStorage first (speed), then sync with Supabase
-  const [bankroll, setBankroll] = useState<SportsbookAccount[]>(() => {
-    try {
-      const saved = localStorage.getItem('edgelab_bankroll');
-      if (saved) {
-        const parsed = JSON.parse(saved) as SportsbookAccount[];
-        const unwanted = ['Bet365', 'BetMGM', 'Caesars'];
-        const cleaned = parsed.filter(b => !unwanted.includes(b.name));
-
-        const newOnes = ['BetOnline', 'Bovada'];
-        newOnes.forEach(name => {
-          if (!cleaned.some(b => b.name === name)) {
-            const def = INITIAL_BOOKS.find(b => b.name === name);
-            if (def) cleaned.push(def);
-          }
-        });
-        return cleaned;
-      }
-      return INITIAL_BOOKS;
-    } catch {
-      return INITIAL_BOOKS;
-    }
-  });
-
-  const [unitSizePercent, setUnitSizePercent] = useState<number>(() => {
-    try {
-      const saved = localStorage.getItem('edgelab_unit_pct');
-      return saved ? parseFloat(saved) : 2.0;
-    } catch {
-      return 2.0;
-    }
-  });
-
-  // Slate State (Queue, Plays, Reference Lines)
-  const [referenceLines, setReferenceLines] = useState<Record<string, { spreadLineA: string, spreadLineB: string }>>(() => {
-    try {
-      const saved = localStorage.getItem('edgelab_reference_lines');
+      const saved = localStorage.getItem('edgelab_raw_slate');
       return saved ? JSON.parse(saved) : {};
     } catch {
       return {};
     }
   });
 
-  const [scanResults, setScanResults] = useState<Record<string, { signal: 'RED' | 'YELLOW' | 'WHITE', description: string }>>(() => {
-    try {
-      const saved = localStorage.getItem('edgelab_scan_results');
-      return saved ? JSON.parse(saved) : {};
-    } catch {
-      return {};
-    }
-  });
-
-  // Load Bankroll from Supabase on Mount
+  // 1. Initial Load from Supabase & LocalStorage
   useEffect(() => {
-    const fetchRemoteBankroll = async () => {
-      if (!userId || !isSyncEnabled) return;
+    const initData = async () => {
+      setSyncStatus('saving'); // Show activity
+      // Load from LocalStorage for speed
+      try {
+        const lastDate = localStorage.getItem('edgelab_last_date');
+        const savedQueue = localStorage.getItem('edgelab_queue_v2');
+        const savedPlays = localStorage.getItem('edgelab_daily_plays');
+        const savedBankroll = localStorage.getItem('edgelab_bankroll');
+        const savedUnit = localStorage.getItem('edgelab_unit_pct');
+        const savedScans = localStorage.getItem(`edgelab_scan_results_${today}`);
+        const savedRefs = localStorage.getItem(`edgelab_reference_lines_${today}`);
 
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+        if (savedUnit) setUnitSizePercent(parseFloat(savedUnit));
+        
+        // Only load LS bankroll if we haven't fetched from cloud yet (prevents overwriting cloud data on device switch)
+        if (savedBankroll && !bankroll.some(b => b.balance > 0)) {
+          const parsed = JSON.parse(savedBankroll);
+          if (parsed && parsed.length > 0) setBankroll(parsed);
+        }
 
-      if (!supabaseUrl || !supabaseKey) {
-        console.warn("[Supabase] Missing credentials in .env. Cloud sync disabled.");
-        setIsSyncEnabled(false);
-        return;
+        if (lastDate === today) {
+          if (savedQueue) setQueue(JSON.parse(savedQueue));
+          if (savedPlays) setDailyPlays(JSON.parse(savedPlays));
+          if (savedScans) setScanResults(JSON.parse(savedScans));
+          if (savedRefs) setReferenceLines(JSON.parse(savedRefs));
+        } else {
+          // It's a new day, clear daily stuff BUT keep bankroll
+          console.log("[GameContext] New day detected. Resetting slate...");
+          setQueue([]);
+          setDailyPlays({ date: today, playCount: 0, gameIds: [] });
+          setScanResults({});
+          setReferenceLines({});
+          setAllSportsData({});
+          localStorage.removeItem('edgelab_raw_slate');
+        }
+      } catch (err) {
+        console.warn("[Context] Error loading from local storage", err);
+      }
+
+      // Sync with Supabase
+      if (!isSyncEnabled || !userId) {
+          setSyncStatus('idle');
+          return;
       }
 
       try {
-        const { data, error } = await supabase
+        console.log("[Supabase] Fetching data for user:", userId);
+        
+        // Load Bankroll
+        const { data: bData, error: bError } = await supabase
           .from('bankrolls')
           .select('data')
           .eq('user_id', userId)
           .single();
 
-        if (error) {
-          if (error.message?.includes("Invalid API key") || error.code === 'PGRST301') {
-            console.warn("[Supabase] Invalid API Key detected. Disabling cloud sync.");
-            setIsSyncEnabled(false);
-            return;
-          }
-          // Ignore "row not found" errors as that just means new user
-          if (error.code !== 'PGRST116') {
-            console.warn("[Supabase] Fetch error:", error.message);
-          }
+        if (bData?.data) {
+          console.log("[Supabase] Bankroll loaded successfully.");
+          setBankroll(bData.data);
+          localStorage.setItem('edgelab_bankroll', JSON.stringify(bData.data));
         }
 
-        if (data && data.data) {
-          console.log("[Supabase] Restored bankroll:", data.data);
-          // Merge logic to ensure we don't lose structure if schema changed
-          const remote = data.data as SportsbookAccount[];
-
-          // Ensure mandatory fields exist
-          const merged = [...remote];
-          ['BetOnline', 'Bovada'].forEach(name => {
-            if (!merged.some(b => b.name === name)) {
-              const def = INITIAL_BOOKS.find(b => b.name === name);
-              if (def) merged.push(def);
-            }
-          });
-
-          setBankroll(merged);
-        }
-      } catch (err) {
-        console.warn("[Supabase] Could not fetch bankroll (network/config issue).", err);
-      }
-    };
-    fetchRemoteBankroll();
-
-    const fetchRemoteSlate = async () => {
-      if (!userId || !isSyncEnabled) return;
-      try {
-        const { data, error } = await supabase
+        // Load Daily Slate
+        const { data: sData } = await supabase
           .from('daily_slates')
-          .select('queue, daily_plays, reference_lines')
+          .select('queue, daily_plays, scan_results, reference_lines')
           .eq('user_id', userId)
           .eq('date', today)
           .single();
 
-        if (error && error.code !== 'PGRST116') {
-          console.warn("[Supabase] Fetch slate error:", error.message);
+        if (sData) {
+          console.log("[Supabase] Slate loaded successfully.");
+          if (sData.queue) setQueue(sData.queue);
+          if (sData.daily_plays) setDailyPlays(sData.daily_plays);
+          if (sData.scan_results) setScanResults(sData.scan_results);
+          if (sData.reference_lines) setReferenceLines(sData.reference_lines);
+          
+          localStorage.setItem('edgelab_queue_v2', JSON.stringify(sData.queue));
+          localStorage.setItem('edgelab_daily_plays', JSON.stringify(sData.daily_plays));
+          localStorage.setItem(`edgelab_scan_results_${today}`, JSON.stringify(sData.scan_results));
+          localStorage.setItem(`edgelab_reference_lines_${today}`, JSON.stringify(sData.reference_lines));
         }
-
-        if (data) {
-          if (data.queue) setQueue(data.queue);
-          if (data.daily_plays) setDailyPlays(data.daily_plays);
-          if (data.reference_lines) setReferenceLines(data.reference_lines);
-          if (data.scan_results) setScanResults(data.scan_results);
-        }
+        
+        setSyncStatus('saved');
       } catch (err) {
-        console.warn("[Supabase] Could not fetch slate (network/config issue).", err);
+        console.warn("[Context] Supabase init failed", err);
+        setSyncStatus('error');
       }
     };
-    fetchRemoteSlate();
+
+    initData();
   }, [userId, today]);
 
-  // Sync Bankroll to Supabase (Debounced)
+  // 2. Persist Bankroll (Instant Local, Debounced Cloud)
   useEffect(() => {
-    const saveToSupabase = setTimeout(async () => {
-      if (userId && bankroll.length > 0 && isSyncEnabled) {
-        const { error } = await supabase
-          .from('bankrolls')
-          .upsert({ user_id: userId, data: bankroll });
-
-        if (error) {
-          console.error("[Supabase] Save failed:", error);
-          // If authorization fails or table doesn't exist, disable sync to stop spamming
-          if (error.message?.includes("Invalid API key") ||
-            error.code === 'PGRST301' ||
-            error.message?.includes("relation \"public.bankrolls\" does not exist")) {
-            console.warn("[Supabase] Permanent error detected. Disabling cloud sync until reload.");
-            setIsSyncEnabled(false);
-          }
-        } else {
-          console.log("[Supabase] Bankroll saved.");
-        }
-      }
-    }, 2000); // 2 second debounce to prevent spamming DB on slider/input changes
-
-    // Also update LocalStorage immediately for responsiveness
     localStorage.setItem('edgelab_bankroll', JSON.stringify(bankroll));
+    localStorage.setItem('edgelab_unit_pct', unitSizePercent.toString());
 
-    return () => clearTimeout(saveToSupabase);
-  }, [bankroll, userId, isSyncEnabled]);
-
-  // Sync Daily Slate to Supabase (Debounced)
-  useEffect(() => {
-    const saveSlate = setTimeout(async () => {
-      if (userId && isSyncEnabled) {
-        const { error } = await supabase
-          .from('daily_slates')
-          .upsert({
-            user_id: userId,
-            date: today,
-            queue,
-            daily_plays: dailyPlays,
-            reference_lines: referenceLines,
-            scan_results: scanResults
-          });
-
-        if (error) {
-          console.error("[Supabase] Slate save failed:", error);
-          if (error.message?.includes("relation \"public.daily_slates\" does not exist")) {
-            setIsSyncEnabled(false);
-          }
-        }
+    setSyncStatus('saving');
+    const timer = setTimeout(async () => {
+      if (!userId || !isSyncEnabled) {
+        setSyncStatus('idle');
+        return;
       }
-    }, 2000);
+      
+      const { error } = await supabase
+        .from('bankrolls')
+        .upsert({ user_id: userId, data: bankroll });
+      
+      if (error) {
+         console.error("[Supabase] Bankroll sync failed", error.message);
+         setSyncStatus('error');
+         if (error.message.includes("Invalid API key")) setIsSyncEnabled(false);
+      } else {
+         setSyncStatus('saved');
+      }
+    }, 2500);
+    return () => clearTimeout(timer);
+  }, [bankroll, unitSizePercent, userId, isSyncEnabled]);
 
-    localStorage.setItem('edgelab_reference_lines', JSON.stringify(referenceLines));
-    localStorage.setItem('edgelab_scan_results', JSON.stringify(scanResults));
-    return () => clearTimeout(saveSlate);
-  }, [queue, dailyPlays, referenceLines, scanResults, userId, today, isSyncEnabled]);
-
-  // Keep track of the last date we were active
+  // 3. Persist Daily Slate (Instant Local, Debounced Cloud)
   useEffect(() => {
     localStorage.setItem('edgelab_last_date', today);
-  }, [today]);
-
-  useEffect(() => {
     localStorage.setItem('edgelab_queue_v2', JSON.stringify(queue));
-  }, [queue]);
-
-  useEffect(() => {
     localStorage.setItem('edgelab_daily_plays', JSON.stringify(dailyPlays));
-  }, [dailyPlays]);
+    localStorage.setItem(`edgelab_scan_results_${today}`, JSON.stringify(scanResults));
+    localStorage.setItem(`edgelab_reference_lines_${today}`, JSON.stringify(referenceLines));
 
-  useEffect(() => {
-    localStorage.setItem('edgelab_unit_pct', unitSizePercent.toString());
-  }, [unitSizePercent]);
+    setSyncStatus('saving');
+    const timer = setTimeout(async () => {
+      if (!userId || !isSyncEnabled) {
+        setSyncStatus('idle');
+        return;
+      }
 
-  // Calculate current playable count
-  const getPlayableCount = () => {
-    return queue.filter(g => g.analysis?.decision === 'PLAYABLE').length;
-  };
+      const { error } = await supabase
+        .from('daily_slates')
+        .upsert({ 
+          user_id: userId, 
+          date: today, 
+          queue: queue, 
+          daily_plays: dailyPlays,
+          scan_results: scanResults,
+          reference_lines: referenceLines
+        });
+      
+      if (error) {
+        console.error("[Supabase] Slate sync failed", error.message);
+        setSyncStatus('error');
+      } else {
+        setSyncStatus('saved');
+      }
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [queue, dailyPlays, scanResults, referenceLines, userId, today, isSyncEnabled]);
 
-  const canAddMorePlays = () => {
-    return getPlayableCount() < MAX_DAILY_PLAYS;
-  };
-
+  // Actions
   const addToQueue = (game: Game) => {
-    setQueue((prev) => {
+    setQueue(prev => {
       if (prev.some(g => g.id === game.id)) return prev;
-      const newGame: QueuedGame = {
-        ...game,
-        visibleId: (prev.length + 1).toString(),
-        addedAt: Date.now(),
-        softLines: [],
-      };
-      return [...prev, newGame];
+      return [...prev, { ...game, visibleId: (prev.length + 1).toString(), addedAt: Date.now(), softLines: [] }];
     });
   };
 
@@ -312,20 +237,15 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const addSoftLines = (gameId: string, lines: BookLines) => {
-    setQueue(prev => prev.map(g => {
-      if (g.id !== gameId) return g;
-      return { ...g, softLines: [...g.softLines, lines] };
-    }));
+    setQueue(prev => prev.map(g => g.id === gameId ? { ...g, softLines: [...g.softLines, lines] } : g));
   };
 
   const updateSoftLineBook = (gameId: string, index: number, newBookName: string) => {
     setQueue(prev => prev.map(g => {
       if (g.id !== gameId) return g;
-      const newSoftLines = [...g.softLines];
-      if (newSoftLines[index]) {
-        newSoftLines[index] = { ...newSoftLines[index], bookName: newBookName };
-      }
-      return { ...g, softLines: newSoftLines };
+      const next = [...g.softLines];
+      if (next[index]) next[index] = { ...next[index], bookName: newBookName };
+      return { ...g, softLines: next };
     }));
   };
 
@@ -344,88 +264,47 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const autoPickBestGames = () => {
     setQueue(prev => {
       const reset = prev.map(g => ({ ...g, cardSlot: undefined }));
-      const playable = reset.filter(g => g.analysis?.decision === 'PLAYABLE');
-
-      const validPlayable = playable.filter(g => {
-        const oddsStr = g.analysis?.softBestOdds;
-        if (!oddsStr) return false;
-        const odds = parseFloat(oddsStr);
-        if (isNaN(odds)) return false;
-        if (odds < 0 && odds < -160) return false;
-        return true;
+      const playable = reset.filter(g => g.analysis?.decision === 'PLAYABLE' && g.analysis.softBestOdds);
+      
+      playable.sort((a, b) => {
+        const ap = a.analysis!;
+        const bp = b.analysis!;
+        return (bp.lineValuePoints || 0) - (ap.lineValuePoints || 0) || 
+               (bp.lineValueCents || 0) - (ap.lineValueCents || 0);
       });
 
-      validPlayable.sort((a, b) => {
-        const aVal = a.analysis!;
-        const bVal = b.analysis!;
-        const aPts = aVal.lineValuePoints || 0;
-        const bPts = bVal.lineValuePoints || 0;
-        if (aPts !== bPts) return bPts - aPts;
-        const parseOdds = (o?: string) => o ? parseFloat(o) : -9999;
-        const aOdds = parseOdds(aVal.softBestOdds);
-        const bOdds = parseOdds(bVal.softBestOdds);
-        if (aOdds !== bOdds) return bOdds - aOdds;
-        const aCents = aVal.lineValueCents || 0;
-        const bCents = bVal.lineValueCents || 0;
-        if (aCents !== bCents) return bCents - aCents;
-        return a.id.localeCompare(b.id);
-      });
-
-      const top6Ids = validPlayable.slice(0, 6).map(g => g.id);
-      return reset.map(g => {
-        const slotIndex = top6Ids.indexOf(g.id);
-        if (slotIndex !== -1) {
-          return { ...g, cardSlot: slotIndex + 1 };
-        }
-        return g;
-      });
+      const top6 = playable.slice(0, 6).map(g => g.id);
+      return reset.map(g => ({ ...g, cardSlot: top6.includes(g.id) ? top6.indexOf(g.id) + 1 : undefined }));
     });
   };
 
-  // Bankroll Functions
   const updateBankroll = (bookName: string, balance: number) => {
-    setBankroll(prev => {
-      const exists = prev.some(b => b.name === bookName);
-      if (exists) {
-        return prev.map(b => b.name === bookName ? { ...b, balance } : b);
-      }
-      return [...prev, { name: bookName, balance }];
-    });
+    setBankroll(prev => prev.map(b => b.name === bookName ? { ...b, balance } : b));
   };
 
-  const totalBankroll = bankroll.reduce((sum, b) => sum + (b.balance || 0), 0);
-
-  const setReferenceLine = (gameId: string, ref: { spreadLineA: string, spreadLineB: string }) => {
-    setReferenceLines(prev => ({ ...prev, [gameId]: ref }));
-  };
-
-  const setScanResult = (gameId: string, result: { signal: 'RED' | 'YELLOW' | 'WHITE', description: string }) => {
+  const setScanResult = (gameId: string, result: ScanResult) => {
     setScanResults(prev => ({ ...prev, [gameId]: result }));
+  };
+
+  const setReferenceLine = (gameId: string, data: ReferenceLineData) => {
+    setReferenceLines(prev => ({ ...prev, [gameId]: data }));
+  };
+
+  // Persist the raw slate data (heavy) only to LocalStorage for now to avoid Supabase limits/complexity
+  const loadSlates = (data: Record<string, any[]>) => {
+    setAllSportsData(data);
+    localStorage.setItem('edgelab_raw_slate', JSON.stringify(data));
   };
 
   return (
     <GameContext.Provider value={{
-      queue,
-      addToQueue,
-      removeFromQueue,
-      updateGame,
-      addSoftLines,
-      updateSoftLineBook,
-      setSharpLines,
-      dailyPlays,
-      getPlayableCount,
-      canAddMorePlays,
-      markAsPlayed,
-      autoPickBestGames,
-      bankroll,
-      updateBankroll,
-      totalBankroll,
-      unitSizePercent,
-      setUnitSizePercent,
-      referenceLines,
-      setReferenceLine,
-      scanResults,
-      setScanResult
+      queue, addToQueue, removeFromQueue, updateGame, addSoftLines, updateSoftLineBook, setSharpLines,
+      dailyPlays, getPlayableCount: () => queue.filter(g => g.analysis?.decision === 'PLAYABLE').length,
+      canAddMorePlays: () => queue.filter(g => g.analysis?.decision === 'PLAYABLE').length < MAX_DAILY_PLAYS,
+      markAsPlayed, autoPickBestGames, bankroll, updateBankroll, totalBankroll: bankroll.reduce((s, b) => s + b.balance, 0),
+      unitSizePercent, setUnitSizePercent, scanResults, setScanResult, referenceLines, setReferenceLine,
+      allSportsData, loadSlates, syncStatus,
+      userId, setUserId: setUserIdManual
     }}>
       {children}
     </GameContext.Provider>
@@ -434,8 +313,6 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
 export const useGameContext = () => {
   const context = useContext(GameContext);
-  if (context === undefined) {
-    throw new Error('useGameContext must be used within a GameProvider');
-  }
+  if (!context) throw new Error('useGameContext must be used within GameProvider');
   return context;
 };

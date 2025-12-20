@@ -47,12 +47,12 @@ export interface HighHitAnalysis {
   vetoTriggered: boolean;
   vetoReason?: string;
   caution?: string; // New field for yellow card warnings (e.g., bad ML juice)
-
+  
   // Math-derived recommendation
   recommendation?: string;  // "Buffalo Sabres Moneyline"
   recLine?: string;         // "+145" or "-6.5 (-108)"
   recProbability?: number;  // Fair prob for this specific bet
-
+  
   // Line shopping data (calculated in TypeScript, not by AI)
   sharpImpliedProb?: number;
   softBestOdds?: string;
@@ -81,6 +81,16 @@ export interface SportsbookAccount {
   color?: string; // For UI visualization
 }
 
+export interface ScanResult {
+  signal: 'RED' | 'YELLOW' | 'WHITE';
+  description: string;
+}
+
+export interface ReferenceLineData {
+  spreadLineA: string;
+  spreadLineB: string;
+}
+
 export interface AnalysisState {
   queue: QueuedGame[];
   addToQueue: (game: Game) => void;
@@ -89,7 +99,7 @@ export interface AnalysisState {
   addSoftLines: (gameId: string, lines: BookLines) => void;
   updateSoftLineBook: (gameId: string, index: number, newBookName: string) => void;
   setSharpLines: (gameId: string, lines: BookLines) => void;
-
+  
   // v2.1 New State
   dailyPlays: DailyPlayTracker;
   getPlayableCount: () => number;
@@ -102,9 +112,22 @@ export interface AnalysisState {
   updateBankroll: (bookName: string, balance: number) => void;
   totalBankroll: number;
   unitSizePercent: number; // e.g., 1 (1%) or 2 (2%)
-  // v2.3 Slates & Reference Lines
-  referenceLines: Record<string, { spreadLineA: string, spreadLineB: string }>;
-  setReferenceLine: (gameId: string, ref: { spreadLineA: string, spreadLineB: string }) => void;
-  scanResults: Record<string, { signal: 'RED' | 'YELLOW' | 'WHITE', description: string }>;
-  setScanResult: (gameId: string, result: { signal: 'RED' | 'YELLOW' | 'WHITE', description: string }) => void;
+  setUnitSizePercent: (pct: number) => void;
+
+  // Scan & Reference Data
+  scanResults: Record<string, ScanResult>;
+  setScanResult: (gameId: string, result: ScanResult) => void;
+  referenceLines: Record<string, ReferenceLineData>;
+  setReferenceLine: (gameId: string, data: ReferenceLineData) => void;
+
+  // v2.3 Raw Slate Persistence
+  allSportsData: Record<string, any[]>;
+  loadSlates: (data: Record<string, any[]>) => void;
+
+  // v2.4 Sync Status
+  syncStatus: 'idle' | 'saving' | 'saved' | 'error';
+  
+  // v2.5 User Identity
+  userId: string;
+  setUserId: (id: string) => void;
 }

@@ -22,14 +22,14 @@ const normalizeToAmerican = (odds: string | number): number => {
       return -100 / (val - 1);
     }
   }
-
+  
   return val;
 };
 
 // Format odds for display - converts decimal to American string
 export const formatOddsForDisplay = (odds: string | number): string => {
   if (!odds || odds === 'N/A') return 'N/A';
-
+  
   const val = typeof odds === 'string' ? parseFloat(odds) : odds;
   if (isNaN(val)) return String(odds);
 
@@ -46,7 +46,7 @@ export const formatOddsForDisplay = (odds: string | number): string => {
       return String(american);
     }
   }
-
+  
   // Already American - format with + for positive
   const numVal = Math.round(val);
   return numVal > 0 ? `+${numVal}` : String(numVal);
@@ -55,7 +55,7 @@ export const formatOddsForDisplay = (odds: string | number): string => {
 export const americanToImpliedProb = (odds: string | number): number => {
   const o = normalizeToAmerican(odds);
   if (isNaN(o) || o === 0) return 50;
-
+  
   if (o < 0) {
     return Math.abs(o) / (Math.abs(o) + 100) * 100;
   } else {
@@ -66,7 +66,7 @@ export const americanToImpliedProb = (odds: string | number): number => {
 export const calculateNoVigProb = (oddsA: string, oddsB: string): { probA: number, probB: number } => {
   const impliedA = americanToImpliedProb(oddsA);
   const impliedB = americanToImpliedProb(oddsB);
-
+  
   const total = impliedA + impliedB;
   if (total === 0) return { probA: 50, probB: 50 };
 
@@ -85,9 +85,9 @@ const getLinearOddsValue = (odds: number): number => {
 export const calculateJuiceDiff = (sharpOdds: string, softOdds: string): number => {
   const sharp = normalizeToAmerican(sharpOdds);
   const soft = normalizeToAmerican(softOdds);
-
+  
   if (isNaN(sharp) || isNaN(soft) || sharp === 0 || soft === 0) return 0;
-
+  
   // FIXED: Use linear scale to handle crossing zero (e.g. -105 to +105)
   // Old logic (soft - sharp) would return 210 for -105 vs +105
   // New logic returns 10 (5 - (-5))
@@ -103,9 +103,9 @@ export const calculateLineDiff = (sharpLine: string, softLine: string): number =
 
 export const checkPriceVetoes = (game: QueuedGame): { triggered: boolean, reason?: string } => {
   if (!game.sharpLines) return { triggered: false };
-
+  
   const spreadA = Math.abs(parseFloat(game.sharpLines.spreadLineA));
-
+  
   let spreadLimit = 10.0;
   switch (game.sport) {
     case 'NFL': spreadLimit = 14.0; break;
@@ -116,12 +116,12 @@ export const checkPriceVetoes = (game: QueuedGame): { triggered: boolean, reason
   }
 
   if (spreadA > spreadLimit) {
-    return {
-      triggered: true,
-      reason: `SPREAD_CAP: Spread is ${spreadA} points (exceeds ${spreadLimit} limit for ${game.sport})`
+    return { 
+      triggered: true, 
+      reason: `SPREAD_CAP: Spread is ${spreadA} points (exceeds ${spreadLimit} limit for ${game.sport})` 
     };
   }
-
+  
   return { triggered: false };
 };
 
@@ -134,13 +134,13 @@ const cleanAndParseJson = (text: string | undefined, fallback: any = {}): any =>
     console.warn("cleanAndParseJson received empty text");
     return fallback;
   }
-
+  
   try {
     let clean = text.replace(/```json/g, '').replace(/```/g, '').trim();
-
+    
     const firstBrace = clean.indexOf('{');
     const lastBrace = clean.lastIndexOf('}');
-
+    
     if (firstBrace !== -1 && lastBrace !== -1) {
       clean = clean.substring(firstBrace, lastBrace + 1);
     } else {
@@ -148,7 +148,7 @@ const cleanAndParseJson = (text: string | undefined, fallback: any = {}): any =>
       console.warn("No JSON object found in response. Text was:", text);
       return fallback;
     }
-
+    
     return JSON.parse(clean);
   } catch (e) {
     console.error("JSON Parse Error:", e, "Text:", text);
@@ -177,21 +177,11 @@ const generateWithRetry = async (ai: GoogleGenAI, params: any, retries = 1) => {
       const resp = await ai.models.generateContent(params);
       if (resp.text) return resp;
       console.warn(`Attempt ${i + 1} returned empty text. Retrying...`);
-    } catch (e: any) {
-      const errStr = e?.message || e?.toString() || '';
-
-      // Don't retry on quota/rate limit errors - throw immediately
-      if (errStr.includes('429') || errStr.includes('RESOURCE_EXHAUSTED') || errStr.includes('quota')) {
-        throw new Error('QUOTA_EXCEEDED: ' + errStr);
-      }
-      if (errStr.includes('401') || errStr.includes('API key')) {
-        throw new Error('INVALID_API_KEY: ' + errStr);
-      }
-
+    } catch (e) {
       console.warn(`Attempt ${i + 1} failed:`, e);
       if (i === retries) throw e;
     }
-    await new Promise(r => setTimeout(r, 1500 * (i + 1))); // Increased delay
+    await new Promise(r => setTimeout(r, 1000 * (i + 1))); 
   }
   return { text: undefined };
 };
@@ -245,7 +235,7 @@ const analyzeAllSides = (sharp: BookLines, softLines: BookLines[]): SideValue[] 
     softLines.forEach(soft => {
       const softLine = getSoftLine(soft);
       const softOdds = getSoftOdds(soft);
-
+      
       if (!softOdds || softOdds === 'N/A' || !sharpOdds || sharpOdds === 'N/A') return;
 
       // SANITY CHECK 1: Filter out bad OCR scans 
@@ -254,7 +244,7 @@ const analyzeAllSides = (sharp: BookLines, softLines: BookLines[]): SideValue[] 
 
       const lineValue = calculateLineDiff(sharpLine, softLine);
       const priceValue = calculateJuiceDiff(sharpOdds, softOdds);
-
+      
       // SANITY CHECK 2: The "Ghost Edge" Killer
       if (Math.abs(priceValue) > 50) return;
 
@@ -272,7 +262,7 @@ const analyzeAllSides = (sharp: BookLines, softLines: BookLines[]): SideValue[] 
     });
 
     if (bestBook) {
-      const hasPositiveValue = market === 'Spread'
+      const hasPositiveValue = market === 'Spread' 
         ? bestLineValue > 0 || (bestLineValue === 0 && bestPriceValue > 0)
         : bestPriceValue > 0;
 
@@ -328,7 +318,7 @@ export const extractLinesFromScreenshot = async (file: File): Promise<BookLines>
   const base64 = await fileToBase64(file);
 
   const response = await generateWithRetry(ai, {
-    model: 'gemini-2.5-flash',
+    model: 'gemini-2.5-flash', // Keep 2.5 for OCR as it is highly efficient and tuned for this
     contents: {
       parts: [
         { text: EXTRACTION_PROMPT },
@@ -359,7 +349,7 @@ export const extractLinesFromScreenshot = async (file: File): Promise<BookLines>
 
 export const analyzeGame = async (game: QueuedGame): Promise<HighHitAnalysis> => {
   const ai = getAiClient();
-
+  
   // ========== STEP 1: PRICE VETO (TypeScript) ==========
   const priceVeto = checkPriceVetoes(game);
   if (priceVeto.triggered) {
@@ -370,7 +360,7 @@ export const analyzeGame = async (game: QueuedGame): Promise<HighHitAnalysis> =>
       researchSummary: 'Price veto triggered before research.',
     };
   }
-
+  
   // ========== STEP 2: ANALYZE ALL SIDES ==========
   let sharpImpliedProb = 50;
   let allSides: SideValue[] = [];
@@ -383,10 +373,10 @@ export const analyzeGame = async (game: QueuedGame): Promise<HighHitAnalysis> =>
       allSides = analyzeAllSides(game.sharpLines, game.softLines);
     }
   }
-
+  
   // ========== STEP 3: CHECK IF ANY VALUE EXISTS ==========
   const sidesWithValue = allSides.filter(s => s.hasPositiveValue);
-
+  
   if (sidesWithValue.length === 0) {
     return {
       decision: 'PASS',
@@ -421,8 +411,8 @@ export const analyzeGame = async (game: QueuedGame): Promise<HighHitAnalysis> =>
   }
 
   const valueSummary = sidesWithValue.map(s => {
-    const teamName = s.side === 'AWAY' ? game.awayTeam.name :
-      s.side === 'HOME' ? game.homeTeam.name : s.side;
+    const teamName = s.side === 'AWAY' ? game.awayTeam.name : 
+                     s.side === 'HOME' ? game.homeTeam.name : s.side;
     const valueDesc = [];
     if (s.lineValue > 0) valueDesc.push(`+${s.lineValue} points`);
     if (s.lineValue < 0) valueDesc.push(`${s.lineValue} points`);
@@ -452,7 +442,7 @@ ${valueSummary}
 `;
 
   const response = await generateWithRetry(ai, {
-    model: 'gemini-2.5-flash',
+    model: 'gemini-3-flash-preview', // UPGRADED to Gemini 3 Flash for better reasoning
     contents: holisticPrompt,
     config: {
       systemInstruction: `You are EdgeLab v3. You analyze sports games for betting value.
@@ -490,7 +480,7 @@ ${valueSummary}
   };
 
   const aiResult = cleanAndParseJson(response.text, fallback);
-
+  
   if (aiResult.decision !== 'PLAYABLE' || !aiResult.recommendedSide) {
     return {
       decision: 'PASS',
@@ -502,17 +492,17 @@ ${valueSummary}
     };
   }
 
-  const selectedSide = sidesWithValue.find(s =>
-    s.side === aiResult.recommendedSide &&
+  const selectedSide = sidesWithValue.find(s => 
+    s.side === aiResult.recommendedSide && 
     s.market === aiResult.recommendedMarket
   ) || sidesWithValue.find(s => s.side === aiResult.recommendedSide) || sidesWithValue[0];
 
   const teamName = selectedSide.side === 'AWAY' ? game.awayTeam.name :
-    selectedSide.side === 'HOME' ? game.homeTeam.name :
-      selectedSide.side;
+                   selectedSide.side === 'HOME' ? game.homeTeam.name :
+                   selectedSide.side;
 
   const recommendation = `${teamName} ${selectedSide.market}`;
-  const recLine = selectedSide.market === 'Moneyline'
+  const recLine = selectedSide.market === 'Moneyline' 
     ? formatOddsForDisplay(selectedSide.bestSoftOdds)
     : `${selectedSide.bestSoftLine} (${formatOddsForDisplay(selectedSide.bestSoftOdds)})`;
 
@@ -571,7 +561,7 @@ export const quickScanGame = async (game: Game): Promise<{ signal: 'RED' | 'YELL
 
   try {
     const response = await generateWithRetry(ai, {
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3-flash-preview', // UPGRADED to Gemini 3 Flash
       contents: prompt,
       config: {
         tools: [{ googleSearch: {} }],
@@ -592,7 +582,7 @@ export const quickScanGame = async (game: Game): Promise<{ signal: 'RED' | 'YELL
 
 export const detectMarketDiff = (sharpVal: string, softVal: string, type: 'SPREAD' | 'TOTAL' | 'ML'): boolean => {
   if (!sharpVal || !softVal || sharpVal === 'N/A' || softVal === 'N/A') return false;
-
+  
   const s1 = parseFloat(sharpVal);
   const s2 = parseFloat(softVal);
   if (isNaN(s1) || isNaN(s2)) return false;

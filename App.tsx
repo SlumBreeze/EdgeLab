@@ -1,10 +1,66 @@
 
 import React, { useState } from 'react';
-import { GameProvider } from './hooks/useGameContext';
+import { GameProvider, useGameContext } from './hooks/useGameContext';
 import Scout from './pages/Scout';
 import Queue from './pages/Queue';
 import Card from './pages/Card';
 import { BankrollModal } from './components/BankrollModal';
+
+const HeaderActions: React.FC<{ onOpenBankroll: () => void }> = ({ onOpenBankroll }) => {
+  const { syncStatus } = useGameContext();
+  
+  // Dynamic styles for the glowing cloud effect
+  let containerStyles = "bg-white/90 border-2 transition-all duration-700 shadow-sm";
+  let iconColor = "text-slate-300";
+  
+  if (syncStatus === 'saving') {
+    // Pulsing Blue Cloud
+    containerStyles = "bg-white border-blue-400 shadow-[0_0_15px_rgba(96,165,250,0.6)]";
+    iconColor = "text-blue-500 animate-pulse";
+  } else if (syncStatus === 'saved') {
+    // Glowing Green Cloud
+    containerStyles = "bg-white border-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.5)]";
+    iconColor = "text-emerald-500";
+  } else if (syncStatus === 'error') {
+    // Glowing Red Cloud
+    containerStyles = "bg-white border-red-500 shadow-[0_0_20px_rgba(239,68,68,0.5)]";
+    iconColor = "text-red-500";
+  } else {
+    // Idle Slate Cloud
+    containerStyles = "bg-white/80 border-slate-200";
+    iconColor = "text-slate-400";
+  }
+
+  return (
+    <div className="fixed top-0 right-0 p-4 z-40 flex items-center gap-3">
+       {/* Sync Status Indicator (Glowing Cloud) */}
+       <div 
+         className={`w-10 h-10 flex items-center justify-center rounded-full backdrop-blur-md ${containerStyles}`} 
+         title={`Cloud Status: ${syncStatus.toUpperCase()}`}
+       >
+          <svg 
+            className={`w-6 h-6 ${iconColor} transition-colors duration-500`} 
+            fill="none" 
+            viewBox="0 0 24 24" 
+            stroke="currentColor" 
+            strokeWidth="2" 
+            strokeLinecap="round" 
+            strokeLinejoin="round"
+          >
+            <path d="M3 15a4 4 0 0 0 4 4h9a5 5 0 1 0-.1-9.999 5.002 5.002 0 1 0-9.78 2.096A4.001 4.001 0 0 0 3 15z" />
+          </svg>
+       </div>
+       
+       {/* Wallet Button */}
+       <button 
+            onClick={onOpenBankroll}
+            className="bg-white/90 backdrop-blur shadow-md border border-slate-200 rounded-full w-10 h-10 flex items-center justify-center hover:scale-105 transition-all text-xl"
+        >
+            💰
+        </button>
+    </div>
+  );
+};
 
 const AppContent: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'scout' | 'queue' | 'card'>('scout');
@@ -12,15 +68,8 @@ const AppContent: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans">
-      {/* Top Header for Wallet Access */}
-      <div className="fixed top-0 right-0 p-4 z-40">
-        <button 
-            onClick={() => setIsBankrollOpen(true)}
-            className="bg-white/90 backdrop-blur shadow-md border border-slate-200 rounded-full w-10 h-10 flex items-center justify-center hover:scale-105 transition-all text-xl"
-        >
-            💰
-        </button>
-      </div>
+      
+      <HeaderActions onOpenBankroll={() => setIsBankrollOpen(true)} />
 
       <main className="flex-1 pb-20 pt-4">
         {activeTab === 'scout' && <Scout />}

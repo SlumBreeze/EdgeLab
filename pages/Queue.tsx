@@ -10,7 +10,7 @@ export default function Queue() {
   const handleScan = async (gameId: string) => {
     const game = queue.find(g => g.id === gameId);
     if (!game) return;
-
+    
     setAnalyzingIds(prev => new Set(prev).add(gameId));
     const result = await quickScanGame(game);
     updateGame(gameId, { edgeSignal: result.signal, edgeDescription: result.description });
@@ -29,22 +29,9 @@ export default function Queue() {
     try {
       const result = await analyzeGame(game);
       updateGame(gameId, { analysis: result });
-    } catch (e: any) {
+    } catch (e) {
       console.error(e);
-
-      // Parse specific error types
-      let errorMsg = "Analysis failed. Please try again.";
-      const errStr = e?.message || e?.toString() || '';
-
-      if (errStr.includes('429') || errStr.includes('RESOURCE_EXHAUSTED') || errStr.includes('quota')) {
-        errorMsg = "⚠️ API Quota Exceeded!\n\nYou've hit the free tier limit (20 requests/day).\n\nOptions:\n1. Wait until tomorrow\n2. Enable billing in Google Cloud Console for higher limits";
-      } else if (errStr.includes('401') || errStr.includes('API key')) {
-        errorMsg = "Invalid API Key. Check your GEMINI_API_KEY in .env";
-      } else if (errStr.includes('network') || errStr.includes('fetch')) {
-        errorMsg = "Network error. Check your internet connection.";
-      }
-
-      alert(errorMsg);
+      alert("Analysis failed. Please check your inputs and try again.");
     } finally {
       setAnalyzingIds(prev => {
         const next = new Set(prev);
@@ -58,7 +45,7 @@ export default function Queue() {
     try {
       setAnalyzingIds(prev => new Set(prev).add(gameId + type));
       const lines = await extractLinesFromScreenshot(file);
-
+      
       if (type === 'SHARP') {
         setSharpLines(gameId, lines);
       } else {
