@@ -26,6 +26,19 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // User ID for Database Persistence
   const [userId, setUserIdState] = useState(() => {
     try {
+      // 1. Check URL for Magic Link (Priority)
+      if (typeof window !== 'undefined') {
+        const params = new URLSearchParams(window.location.search);
+        const syncId = params.get('sync_id');
+        if (syncId && syncId.length > 5) {
+          localStorage.setItem('edgelab_user_id', syncId);
+          // Clean URL so the user doesn't copy-paste the ID accidentally to someone else
+          window.history.replaceState({}, document.title, window.location.pathname);
+          return syncId;
+        }
+      }
+
+      // 2. Check Local Storage
       let id = localStorage.getItem('edgelab_user_id');
       if (!id) {
         id = crypto.randomUUID();
