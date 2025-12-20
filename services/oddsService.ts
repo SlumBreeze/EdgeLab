@@ -15,24 +15,25 @@ const SPORT_KEYS: Record<Sport, string> = {
   'CFB': 'americanfootball_ncaaf'
 };
 
+// Filtered list based on user preference
 export const SOFT_BOOK_KEYS = [
   'draftkings',
   'fanduel', 
   'bovada',
-  'betmgm',
-  'betrivers',
   'fliff',
-  'espnbet'
+  'espnbet',
+  'thescore',
+  'betonlineag'
 ];
 
 export const BOOK_DISPLAY_NAMES: Record<string, string> = {
   'draftkings': 'DraftKings',
   'fanduel': 'FanDuel',
   'bovada': 'Bovada',
-  'betmgm': 'BetMGM',
-  'betrivers': 'BetRivers',
   'fliff': 'Fliff',
-  'espnbet': 'ESPN BET',
+  'espnbet': 'theScore Bet',
+  'thescore': 'theScore Bet',
+  'betonlineag': 'BetOnline',
   'pinnacle': 'Pinnacle'
 };
 
@@ -104,7 +105,7 @@ export const fetchOddsForSport = async (sport: Sport): Promise<any[]> => {
   console.log(`[OddsService] Fetching fresh API data for ${sport}...`);
   
   // Request US, US2 (offshore), and EU regions to cover all requested books
-  const url = `${BASE_URL}/${sportKey}/odds?apiKey=${API_KEY}&regions=us,us2,eu&markets=h2h,spreads,totals&oddsFormat=american`;
+  const url = `${BASE_URL}/${sportKey}/odds?apiKey=${API_KEY}&regions=us,us2,eu,au&markets=h2h,spreads,totals&oddsFormat=american`;
   
   try {
     const response = await fetch(url);
@@ -134,7 +135,6 @@ export const fetchOddsForSport = async (sport: Sport): Promise<any[]> => {
 
 export const fetchOddsForGame = async (sport: Sport, gameId: string): Promise<any> => {
   // 1. Try to find the game in the existing cache (FREE)
-  // This calls fetchOddsForSport, which handles the cache logic internally
   const cachedGames = await fetchOddsForSport(sport);
   const cachedGame = cachedGames.find((g: any) => g.id === gameId);
   
@@ -148,7 +148,7 @@ export const fetchOddsForGame = async (sport: Sport, gameId: string): Promise<an
   const sportKey = SPORT_KEYS[sport];
   if (!sportKey || !API_KEY) return null;
 
-  const url = `${BASE_URL}/${sportKey}/events/${gameId}/odds?apiKey=${API_KEY}&regions=us,us2,eu&markets=h2h,spreads,totals&oddsFormat=american`;
+  const url = `${BASE_URL}/${sportKey}/events/${gameId}/odds?apiKey=${API_KEY}&regions=us,us2,eu,au&markets=h2h,spreads,totals&oddsFormat=american`;
 
   try {
     const response = await fetch(url);
@@ -168,7 +168,6 @@ export const fetchAllSportsOdds = async (): Promise<Record<Sport, any[]>> => {
   console.log('[OddsService] Batch loading all sports...');
   
   for (const sport of sports) {
-    // This will use cache if available, only hit API if needed
     results[sport] = await fetchOddsForSport(sport);
   }
   

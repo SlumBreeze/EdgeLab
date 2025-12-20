@@ -66,12 +66,19 @@ export interface HighHitAnalysis {
   line?: string;
   researchSummary: string; // What the AI found (injuries, rest, etc.)
   edgeNarrative?: string; // Plain English description of any situational edge. Do NOT assign percentages.
+  confidence?: 'HIGH' | 'MEDIUM' | 'LOW';
 }
 
 export interface DailyPlayTracker {
   date: string; // YYYY-MM-DD
   playCount: number;
   gameIds: string[];
+}
+
+export interface SportsbookAccount {
+  name: string;
+  balance: number;
+  color?: string; // For UI visualization
 }
 
 export interface AnalysisState {
@@ -89,4 +96,11 @@ export interface AnalysisState {
   canAddMorePlays: () => boolean;
   markAsPlayed: (gameId: string) => void;
   autoPickBestGames: () => void;
+
+  // v2.2 Bankroll
+  bankroll: SportsbookAccount[];
+  updateBankroll: (bookName: string, balance: number) => void;
+  totalBankroll: number;
+  unitSizePercent: number; // e.g., 1 (1%) or 2 (2%)
+  setUnitSizePercent: (pct: number) => void;
 }

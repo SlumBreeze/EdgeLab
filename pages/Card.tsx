@@ -179,10 +179,27 @@ export default function Card() {
 }
 
 const PlayableCard: React.FC<{ game: QueuedGame; dim?: boolean }> = ({ game, dim }) => {
+  const { totalBankroll, unitSizePercent, bankroll } = useGameContext();
   const a = game.analysis!;
   const hasCaution = !!a.caution;
   const slot = game.cardSlot;
-  
+
+  // Wager Calculation
+  const oneUnit = (totalBankroll * unitSizePercent) / 100;
+  let wagerUnits = 1.0;
+  if (a.confidence === 'HIGH') wagerUnits = 1.5; // Bump to 1.5u or 2u for high confidence
+  if (a.confidence === 'LOW') wagerUnits = 0.5;
+
+  const wagerAmount = oneUnit * wagerUnits;
+  const isWagerCalculated = totalBankroll > 0;
+
+  // Book Balance Check
+  const recBookName = a.softBestBook || '';
+  // Normalize book names for check (e.g. "FanDuel" vs "fanduel")
+  const bookAccount = bankroll.find(b => b.name.toLowerCase().includes(recBookName.toLowerCase()) || recBookName.toLowerCase().includes(b.name.toLowerCase()));
+  const bookBalance = bookAccount?.balance || 0;
+  const insufficientFunds = isWagerCalculated && bookBalance < wagerAmount;
+
   return (
     <div className={`p-4 rounded-2xl shadow-lg relative transition-all ${
       dim ? 'opacity-40 grayscale-[50%]' : ''
@@ -226,11 +243,42 @@ const PlayableCard: React.FC<{ game: QueuedGame; dim?: boolean }> = ({ game, dim
           <div className="text-2xl font-bold leading-tight">
             {a.recommendation} <span className={hasCaution ? 'text-slate-900' : 'text-white/90'}>{a.recLine}</span>
           </div>
-          <div className={`text-sm mt-1 ${hasCaution ? 'text-slate-700' : 'text-white/70'}`}>
-            @ {a.softBestBook}
+          
+          <div className="flex items-center gap-2 mt-1">
+             <div className={`text-sm ${hasCaution ? 'text-slate-700' : 'text-white/70'}`}>
+                @ {a.softBestBook}
+             </div>
+             {insufficientFunds && (
+                <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">
+                    Low Bal: ${bookBalance.toFixed(2)}
+                </span>
+             )}
           </div>
         </div>
       )}
+
+      {/* WAGER RECOMMENDATION BAR */}
+      <div className={`flex items-center justify-between p-3 rounded-xl mb-4 ${hasCaution ? 'bg-white/30' : 'bg-black/20'}`}>
+        <div>
+            <div className={`text-[10px] uppercase font-bold tracking-wider ${hasCaution ? 'text-slate-800 opacity-60' : 'text-white/60'}`}>
+                Recommended Wager
+            </div>
+            {isWagerCalculated ? (
+                <div className="flex items-baseline gap-1">
+                    <span className="text-xl font-bold font-mono">${wagerAmount.toFixed(2)}</span>
+                    <span className={`text-xs ${hasCaution ? 'text-slate-800' : 'text-white/80'}`}>({wagerUnits}u)</span>
+                </div>
+            ) : (
+                <div className="text-xs italic opacity-70">Set bankroll to see calc</div>
+            )}
+        </div>
+        <div className="text-right">
+             <div className={`text-[10px] uppercase font-bold tracking-wider ${hasCaution ? 'text-slate-800 opacity-60' : 'text-white/60'}`}>
+                Edge Strength
+            </div>
+            <div className="font-bold">{a.confidence || 'MEDIUM'}</div>
+        </div>
+      </div>
       
       {/* Matchup context */}
       <div className={`text-sm mb-3 ${hasCaution ? 'text-slate-700' : 'text-white/60'}`}>
