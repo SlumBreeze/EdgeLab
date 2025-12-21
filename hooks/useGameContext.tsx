@@ -270,7 +270,11 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }));
   };
 
-  const autoPickBestGames = () => {
+  const autoPickBestGames = (count: number) => {
+    // DEBUG LOG
+    console.log(`[GameContext] 🎯 autoPickBestGames triggered. Target count: ${count}`);
+    console.log(`[GameContext] 🛡️ Applying Safety Filter: Removing odds worse than -160`);
+
     setQueue(prev => {
       const reset = prev.map(g => ({ ...g, cardSlot: undefined }));
       
@@ -299,9 +303,9 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
                (bp.lineValueCents || 0) - (ap.lineValueCents || 0);
       });
 
-      // PICK: Top 6 (Expanded from 4)
-      const top6 = playable.slice(0, 6).map(g => g.id);
-      return reset.map(g => ({ ...g, cardSlot: top6.includes(g.id) ? top6.indexOf(g.id) + 1 : undefined }));
+      // PICK: Top N (Variable Count)
+      const topN = playable.slice(0, count).map(g => g.id);
+      return reset.map(g => ({ ...g, cardSlot: topN.includes(g.id) ? topN.indexOf(g.id) + 1 : undefined }));
     });
   };
 
