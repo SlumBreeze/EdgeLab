@@ -273,8 +273,25 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const autoPickBestGames = () => {
     setQueue(prev => {
       const reset = prev.map(g => ({ ...g, cardSlot: undefined }));
-      const playable = reset.filter(g => g.analysis?.decision === 'PLAYABLE' && g.analysis.softBestOdds);
       
+      // FILTER: Must be Playable AND have odds better than -160
+      const playable = reset.filter(g => {
+        if (g.analysis?.decision !== 'PLAYABLE' || !g.analysis.softBestOdds) return false;
+        
+        // Strict Juice Check
+        const oddsStr = g.analysis.softBestOdds.replace('+', '');
+        const oddsVal = parseFloat(oddsStr);
+        
+        // Exclude if odds are worse than -160 (e.g. -200, -250)
+        // Logic: If negative, it must be greater than -160 (e.g. -110 is ok, -170 is not)
+        if (!isNaN(oddsVal) && oddsVal < 0 && oddsVal < -160) {
+          return false; 
+        }
+        
+        return true;
+      });
+
+      // SORT: Value Points High -> Low, then Value Cents
       playable.sort((a, b) => {
         const ap = a.analysis!;
         const bp = b.analysis!;
@@ -282,6 +299,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
                (bp.lineValueCents || 0) - (ap.lineValueCents || 0);
       });
 
+      // PICK: Top 6 (Expanded from 4)
       const top6 = playable.slice(0, 6).map(g => g.id);
       return reset.map(g => ({ ...g, cardSlot: top6.includes(g.id) ? top6.indexOf(g.id) + 1 : undefined }));
     });

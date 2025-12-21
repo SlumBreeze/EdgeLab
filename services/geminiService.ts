@@ -442,7 +442,7 @@ ${valueSummary}
 `;
 
   const response = await generateWithRetry(ai, {
-    model: 'gemini-3-flash-preview', // UPGRADED to Gemini 3 Flash for better reasoning
+    model: 'gemini-3-pro-preview', // UPGRADED to Gemini 3 Pro (High Reasoning)
     contents: holisticPrompt,
     config: {
       systemInstruction: `You are EdgeLab v3. You analyze sports games for betting value.
