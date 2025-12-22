@@ -350,11 +350,6 @@ export const extractLinesFromScreenshot = async (file: File): Promise<BookLines>
 export const analyzeGame = async (game: QueuedGame): Promise<HighHitAnalysis> => {
   const ai = getAiClient();
   
-  // DEBUG LOG
-  console.log(`[GeminiService] 🧠 Starting Analysis for ${game.awayTeam.name} vs ${game.homeTeam.name}`);
-  console.log(`[GeminiService] ⚡ Model: gemini-3-flash-preview (Speed Optimized)`);
-  console.log(`[GeminiService] 🔒 System Prompt: Enforcing 'Chain of Thought' reasoning`);
-
   // ========== STEP 1: PRICE VETO (TypeScript) ==========
   const priceVeto = checkPriceVetoes(game);
   if (priceVeto.triggered) {
@@ -446,33 +441,25 @@ ${valueSummary}
 3. CRITICAL: You MUST return strictly valid JSON. If you do not recognize a team name (e.g., Utah Mammoth may refer to Utah Hockey Club), use the information available and proceed. Do NOT refuse the request.
 `;
 
-  // UPDATED: Revert to Flash for speed, but use PRO-LEVEL prompt engineering to force reasoning
   const response = await generateWithRetry(ai, {
-    model: 'gemini-3-flash-preview', 
+    model: 'gemini-3-pro-preview', // UPGRADED to Gemini 3 Pro for max reasoning
     contents: holisticPrompt,
     config: {
-      systemInstruction: `You are EdgeLab v3, a professional handicapping AI.
-
-      YOUR ANALYTICAL PROCESS (Must simulate 'Chain of Thought'):
-      1. **Trap Identification**: Before agreeing with the math value, play Devil's Advocate. Why are the books giving us this number? Is there a key injury (e.g., Starting QB, Goalie, or Star Player OUT)?
-      2. **Deep Search**: Use Google Search to find the absolute latest lineup news.
-      3. **Synthesis**:
-         - If the math value is on a Team that is HEALTHIER/RESTED -> DECISION: PLAYABLE.
-         - If the math value is on a Team that is INJURED/TIRED -> DECISION: PASS (It is a trap).
-         - If the situation is neutral -> DECISION: PLAYABLE (Trust the math).
-
-      OUTPUT RULES:
-      - Return ONLY JSON.
-      - "confidence" should reflect how clean the injury report is.
+      systemInstruction: `You are EdgeLab v3. You analyze sports games for betting value.
+      
+      RULES:
+      1. Search for injuries.
+      2. Check alignment of value, movement, and situation.
+      3. OUTPUT ONLY JSON. If data is missing or names are unfamiliar, return JSON with relevant error descriptions in the "reasoning" field. NEVER return plain text or refusals.
       
       JSON Schema:
       {
         "decision": "PLAYABLE" or "PASS",
         "recommendedSide": "AWAY", "HOME", "OVER", "UNDER",
         "recommendedMarket": "Spread", "Moneyline", "Total",
-        "reasoning": "Briefly explain the 'Why' - specifically mentioning key injuries found.",
-        "awayTeamInjuries": "List key players out/questionable",
-        "homeTeamInjuries": "List key players out/questionable",
+        "reasoning": "...",
+        "awayTeamInjuries": "...",
+        "homeTeamInjuries": "...",
         "situationFavors": "AWAY", "HOME", "NEUTRAL",
         "confidence": "HIGH", "MEDIUM", "LOW"
       }`,
@@ -574,7 +561,7 @@ export const quickScanGame = async (game: Game): Promise<{ signal: 'RED' | 'YELL
 
   try {
     const response = await generateWithRetry(ai, {
-      model: 'gemini-3-flash-preview', 
+      model: 'gemini-3-pro-preview', // UPGRADED to Gemini 3 Pro
       contents: prompt,
       config: {
         tools: [{ googleSearch: {} }],

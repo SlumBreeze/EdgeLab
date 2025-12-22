@@ -1,12 +1,11 @@
 
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { useGameContext } from '../hooks/useGameContext';
 import { HighHitAnalysis, QueuedGame } from '../types';
 import { MAX_DAILY_PLAYS } from '../constants';
 
 export default function Card() {
   const { queue, getPlayableCount, autoPickBestGames } = useGameContext();
-  const [pickCount, setPickCount] = useState(6);
   
   const analyzedGames = queue.filter(g => g.analysis);
   const playable = analyzedGames.filter(g => g.analysis?.decision === 'PLAYABLE');
@@ -16,11 +15,6 @@ export default function Card() {
   const overLimit = playableCount > MAX_DAILY_PLAYS;
   
   const hasAutoPicked = queue.some(g => g.cardSlot !== undefined);
-
-  // DEBUG LOG
-  useEffect(() => {
-    console.log(`[Card] 🎚️ Auto-pick slider value changed to: ${pickCount}`);
-  }, [pickCount]);
 
   const generateClipboardText = () => {
     const dateStr = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
@@ -78,28 +72,14 @@ export default function Card() {
         </p>
       </header>
       
-      {/* Auto-Pick Controls */}
+      {/* Auto-Pick Button */}
       {playable.length > 0 && (
-        <div className="bg-white rounded-xl p-4 shadow-sm border border-slate-200 mb-6">
-           <div className="flex justify-between items-center mb-2">
-              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Volume Slider</span>
-              <span className="text-sm font-bold text-amber-500">{pickCount} Games</span>
-           </div>
-           <input 
-              type="range" 
-              min="2" 
-              max="6" 
-              value={pickCount} 
-              onChange={(e) => setPickCount(parseInt(e.target.value))}
-              className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-amber-500 mb-4"
-           />
-           <button
-             onClick={() => autoPickBestGames(pickCount)}
-             className="w-full py-3 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 text-white font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
-           >
-             <span>🎯</span> Auto-Pick Top {pickCount} (Safe Juice)
-           </button>
-        </div>
+        <button
+          onClick={autoPickBestGames}
+          className="w-full mb-6 py-3 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 text-white font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
+        >
+          <span>🎯</span> Auto-Pick Top 6 (No Heavy Juice)
+        </button>
       )}
 
       {/* DISCIPLINE WARNING */}
@@ -213,31 +193,12 @@ const PlayableCard: React.FC<{ game: QueuedGame; dim?: boolean }> = ({ game, dim
   const wagerAmount = oneUnit * wagerUnits;
   const isWagerCalculated = totalBankroll > 0;
 
-  // Book Balance Check & Alternative Recommendation
+  // Book Balance Check
   const recBookName = a.softBestBook || '';
   // Normalize book names for check (e.g. "FanDuel" vs "fanduel")
   const bookAccount = bankroll.find(b => b.name.toLowerCase().includes(recBookName.toLowerCase()) || recBookName.toLowerCase().includes(b.name.toLowerCase()));
   const bookBalance = bookAccount?.balance || 0;
   const insufficientFunds = isWagerCalculated && bookBalance < wagerAmount;
-
-  // Find Alternative if needed
-  let alternativeBook = null;
-  if (insufficientFunds) {
-      // Find a book in the softLines list that has enough balance
-      const found = game.softLines.find(sl => {
-          const acct = bankroll.find(b => b.name.toLowerCase().includes(sl.bookName.toLowerCase()) || sl.bookName.toLowerCase().includes(b.name.toLowerCase()));
-          return acct && acct.balance >= wagerAmount;
-      });
-      if (found) alternativeBook = found.bookName;
-
-      // DEBUG LOG FOR BANKROLL LOGIC
-      console.log(`[Bankroll] ⚠️ Insufficient funds in ${recBookName} ($${bookBalance}). Needed: $${wagerAmount}`);
-      if (alternativeBook) {
-        console.log(`[Bankroll] 🔄 Found alternative with funds: ${alternativeBook}`);
-      } else {
-        console.log(`[Bankroll] ❌ No alternative book with sufficient funds found.`);
-      }
-  }
 
   return (
     <div className={`p-4 rounded-2xl shadow-lg relative transition-all ${
@@ -283,21 +244,14 @@ const PlayableCard: React.FC<{ game: QueuedGame; dim?: boolean }> = ({ game, dim
             {a.recommendation} <span className={hasCaution ? 'text-slate-900' : 'text-white/90'}>{a.recLine}</span>
           </div>
           
-          <div className="flex items-center gap-2 mt-1 flex-wrap">
+          <div className="flex items-center gap-2 mt-1">
              <div className={`text-sm ${hasCaution ? 'text-slate-700' : 'text-white/70'}`}>
                 @ {a.softBestBook}
              </div>
              {insufficientFunds && (
-                <div className="flex items-center gap-1 animate-pulse">
-                     <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">
-                        Low Bal: ${bookBalance.toFixed(2)}
-                    </span>
-                    {alternativeBook && (
-                        <span className="bg-indigo-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded shadow-sm border border-indigo-400">
-                             Use {alternativeBook} instead
-                        </span>
-                    )}
-                </div>
+                <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">
+                    Low Bal: ${bookBalance.toFixed(2)}
+                </span>
              )}
           </div>
         </div>

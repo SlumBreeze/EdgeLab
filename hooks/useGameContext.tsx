@@ -26,19 +26,6 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // User ID for Database Persistence
   const [userId, setUserIdState] = useState(() => {
     try {
-      // 1. Check URL for Magic Link (Priority)
-      if (typeof window !== 'undefined') {
-        const params = new URLSearchParams(window.location.search);
-        const syncId = params.get('sync_id');
-        if (syncId && syncId.length > 5) {
-          localStorage.setItem('edgelab_user_id', syncId);
-          // Clean URL so the user doesn't copy-paste the ID accidentally to someone else
-          window.history.replaceState({}, document.title, window.location.pathname);
-          return syncId;
-        }
-      }
-
-      // 2. Check Local Storage
       let id = localStorage.getItem('edgelab_user_id');
       if (!id) {
         id = crypto.randomUUID();
@@ -54,6 +41,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!newId || newId.length < 5) return;
     setUserIdState(newId);
     localStorage.setItem('edgelab_user_id', newId);
+    // Force a reload of data happens automatically via the userId dependency in useEffect below
     console.log("[Auth] Switched to User ID:", newId);
   };
 
@@ -169,53 +157,32 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     initData();
   }, [userId, today]);
 
-  // Save Function (Debounced or Immediate)
-  const saveDataToCloud = async (immediate = false) => {
-    if (!userId || !isSyncEnabled) return;
-    
-    setSyncStatus('saving');
-    
-    const performSave = async () => {
-        const bankrollPromise = supabase
-            .from('bankrolls')
-            .upsert({ user_id: userId, data: bankroll });
-            
-        const slatePromise = supabase
-            .from('daily_slates')
-            .upsert({ 
-              user_id: userId, 
-              date: today, 
-              queue: queue, 
-              daily_plays: dailyPlays,
-              scan_results: scanResults,
-              reference_lines: referenceLines
-            });
-
-        const [bRes, sRes] = await Promise.all([bankrollPromise, slatePromise]);
-        
-        if (bRes.error || sRes.error) {
-            console.error("Sync Error", bRes.error, sRes.error);
-            setSyncStatus('error');
-        } else {
-            setSyncStatus('saved');
-        }
-    };
-
-    if (immediate) {
-        await performSave();
-    } else {
-        performSave();
-    }
-  };
-
   // 2. Persist Bankroll (Instant Local, Debounced Cloud)
   useEffect(() => {
     localStorage.setItem('edgelab_bankroll', JSON.stringify(bankroll));
     localStorage.setItem('edgelab_unit_pct', unitSizePercent.toString());
 
-    const timer = setTimeout(() => saveDataToCloud(false), 2000);
+    setSyncStatus('saving');
+    const timer = setTimeout(async () => {
+      if (!userId || !isSyncEnabled) {
+        setSyncStatus('idle');
+        return;
+      }
+      
+      const { error } = await supabase
+        .from('bankrolls')
+        .upsert({ user_id: userId, data: bankroll });
+      
+      if (error) {
+         console.error("[Supabase] Bankroll sync failed", error.message);
+         setSyncStatus('error');
+         if (error.message.includes("Invalid API key")) setIsSyncEnabled(false);
+      } else {
+         setSyncStatus('saved');
+      }
+    }, 2500);
     return () => clearTimeout(timer);
-  }, [bankroll, unitSizePercent]);
+  }, [bankroll, unitSizePercent, userId, isSyncEnabled]);
 
   // 3. Persist Daily Slate (Instant Local, Debounced Cloud)
   useEffect(() => {
@@ -225,9 +192,33 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.setItem(`edgelab_scan_results_${today}`, JSON.stringify(scanResults));
     localStorage.setItem(`edgelab_reference_lines_${today}`, JSON.stringify(referenceLines));
 
-    const timer = setTimeout(() => saveDataToCloud(false), 2000);
+    setSyncStatus('saving');
+    const timer = setTimeout(async () => {
+      if (!userId || !isSyncEnabled) {
+        setSyncStatus('idle');
+        return;
+      }
+
+      const { error } = await supabase
+        .from('daily_slates')
+        .upsert({ 
+          user_id: userId, 
+          date: today, 
+          queue: queue, 
+          daily_plays: dailyPlays,
+          scan_results: scanResults,
+          reference_lines: referenceLines
+        });
+      
+      if (error) {
+        console.error("[Supabase] Slate sync failed", error.message);
+        setSyncStatus('error');
+      } else {
+        setSyncStatus('saved');
+      }
+    }, 3000);
     return () => clearTimeout(timer);
-  }, [queue, dailyPlays, scanResults, referenceLines]);
+  }, [queue, dailyPlays, scanResults, referenceLines, userId, today, isSyncEnabled]);
 
   // Actions
   const addToQueue = (game: Game) => {
@@ -270,32 +261,11 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }));
   };
 
-  const autoPickBestGames = (count: number) => {
-    // DEBUG LOG
-    console.log(`[GameContext] 🎯 autoPickBestGames triggered. Target count: ${count}`);
-    console.log(`[GameContext] 🛡️ Applying Safety Filter: Removing odds worse than -160`);
-
+  const autoPickBestGames = () => {
     setQueue(prev => {
       const reset = prev.map(g => ({ ...g, cardSlot: undefined }));
+      const playable = reset.filter(g => g.analysis?.decision === 'PLAYABLE' && g.analysis.softBestOdds);
       
-      // FILTER: Must be Playable AND have odds better than -160
-      const playable = reset.filter(g => {
-        if (g.analysis?.decision !== 'PLAYABLE' || !g.analysis.softBestOdds) return false;
-        
-        // Strict Juice Check
-        const oddsStr = g.analysis.softBestOdds.replace('+', '');
-        const oddsVal = parseFloat(oddsStr);
-        
-        // Exclude if odds are worse than -160 (e.g. -200, -250)
-        // Logic: If negative, it must be greater than -160 (e.g. -110 is ok, -170 is not)
-        if (!isNaN(oddsVal) && oddsVal < 0 && oddsVal < -160) {
-          return false; 
-        }
-        
-        return true;
-      });
-
-      // SORT: Value Points High -> Low, then Value Cents
       playable.sort((a, b) => {
         const ap = a.analysis!;
         const bp = b.analysis!;
@@ -303,9 +273,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
                (bp.lineValueCents || 0) - (ap.lineValueCents || 0);
       });
 
-      // PICK: Top N (Variable Count)
-      const topN = playable.slice(0, count).map(g => g.id);
-      return reset.map(g => ({ ...g, cardSlot: topN.includes(g.id) ? topN.indexOf(g.id) + 1 : undefined }));
+      const top6 = playable.slice(0, 6).map(g => g.id);
+      return reset.map(g => ({ ...g, cardSlot: top6.includes(g.id) ? top6.indexOf(g.id) + 1 : undefined }));
     });
   };
 
@@ -327,10 +296,6 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.setItem('edgelab_raw_slate', JSON.stringify(data));
   };
 
-  const saveNow = async () => {
-    await saveDataToCloud(true);
-  };
-
   return (
     <GameContext.Provider value={{
       queue, addToQueue, removeFromQueue, updateGame, addSoftLines, updateSoftLineBook, setSharpLines,
@@ -339,9 +304,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       markAsPlayed, autoPickBestGames, bankroll, updateBankroll, totalBankroll: bankroll.reduce((s, b) => s + b.balance, 0),
       unitSizePercent, setUnitSizePercent, scanResults, setScanResult, referenceLines, setReferenceLine,
       allSportsData, loadSlates, syncStatus,
-      userId, setUserId: setUserIdManual,
-      // @ts-ignore - added custom prop for manual save
-      saveNow 
+      userId, setUserId: setUserIdManual
     }}>
       {children}
     </GameContext.Provider>

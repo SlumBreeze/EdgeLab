@@ -105,7 +105,7 @@ export interface AnalysisState {
   getPlayableCount: () => number;
   canAddMorePlays: () => boolean;
   markAsPlayed: (gameId: string) => void;
-  autoPickBestGames: (count: number) => void;
+  autoPickBestGames: () => void;
 
   // v2.2 Bankroll
   bankroll: SportsbookAccount[];

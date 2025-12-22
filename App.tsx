@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { GameProvider, useGameContext } from './hooks/useGameContext';
 import Scout from './pages/Scout';
 import Queue from './pages/Queue';
@@ -65,15 +65,6 @@ const HeaderActions: React.FC<{ onOpenBankroll: () => void }> = ({ onOpenBankrol
 const AppContent: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'scout' | 'queue' | 'card'>('scout');
   const [isBankrollOpen, setIsBankrollOpen] = useState(false);
-
-  // DEBUG LOGGING
-  useEffect(() => {
-    console.group("🚀 EdgeLab v3.1 Debug Info");
-    console.log("%c✅ Feature: Brain Speed Revert", "color: green", "-> Using gemini-3-flash-preview");
-    console.log("%c✅ Feature: Bankroll Logic", "color: green", "-> Alternative book suggestions enabled");
-    console.log("%c✅ Feature: Auto-Pick Slider", "color: green", "-> Variable 2-6 game selection active");
-    console.groupEnd();
-  }, []);
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans">
