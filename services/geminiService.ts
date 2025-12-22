@@ -88,9 +88,6 @@ export const calculateJuiceDiff = (sharpOdds: string, softOdds: string): number 
   
   if (isNaN(sharp) || isNaN(soft) || sharp === 0 || soft === 0) return 0;
   
-  // FIXED: Use linear scale to handle crossing zero (e.g. -105 to +105)
-  // Old logic (soft - sharp) would return 210 for -105 vs +105
-  // New logic returns 10 (5 - (-5))
   return getLinearOddsValue(soft) - getLinearOddsValue(sharp);
 };
 
@@ -144,7 +141,6 @@ const cleanAndParseJson = (text: string | undefined, fallback: any = {}): any =>
     if (firstBrace !== -1 && lastBrace !== -1) {
       clean = clean.substring(firstBrace, lastBrace + 1);
     } else {
-      // If we can't find braces, the model might have returned a refusal string
       console.warn("No JSON object found in response. Text was:", text);
       return fallback;
     }
@@ -186,7 +182,6 @@ const generateWithRetry = async (ai: GoogleGenAI, params: any, retries = 1) => {
   return { text: undefined };
 };
 
-// Helper to get reference lines (safe for SSR/Node, though this runs in browser)
 const getReferenceLines = (gameId: string) => {
   if (typeof window === 'undefined') return null;
   try {
@@ -198,7 +193,7 @@ const getReferenceLines = (gameId: string) => {
 };
 
 // ============================================
-// LINE VALUE CALCULATOR - ANALYZES ALL SIDES
+// LINE VALUE CALCULATOR
 // ============================================
 
 interface SideValue {
@@ -209,8 +204,8 @@ interface SideValue {
   bestSoftLine: string;
   bestSoftOdds: string;
   bestSoftBook: string;
-  lineValue: number;      // positive = getting better number
-  priceValue: number;     // cents of juice saved
+  lineValue: number;
+  priceValue: number;
   hasPositiveValue: boolean;
 }
 
@@ -238,17 +233,15 @@ const analyzeAllSides = (sharp: BookLines, softLines: BookLines[]): SideValue[] 
       
       if (!softOdds || softOdds === 'N/A' || !sharpOdds || sharpOdds === 'N/A') return;
 
-      // SANITY CHECK 1: Filter out bad OCR scans 
       const sVal = parseFloat(softOdds);
       if (Math.abs(sVal) > 2000) return;
 
       const lineValue = calculateLineDiff(sharpLine, softLine);
       const priceValue = calculateJuiceDiff(sharpOdds, softOdds);
       
-      // SANITY CHECK 2: The "Ghost Edge" Killer
       if (Math.abs(priceValue) > 50) return;
 
-      // Score: lineValue (for spreads) + priceValue/10
+      // Prioritize points over juice for spreads
       const totalValue = (market === 'Spread' ? lineValue * 10 : 0) + priceValue;
 
       if (totalValue > bestValue) {
@@ -281,7 +274,6 @@ const analyzeAllSides = (sharp: BookLines, softLines: BookLines[]): SideValue[] 
     }
   };
 
-  // Check all sides
   checkSide('AWAY', 'Spread', sharp.spreadLineA, sharp.spreadOddsA, s => s.spreadLineA, s => s.spreadOddsA);
   checkSide('HOME', 'Spread', sharp.spreadLineB, sharp.spreadOddsB, s => s.spreadLineB, s => s.spreadOddsB);
   checkSide('AWAY', 'Moneyline', 'ML', sharp.mlOddsA, () => 'ML', s => s.mlOddsA);
@@ -318,7 +310,7 @@ export const extractLinesFromScreenshot = async (file: File): Promise<BookLines>
   const base64 = await fileToBase64(file);
 
   const response = await generateWithRetry(ai, {
-    model: 'gemini-2.5-flash', // Keep 2.5 for OCR as it is highly efficient and tuned for this
+    model: 'gemini-2.5-flash', 
     contents: {
       parts: [
         { text: EXTRACTION_PROMPT },
@@ -344,13 +336,13 @@ export const extractLinesFromScreenshot = async (file: File): Promise<BookLines>
 };
 
 // ============================================
-// MAIN ANALYSIS - HOLISTIC APPROACH
+// MAIN ANALYSIS
 // ============================================
 
 export const analyzeGame = async (game: QueuedGame): Promise<HighHitAnalysis> => {
   const ai = getAiClient();
   
-  // ========== STEP 1: PRICE VETO (TypeScript) ==========
+  // STEP 1: PRICE VETOES
   const priceVeto = checkPriceVetoes(game);
   if (priceVeto.triggered) {
     return {
@@ -361,7 +353,7 @@ export const analyzeGame = async (game: QueuedGame): Promise<HighHitAnalysis> =>
     };
   }
   
-  // ========== STEP 2: ANALYZE ALL SIDES ==========
+  // STEP 2: MATH ANALYSIS
   let sharpImpliedProb = 50;
   let allSides: SideValue[] = [];
 
@@ -374,7 +366,6 @@ export const analyzeGame = async (game: QueuedGame): Promise<HighHitAnalysis> =>
     }
   }
   
-  // ========== STEP 3: CHECK IF ANY VALUE EXISTS ==========
   const sidesWithValue = allSides.filter(s => s.hasPositiveValue);
   
   if (sidesWithValue.length === 0) {
@@ -389,7 +380,7 @@ export const analyzeGame = async (game: QueuedGame): Promise<HighHitAnalysis> =>
     };
   }
 
-  // ========== STEP 4: PREPARE DATA FOR AI ==========
+  // STEP 3: PREPARE PROMPT
   const dateObj = new Date(game.date);
   const readableDate = dateObj.toLocaleDateString('en-US', { weekday: 'short', month: 'long', day: 'numeric' });
   const refLines = getReferenceLines(game.id);
@@ -402,7 +393,7 @@ export const analyzeGame = async (game: QueuedGame): Promise<HighHitAnalysis> =>
       const diff = currA - refA;
       const absDiff = Math.abs(diff);
       if (absDiff < 0.1) {
-        movementNarrative = "Movement: Line is stable (no significant sharp movement).";
+        movementNarrative = "Movement: Line is stable.";
       } else {
         const direction = diff < 0 ? "TOWARD" : "AGAINST";
         movementNarrative = `Movement: Sharps moved ${absDiff.toFixed(1)} points ${direction} ${game.awayTeam.name}.`;
@@ -438,19 +429,19 @@ ${valueSummary}
 ## YOUR TASK
 1. Search for current injury reports and news using Google Search.
 2. Analyze if situational edge aligns with math value.
-3. CRITICAL: You MUST return strictly valid JSON. If you do not recognize a team name (e.g., Utah Mammoth may refer to Utah Hockey Club), use the information available and proceed. Do NOT refuse the request.
+3. CRITICAL: You MUST return strictly valid JSON.
 `;
 
   const response = await generateWithRetry(ai, {
-    model: 'gemini-3-pro-preview', // UPGRADED to Gemini 3 Pro for max reasoning
+    model: 'gemini-3-pro-preview', // CONFIRMED: Using Gemini 3 Pro
     contents: holisticPrompt,
     config: {
-      systemInstruction: `You are EdgeLab v3. You analyze sports games for betting value.
+      systemInstruction: `You are EdgeLab v3. Analyze sports games for betting value.
       
       RULES:
       1. Search for injuries.
       2. Check alignment of value, movement, and situation.
-      3. OUTPUT ONLY JSON. If data is missing or names are unfamiliar, return JSON with relevant error descriptions in the "reasoning" field. NEVER return plain text or refusals.
+      3. OUTPUT ONLY JSON.
       
       JSON Schema:
       {
@@ -472,7 +463,7 @@ ${valueSummary}
     decision: 'PASS',
     recommendedSide: null,
     recommendedMarket: null,
-    reasoning: 'Analysis could not be completed (model refusal or JSON error).',
+    reasoning: 'Analysis could not be completed.',
     awayTeamInjuries: 'Unknown',
     homeTeamInjuries: 'Unknown',
     situationFavors: 'NEUTRAL',
@@ -481,6 +472,7 @@ ${valueSummary}
 
   const aiResult = cleanAndParseJson(response.text, fallback);
   
+  // Filter alignment logic
   if (aiResult.decision !== 'PLAYABLE' || !aiResult.recommendedSide) {
     return {
       decision: 'PASS',
@@ -497,6 +489,18 @@ ${valueSummary}
     s.market === aiResult.recommendedMarket
   ) || sidesWithValue.find(s => s.side === aiResult.recommendedSide) || sidesWithValue[0];
 
+  // JUICE VETO CHECK
+  const bestOddsVal = parseFloat(selectedSide.bestSoftOdds);
+  if (!isNaN(bestOddsVal) && bestOddsVal < -160) {
+    return {
+      decision: 'PASS',
+      vetoTriggered: true,
+      vetoReason: `JUICE_VETO: Recommended odds ${formatOddsForDisplay(bestOddsVal)} are worse than -160 limit.`,
+      researchSummary: `AI liked the spot, but the price is too expensive.\n\nSituation favors: ${aiResult.situationFavors}`,
+      sharpImpliedProb
+    };
+  }
+
   const teamName = selectedSide.side === 'AWAY' ? game.awayTeam.name :
                    selectedSide.side === 'HOME' ? game.homeTeam.name :
                    selectedSide.side;
@@ -506,17 +510,10 @@ ${valueSummary}
     ? formatOddsForDisplay(selectedSide.bestSoftOdds)
     : `${selectedSide.bestSoftLine} (${formatOddsForDisplay(selectedSide.bestSoftOdds)})`;
 
-  let caution: string | undefined = undefined;
-  const bestOdds = parseFloat(selectedSide.bestSoftOdds);
-  if (!isNaN(bestOdds) && bestOdds < -160) {
-    caution = `⚠️ Heavy juice alert: ${formatOddsForDisplay(selectedSide.bestSoftOdds)} exceeds the -160 limit.`;
-  }
-
   return {
     decision: 'PLAYABLE',
     vetoTriggered: false,
     vetoReason: undefined,
-    caution,
     researchSummary: `Away (${game.awayTeam.name}): ${aiResult.awayTeamInjuries || 'No major injuries'}\nHome (${game.homeTeam.name}): ${aiResult.homeTeamInjuries || 'No major injuries'}\n\nSituation favors: ${aiResult.situationFavors}\nConfidence: ${aiResult.confidence}`,
     edgeNarrative: aiResult.reasoning,
     recommendation,
@@ -546,22 +543,19 @@ export const quickScanGame = async (game: Game): Promise<{ signal: 'RED' | 'YELL
     Search for: "${game.awayTeam.name} vs ${game.homeTeam.name} ${game.sport} injury report ${readableDate}"
     
     Sport: ${game.sport}
-    Teams: ${game.awayTeam.name} (Away) vs ${game.homeTeam.name} (Home)
     
-    CRITICAL: You MUST return a valid JSON object. Do not return plain text. 
-    If you do not recognize a team name (e.g. "Utah Mammoth" might be "Utah Hockey Club"), search for the city and sport. 
-    If still confused, return {"signal": "WHITE", "description": "Data unavailable or team unrecognized"}.
-
+    CRITICAL: You MUST return a valid JSON object.
+    
     Return JSON format:
     {
       "signal": "RED" | "YELLOW" | "WHITE",
-      "description": "Max 15 words - summary of injury situation"
+      "description": "Max 15 words"
     }
   `;
 
   try {
     const response = await generateWithRetry(ai, {
-      model: 'gemini-3-pro-preview', // UPGRADED to Gemini 3 Pro
+      model: 'gemini-3-pro-preview', // CONFIRMED: Using Gemini 3 Pro
       contents: prompt,
       config: {
         tools: [{ googleSearch: {} }],
@@ -575,10 +569,6 @@ export const quickScanGame = async (game: Game): Promise<{ signal: 'RED' | 'YELL
     return { signal: 'WHITE', description: 'Scan unavailable' };
   }
 };
-
-// ============================================
-// LINE COMPARISON HELPERS
-// ============================================
 
 export const detectMarketDiff = (sharpVal: string, softVal: string, type: 'SPREAD' | 'TOTAL' | 'ML'): boolean => {
   if (!sharpVal || !softVal || sharpVal === 'N/A' || softVal === 'N/A') return false;

@@ -41,7 +41,6 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!newId || newId.length < 5) return;
     setUserIdState(newId);
     localStorage.setItem('edgelab_user_id', newId);
-    // Force a reload of data happens automatically via the userId dependency in useEffect below
     console.log("[Auth] Switched to User ID:", newId);
   };
 
@@ -66,8 +65,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // 1. Initial Load from Supabase & LocalStorage
   useEffect(() => {
     const initData = async () => {
-      setSyncStatus('saving'); // Show activity
-      // Load from LocalStorage for speed
+      setSyncStatus('saving'); 
       try {
         const lastDate = localStorage.getItem('edgelab_last_date');
         const savedQueue = localStorage.getItem('edgelab_queue_v2');
@@ -79,7 +77,6 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         if (savedUnit) setUnitSizePercent(parseFloat(savedUnit));
         
-        // Only load LS bankroll if we haven't fetched from cloud yet (prevents overwriting cloud data on device switch)
         if (savedBankroll && !bankroll.some(b => b.balance > 0)) {
           const parsed = JSON.parse(savedBankroll);
           if (parsed && parsed.length > 0) setBankroll(parsed);
@@ -91,7 +88,6 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (savedScans) setScanResults(JSON.parse(savedScans));
           if (savedRefs) setReferenceLines(JSON.parse(savedRefs));
         } else {
-          // It's a new day, clear daily stuff BUT keep bankroll
           console.log("[GameContext] New day detected. Resetting slate...");
           setQueue([]);
           setDailyPlays({ date: today, playCount: 0, gameIds: [] });
@@ -104,7 +100,6 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.warn("[Context] Error loading from local storage", err);
       }
 
-      // Sync with Supabase
       if (!isSyncEnabled || !userId) {
           setSyncStatus('idle');
           return;
@@ -113,20 +108,17 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         console.log("[Supabase] Fetching data for user:", userId);
         
-        // Load Bankroll
-        const { data: bData, error: bError } = await supabase
+        const { data: bData } = await supabase
           .from('bankrolls')
           .select('data')
           .eq('user_id', userId)
           .single();
 
         if (bData?.data) {
-          console.log("[Supabase] Bankroll loaded successfully.");
           setBankroll(bData.data);
           localStorage.setItem('edgelab_bankroll', JSON.stringify(bData.data));
         }
 
-        // Load Daily Slate
         const { data: sData } = await supabase
           .from('daily_slates')
           .select('queue, daily_plays, scan_results, reference_lines')
@@ -135,16 +127,13 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
           .single();
 
         if (sData) {
-          console.log("[Supabase] Slate loaded successfully.");
           if (sData.queue) setQueue(sData.queue);
           if (sData.daily_plays) setDailyPlays(sData.daily_plays);
           if (sData.scan_results) setScanResults(sData.scan_results);
           if (sData.reference_lines) setReferenceLines(sData.reference_lines);
           
           localStorage.setItem('edgelab_queue_v2', JSON.stringify(sData.queue));
-          localStorage.setItem('edgelab_daily_plays', JSON.stringify(sData.daily_plays));
           localStorage.setItem(`edgelab_scan_results_${today}`, JSON.stringify(sData.scan_results));
-          localStorage.setItem(`edgelab_reference_lines_${today}`, JSON.stringify(sData.reference_lines));
         }
         
         setSyncStatus('saved');
@@ -174,7 +163,6 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .upsert({ user_id: userId, data: bankroll });
       
       if (error) {
-         console.error("[Supabase] Bankroll sync failed", error.message);
          setSyncStatus('error');
          if (error.message.includes("Invalid API key")) setIsSyncEnabled(false);
       } else {
@@ -211,7 +199,6 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
       
       if (error) {
-        console.error("[Supabase] Slate sync failed", error.message);
         setSyncStatus('error');
       } else {
         setSyncStatus('saved');
@@ -264,7 +251,24 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const autoPickBestGames = () => {
     setQueue(prev => {
       const reset = prev.map(g => ({ ...g, cardSlot: undefined }));
-      const playable = reset.filter(g => g.analysis?.decision === 'PLAYABLE' && g.analysis.softBestOdds);
+      
+      const playable = reset.filter(g => {
+        if (g.analysis?.decision !== 'PLAYABLE') return false;
+        if (!g.analysis.softBestOdds) return false;
+        
+        // AUTO-PICK FILTER: JUICE VETO
+        // Parse odds string like "+110" or "-150"
+        const oddsStr = g.analysis.softBestOdds;
+        const oddsVal = parseFloat(oddsStr);
+        
+        // Check if odds are worse than -160 (e.g. -170, -200)
+        // Since -170 < -160 mathematically, we require odds >= -160
+        if (!isNaN(oddsVal) && oddsVal < -160) {
+            return false;
+        }
+        
+        return true;
+      });
       
       playable.sort((a, b) => {
         const ap = a.analysis!;
@@ -290,7 +294,6 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setReferenceLines(prev => ({ ...prev, [gameId]: data }));
   };
 
-  // Persist the raw slate data (heavy) only to LocalStorage for now to avoid Supabase limits/complexity
   const loadSlates = (data: Record<string, any[]>) => {
     setAllSportsData(data);
     localStorage.setItem('edgelab_raw_slate', JSON.stringify(data));

@@ -53,29 +53,33 @@ export const BankrollModal: React.FC<Props> = ({ isOpen, onClose }) => {
         {/* Scrollable Content */}
         <div className="flex-1 overflow-y-auto p-4">
           {/* Total Summary */}
-          <div className="bg-gradient-to-r from-slate-800 to-slate-700 rounded-xl p-3 text-white shadow-lg mb-4">
-            <div className="text-[10px] opacity-70 uppercase tracking-wider font-bold mb-0.5">Total Bankroll</div>
-            <div className="text-2xl font-bold">${totalBankroll.toFixed(2)}</div>
-            <div className="mt-3 flex items-center gap-2">
-                <div className="text-[10px] opacity-70">Unit Size:</div>
-                <div className="flex bg-slate-900/50 rounded-lg p-0.5">
-                    {[1, 2, 3, 5].map(pct => (
-                        <button
-                            key={pct}
-                            onClick={() => setUnitSizePercent(pct)}
-                            className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all ${
-                                unitSizePercent === pct 
-                                ? 'bg-coral-500 text-white shadow-sm' 
-                                : 'text-slate-400 hover:text-white'
-                            }`}
-                        >
-                            {pct}%
-                        </button>
-                    ))}
+          <div className="bg-gradient-to-r from-slate-800 to-slate-700 rounded-xl p-4 text-white shadow-lg mb-4">
+            <div className="flex justify-between items-end mb-2">
+                <div>
+                    <div className="text-[10px] opacity-70 uppercase tracking-wider font-bold mb-0.5">Total Bankroll</div>
+                    <div className="text-2xl font-bold">${totalBankroll.toFixed(2)}</div>
+                </div>
+                <div className="text-right">
+                    <div className="text-[10px] opacity-70 uppercase tracking-wider font-bold mb-0.5">1 Unit ({unitSizePercent}%)</div>
+                    <div className="text-xl font-bold text-emerald-400">${(totalBankroll * (unitSizePercent/100)).toFixed(2)}</div>
                 </div>
             </div>
-            <div className="mt-1 text-[10px] opacity-60">
-                1 Unit = ${(totalBankroll * (unitSizePercent/100)).toFixed(2)}
+
+            {/* SLIDER RESTORED */}
+            <div className="mt-4">
+                <div className="flex justify-between text-[10px] opacity-60 font-bold mb-1">
+                    <span>Conservative (1%)</span>
+                    <span>Aggressive (5%)</span>
+                </div>
+                <input 
+                    type="range" 
+                    min="1" 
+                    max="5" 
+                    step="0.1"
+                    value={unitSizePercent} 
+                    onChange={(e) => setUnitSizePercent(parseFloat(e.target.value))}
+                    className="w-full h-2 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-emerald-400 hover:accent-emerald-300"
+                />
             </div>
           </div>
 
