@@ -248,7 +248,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }));
   };
 
-  const autoPickBestGames = () => {
+  const autoPickBestGames = (limit: number = 6) => {
     setQueue(prev => {
       const reset = prev.map(g => ({ ...g, cardSlot: undefined }));
       
@@ -277,8 +277,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
                (bp.lineValueCents || 0) - (ap.lineValueCents || 0);
       });
 
-      const top6 = playable.slice(0, 6).map(g => g.id);
-      return reset.map(g => ({ ...g, cardSlot: top6.includes(g.id) ? top6.indexOf(g.id) + 1 : undefined }));
+      const topPicks = playable.slice(0, limit).map(g => g.id);
+      return reset.map(g => ({ ...g, cardSlot: topPicks.includes(g.id) ? topPicks.indexOf(g.id) + 1 : undefined }));
     });
   };
 

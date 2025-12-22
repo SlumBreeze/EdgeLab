@@ -1,11 +1,12 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useGameContext } from '../hooks/useGameContext';
 import { HighHitAnalysis, QueuedGame } from '../types';
 import { MAX_DAILY_PLAYS } from '../constants';
 
 export default function Card() {
   const { queue, getPlayableCount, autoPickBestGames } = useGameContext();
+  const [pickLimit, setPickLimit] = useState(6);
   
   const analyzedGames = queue.filter(g => g.analysis);
   const playable = analyzedGames.filter(g => g.analysis?.decision === 'PLAYABLE');
@@ -29,8 +30,6 @@ export default function Card() {
       output += `✅ PLAYABLE (No Vetoes Triggered)\n`;
       sortedPlayable.forEach(g => {
         const a = g.analysis!;
-        // If auto-picked, only mark the slotted ones? Or all? Usually clipboard dumps all playable.
-        // Let's include slot info if available.
         if (g.cardSlot) output += `[SLOT #${g.cardSlot}] `;
         
         output += `\n${g.sport}: ${g.awayTeam.name} @ ${g.homeTeam.name}\n`;
@@ -72,14 +71,32 @@ export default function Card() {
         </p>
       </header>
       
-      {/* Auto-Pick Button */}
+      {/* Auto-Pick Section */}
       {playable.length > 0 && (
-        <button
-          onClick={autoPickBestGames}
-          className="w-full mb-6 py-3 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 text-white font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
-        >
-          <span>🎯</span> Auto-Pick Top 6 (No Heavy Juice)
-        </button>
+        <div className="mb-6 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+            <div className="flex justify-between items-center mb-3">
+                <span className="font-bold text-slate-700 text-sm">Auto-Pick Settings</span>
+                <span className="text-xs font-bold bg-slate-100 text-slate-600 px-2 py-1 rounded">Top {pickLimit} Games</span>
+            </div>
+            <input 
+                type="range" 
+                min="1" 
+                max="8" 
+                step="1"
+                value={pickLimit}
+                onChange={(e) => setPickLimit(parseInt(e.target.value))}
+                className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-amber-500 mb-4"
+            />
+            <button
+                onClick={() => autoPickBestGames(pickLimit)}
+                className="w-full py-3 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 text-white font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
+            >
+                <span>🎯</span> Generate Card
+            </button>
+            <p className="text-center text-[10px] text-slate-400 mt-2">
+                Filters out odds worse than -160 automatically.
+            </p>
+        </div>
       )}
 
       {/* DISCIPLINE WARNING */}
