@@ -484,10 +484,30 @@ ${valueSummary}
     };
   }
 
-  const selectedSide = sidesWithValue.find(s => 
+  // UPDATED: Changed from const to let to allow modification
+  let selectedSide = sidesWithValue.find(s => 
     s.side === aiResult.recommendedSide && 
     s.market === aiResult.recommendedMarket
   ) || sidesWithValue.find(s => s.side === aiResult.recommendedSide) || sidesWithValue[0];
+
+  // === UNDERDOG SAFETY PROTOCOL ===
+  // If AI recommends Moneyline on a heavy underdog (> +200),
+  // force a switch to the SPREAD if it has positive value.
+  const impliedProb = americanToImpliedProb(selectedSide.bestSoftOdds);
+  const isLongshot = impliedProb < 33; // Approx +200 odds or longer
+
+  if (selectedSide.market === 'Moneyline' && isLongshot) {
+    const safeSpreadOption = sidesWithValue.find(s => 
+      s.side === selectedSide.side && 
+      s.market === 'Spread' && 
+      s.hasPositiveValue
+    );
+
+    if (safeSpreadOption) {
+      console.log(`[Safety] Switched ${game.awayTeam.name}/${game.homeTeam.name} from Risky ML (${selectedSide.bestSoftOdds}) to Safe Spread (${safeSpreadOption.bestSoftLine})`);
+      selectedSide = safeSpreadOption;
+    }
+  }
 
   // JUICE VETO CHECK
   const bestOddsVal = parseFloat(selectedSide.bestSoftOdds);
