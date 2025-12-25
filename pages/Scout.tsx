@@ -103,20 +103,23 @@ export default function Scout() {
     const gamesToScan = apiGames.filter(g => !scanResults[g.id]);
     let count = 0;
 
-    for (const apiGame of gamesToScan) {
-      count++;
-      setProgressText(`Scanning ${count}/${gamesToScan.length}...`);
-      const gameObj = mapToGameObject(apiGame, null);
-      try {
-        const result = await quickScanGame(gameObj);
-        setScanResult(apiGame.id, result);
-      } catch (e) {
-        console.error(e);
+    try {
+      for (const apiGame of gamesToScan) {
+        count++;
+        setProgressText(`Scanning ${count}/${gamesToScan.length}...`);
+        const gameObj = mapToGameObject(apiGame, null);
+        try {
+          const result = await quickScanGame(gameObj);
+          setScanResult(apiGame.id, result);
+        } catch (e) {
+          console.error(e);
+        }
+        await new Promise(r => setTimeout(r, 600));
       }
-      await new Promise(r => setTimeout(r, 600));
+    } finally {
+      setBatchScanning(false);
+      setProgressText('');
     }
-    setBatchScanning(false);
-    setProgressText('');
   };
 
   const handleAddToQueue = (apiGame: any, pinnLines: BookLines | null) => {

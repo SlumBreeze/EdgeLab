@@ -197,7 +197,10 @@ export default function Card() {
 
 const PlayableCard: React.FC<{ game: QueuedGame; dim?: boolean }> = ({ game, dim }) => {
   const { totalBankroll, unitSizePercent, bankroll } = useGameContext();
-  const a = game.analysis!;
+  
+  if (!game.analysis) return null; // Defensive check
+  const a = game.analysis;
+  
   const hasCaution = !!a.caution;
   const slot = game.cardSlot;
 

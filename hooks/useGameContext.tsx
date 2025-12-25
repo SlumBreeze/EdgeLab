@@ -1,7 +1,8 @@
+
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { QueuedGame, AnalysisState, Game, BookLines, DailyPlayTracker, SportsbookAccount, ScanResult, ReferenceLineData } from '../types';
 import { MAX_DAILY_PLAYS } from '../constants';
-import { supabase } from '../services/supabaseClient';
+import { supabase, isSupabaseConfigured } from '../services/supabaseClient';
 
 const GameContext = createContext<AnalysisState | undefined>(undefined);
 
@@ -19,7 +20,8 @@ const INITIAL_BOOKS: SportsbookAccount[] = [
 
 export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const today = getTodayKey();
-  const [isSyncEnabled, setIsSyncEnabled] = useState(true);
+  // UPDATED: Initialize sync based on whether keys exist
+  const [isSyncEnabled, setIsSyncEnabled] = useState(isSupabaseConfigured);
   const [syncStatus, setSyncStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
   // User ID for Database Persistence
@@ -143,16 +145,21 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     initData();
-  }, [userId, today]);
+  }, [userId, today]); // Removed isSyncEnabled from dependency array to prevent loops, but logic handles it
 
   // 2. Persist Bankroll (Instant Local, Debounced Cloud)
   useEffect(() => {
     localStorage.setItem('edgelab_bankroll', JSON.stringify(bankroll));
     localStorage.setItem('edgelab_unit_pct', unitSizePercent.toString());
 
+    if (!isSyncEnabled) {
+      setSyncStatus('idle');
+      return;
+    }
+
     setSyncStatus('saving');
     const timer = setTimeout(async () => {
-      if (!userId || !isSyncEnabled) {
+      if (!userId) {
         setSyncStatus('idle');
         return;
       }
@@ -163,7 +170,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       if (error) {
          setSyncStatus('error');
-         if (error.message.includes("Invalid API key")) setIsSyncEnabled(false);
+         if (error.message.includes("Invalid API key") || error.message.includes("configuration")) setIsSyncEnabled(false);
       } else {
          setSyncStatus('saved');
       }
@@ -179,9 +186,14 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.setItem(`edgelab_scan_results_${today}`, JSON.stringify(scanResults));
     localStorage.setItem(`edgelab_reference_lines_${today}`, JSON.stringify(referenceLines));
 
+    if (!isSyncEnabled) {
+        setSyncStatus('idle');
+        return;
+    }
+
     setSyncStatus('saving');
     const timer = setTimeout(async () => {
-      if (!userId || !isSyncEnabled) {
+      if (!userId) {
         setSyncStatus('idle');
         return;
       }
