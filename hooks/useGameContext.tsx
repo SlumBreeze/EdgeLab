@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { QueuedGame, AnalysisState, Game, BookLines, DailyPlayTracker, SportsbookAccount, ScanResult, ReferenceLineData } from '../types';
 import { MAX_DAILY_PLAYS } from '../constants';
@@ -274,7 +273,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const ap = a.analysis!;
         const bp = b.analysis!;
         return (bp.lineValuePoints || 0) - (ap.lineValuePoints || 0) || 
-               (bp.lineValueCents || 0) - (ap.lineValueCents || 0);
+               (bp.lineValueCents || 0) - (ap.lineValueCents || 0) ||
+               a.id.localeCompare(b.id); // FIXED: Deterministic tiebreaker
       });
 
       const topPicks = playable.slice(0, limit).map(g => g.id);
