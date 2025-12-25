@@ -60,6 +60,11 @@ export interface HighHitAnalysis {
   lineValueCents?: number; // How much better is soft vs sharp (in cents of juice)
   lineValuePoints?: number; // Spread/total point difference if any
 
+  // Thresholds
+  lineFloor?: string;
+  oddsFloor?: string;
+  floorReason?: string;
+
   // AI-provided context (narrative only, no numbers)
   market?: string;
   side?: string;

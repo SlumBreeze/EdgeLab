@@ -43,6 +43,10 @@ export default function Card() {
         if (a.caution) {
           output += `WARNING: ${a.caution}\n`;
         }
+        // Add floor to copy text
+        if (a.lineFloor || a.oddsFloor) {
+            output += `Still Good To: ${a.lineFloor || 'ML'} ${a.oddsFloor || ''}\n`;
+        }
         output += `Edge: ${a.edgeNarrative || 'No specific edge identified'}\n`;
       });
     } else {
@@ -274,6 +278,17 @@ const PlayableCard: React.FC<{ game: QueuedGame; dim?: boolean }> = ({ game, dim
                 </span>
              )}
           </div>
+
+          {/* Line Threshold Info (NEW) */}
+          {(a.lineFloor || a.oddsFloor) && (
+            <div className={`flex items-center gap-2 text-xs mt-2 ${hasCaution ? 'text-slate-800/80' : 'text-white/80'}`}>
+                <span>📉</span>
+                <span>
+                Still good to: <strong>{a.lineFloor || (a.market === 'Moneyline' ? 'ML' : '')}</strong>
+                {a.oddsFloor && <> at <strong>{a.oddsFloor}</strong></>}
+                </span>
+            </div>
+          )}
         </div>
       )}
 

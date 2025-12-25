@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Type, Schema } from "@google/genai";
 import { BookLines, QueuedGame, HighHitAnalysis, Game } from '../types';
 import { EXTRACTION_PROMPT, HIGH_HIT_SYSTEM_PROMPT } from '../constants';
@@ -528,6 +529,31 @@ ${valueSummary}
   const recLine = selectedSide.market === 'Moneyline' 
     ? formatOddsForDisplay(selectedSide.bestSoftOdds)
     : `${selectedSide.bestSoftLine} (${formatOddsForDisplay(selectedSide.bestSoftOdds)})`;
+  
+  // NEW: Calculate Thresholds (Line Floors)
+  let lineFloor: string | undefined;
+  let oddsFloor: string | undefined;
+  let floorReason: string | undefined;
+
+  if (selectedSide.market === 'Spread' || selectedSide.market === 'Total') {
+     lineFloor = selectedSide.market === 'Total' 
+        ? `${selectedSide.side === 'OVER' ? 'o' : 'u'}${selectedSide.sharpLine}`
+        : selectedSide.sharpLine;
+        
+     const sOdds = normalizeToAmerican(selectedSide.sharpOdds);
+     // -130 standard limit. If sharp is worse (e.g. -140), match sharp.
+     const threshold = -130;
+     const floorVal = (sOdds < threshold) ? sOdds : threshold;
+     oddsFloor = formatOddsForDisplay(floorVal);
+     
+     floorReason = selectedSide.market === 'Spread' 
+        ? "Matches sharp line - no edge below this"
+        : "Matches sharp line";
+  } else if (selectedSide.market === 'Moneyline') {
+     lineFloor = undefined; // N/A for ML
+     oddsFloor = formatOddsForDisplay(selectedSide.sharpOdds);
+     floorReason = "Matches sharp price";
+  }
 
   return {
     decision: 'PLAYABLE',
@@ -545,7 +571,12 @@ ${valueSummary}
     softBestOdds: formatOddsForDisplay(selectedSide.bestSoftOdds),
     softBestBook: selectedSide.bestSoftBook,
     lineValueCents: selectedSide.priceValue > 0 ? selectedSide.priceValue : 0,
-    lineValuePoints: selectedSide.lineValue
+    lineValuePoints: selectedSide.lineValue,
+    
+    // Thresholds
+    lineFloor,
+    oddsFloor,
+    floorReason
   };
 };
 
