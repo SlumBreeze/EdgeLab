@@ -65,6 +65,10 @@ export interface HighHitAnalysis {
   oddsFloor?: string;
   floorReason?: string;
 
+  // Pro Analysis Fields
+  publicNarrative?: string;  // The "story" the public is betting on
+  gameScript?: string;       // Expected game flow (pace, style)
+
   // AI-provided context (narrative only, no numbers)
   market?: string;
   side?: string;

@@ -427,21 +427,30 @@ ${movementNarrative}
 ${valueSummary}
 
 ## YOUR TASK
-1. Search for current injury reports and news using Google Search.
-2. Analyze if situational edge aligns with math value.
-3. CRITICAL: You MUST return strictly valid JSON.
+1. **Search & Verify:** Check current injury reports and confirmed lineups using Google Search.
+2. **Fade the Public Narrative:** Identify the "Public Story" (e.g., "Team A is hot," "Star Player revenge game"). Does the Sharp Math disagree? If Sharps are fading the story, we want to be on the Sharp side.
+3. **Game Script Validation (Straight Bet Focus):**
+   - Visualize the game flow. Does the wager make sense for the likely script?
+   - *Example (Spread):* If betting the Favorite (-7), can they keep the lead late, or does the Underdog have a "backdoor cover" offense?
+   - *Example (Total):* If betting the Under, are both teams slow-paced?
+4. **Final Decision:** Does the "Math Edge" align with the "Game Reality"?
+
+## CRITICAL OUTPUT
+You MUST return strictly valid JSON.
 `;
 
   const response = await generateWithRetry(ai, {
     model: 'gemini-3-pro-preview', // CONFIRMED: Using Gemini 3 Pro
     contents: holisticPrompt,
     config: {
-      systemInstruction: `You are EdgeLab v3. Analyze sports games for betting value.
+      systemInstruction: `You are EdgeLab v3. Analyze sports games using a "Sharp Math + Game Script" framework.
       
       RULES:
-      1. Search for injuries.
-      2. Check alignment of value, movement, and situation.
-      3. OUTPUT ONLY JSON.
+      1. **Search:** Find critical injuries/lineup changes.
+      2. **Fade Narratives:** If the public loves a "Story" but the Sharps love the "Math," side with the Math.
+      3. **Single Game Script:** Ensure the straight bet makes sense within the likely flow of the game (Pace, Motivation, Matchups).
+      4. **Underdog Protocol:** If recommending a Moneyline > +200, check if the Spread is a safer option.
+      5. **Output:** RETURN ONLY JSON.
       
       JSON Schema:
       {
@@ -449,6 +458,8 @@ ${valueSummary}
         "recommendedSide": "AWAY", "HOME", "OVER", "UNDER",
         "recommendedMarket": "Spread", "Moneyline", "Total",
         "reasoning": "...",
+        "publicNarrative": "Describe the public/media story (if any)",
+        "gameScript": "Briefly describe the likely game flow (e.g. Slow pace, shootout)",
         "awayTeamInjuries": "...",
         "homeTeamInjuries": "...",
         "situationFavors": "AWAY", "HOME", "NEUTRAL",
@@ -464,6 +475,8 @@ ${valueSummary}
     recommendedSide: null,
     recommendedMarket: null,
     reasoning: 'Analysis could not be completed.',
+    publicNarrative: 'Unknown',
+    gameScript: 'Unknown',
     awayTeamInjuries: 'Unknown',
     homeTeamInjuries: 'Unknown',
     situationFavors: 'NEUTRAL',
@@ -478,9 +491,17 @@ ${valueSummary}
       decision: 'PASS',
       vetoTriggered: false,
       vetoReason: aiResult.reasoning || 'AI did not find aligned edge',
-      researchSummary: `Away (${game.awayTeam.name}): ${aiResult.awayTeamInjuries || 'No data'}\nHome (${game.homeTeam.name}): ${aiResult.homeTeamInjuries || 'No data'}\n\nSituation favors: ${aiResult.situationFavors}`,
+      researchSummary: `Away (${game.awayTeam.name}): ${aiResult.awayTeamInjuries || 'No data'}
+Home (${game.homeTeam.name}): ${aiResult.homeTeamInjuries || 'No data'}
+
+📰 Public Narrative: ${aiResult.publicNarrative || 'None identified'}
+🎬 Game Script: ${aiResult.gameScript || 'Standard flow expected'}
+
+Situation favors: ${aiResult.situationFavors}`,
       edgeNarrative: aiResult.reasoning,
-      sharpImpliedProb
+      sharpImpliedProb,
+      publicNarrative: aiResult.publicNarrative,
+      gameScript: aiResult.gameScript
     };
   }
 
@@ -559,7 +580,14 @@ ${valueSummary}
     decision: 'PLAYABLE',
     vetoTriggered: false,
     vetoReason: undefined,
-    researchSummary: `Away (${game.awayTeam.name}): ${aiResult.awayTeamInjuries || 'No major injuries'}\nHome (${game.homeTeam.name}): ${aiResult.homeTeamInjuries || 'No major injuries'}\n\nSituation favors: ${aiResult.situationFavors}\nConfidence: ${aiResult.confidence}`,
+    researchSummary: `Away (${game.awayTeam.name}): ${aiResult.awayTeamInjuries || 'No major injuries'}
+Home (${game.homeTeam.name}): ${aiResult.homeTeamInjuries || 'No major injuries'}
+
+📰 Public Narrative: ${aiResult.publicNarrative || 'None identified'}
+🎬 Game Script: ${aiResult.gameScript || 'Standard flow expected'}
+
+Situation favors: ${aiResult.situationFavors}
+Confidence: ${aiResult.confidence}`,
     edgeNarrative: aiResult.reasoning,
     recommendation,
     recLine,
@@ -576,7 +604,11 @@ ${valueSummary}
     // Thresholds
     lineFloor,
     oddsFloor,
-    floorReason
+    floorReason,
+
+    // Pro Analysis Fields
+    publicNarrative: aiResult.publicNarrative,
+    gameScript: aiResult.gameScript
   };
 };
 
