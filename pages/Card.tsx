@@ -284,8 +284,11 @@ const PlayableCard: React.FC<{ game: QueuedGame; dim?: boolean }> = ({ game, dim
             <div className={`flex items-center gap-2 text-xs mt-2 ${hasCaution ? 'text-slate-800/80' : 'text-white/80'}`}>
                 <span>📉</span>
                 <span>
-                Still good to: <strong>{a.lineFloor || (a.market === 'Moneyline' ? 'ML' : '')}</strong>
-                {a.oddsFloor && <> at <strong>{a.oddsFloor}</strong></>}
+                {/* Clean display for ML vs Spread */}
+                {a.market === 'Moneyline' 
+                  ? <>Still good to: <strong>{a.oddsFloor}</strong></>
+                  : <>Still good to: <strong>{a.lineFloor}</strong> at <strong>{a.oddsFloor}</strong></>
+                }
                 </span>
             </div>
           )}
