@@ -1,8 +1,8 @@
 
 import { BookLines, Sport } from '../types';
 
-// UPDATED: Removed hardcoded fallback for security
-const API_KEY = process.env.ODDS_API_KEY;
+// UPDATED: Hardcoded fallback restored as requested to guarantee functionality
+const API_KEY = process.env.ODDS_API_KEY || "c99ceaaa8dd6ba6be5d5293bfe7be3da";
 const BASE_URL = 'https://api.the-odds-api.com/v4/sports';
 
 // Cache Duration: 60 minutes (keeps "Scout" free for an hour)
@@ -102,7 +102,7 @@ export const fetchOddsForSport = async (sport: Sport): Promise<any[]> => {
     return [];
   }
 
-  console.log(`[OddsService] Fetching fresh API data for ${sport}...`);
+  console.log(`[OddsService] Fetching fresh API data for ${sport}... (Key ends in ...${API_KEY.slice(-4)})`);
   
   // Request US, US2 (offshore), and EU regions to cover all requested books
   const url = `${BASE_URL}/${sportKey}/odds?apiKey=${API_KEY}&regions=us,us2,eu,au&markets=h2h,spreads,totals&oddsFormat=american`;

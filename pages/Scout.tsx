@@ -8,7 +8,8 @@ import { useGameContext } from '../hooks/useGameContext';
 
 export default function Scout() {
   const [selectedSport, setSelectedSport] = useState<Sport>('NBA');
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  // Fixed: Use local date string to match user's day, not UTC (which is tomorrow in evenings)
+  const [selectedDate, setSelectedDate] = useState(() => new Date().toLocaleDateString('en-CA'));
   const [loading, setLoading] = useState(false);
   
   // Use Context for Data Persistence
@@ -50,6 +51,7 @@ export default function Scout() {
     }
     const data = allSportsData[selectedSport];
     const filtered = data.filter((g: any) => {
+      // Filter logic matches the default date format now
       const gameDate = new Date(g.commence_time).toLocaleDateString('en-CA');
       return gameDate === selectedDate;
     });
