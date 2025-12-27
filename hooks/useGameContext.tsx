@@ -109,23 +109,32 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         console.log("[Supabase] Fetching data for user:", userId);
         
-        const { data: bData } = await supabase
+        const { data: bData, error: bError } = await supabase
           .from('bankrolls')
           .select('data')
           .eq('user_id', userId)
           .single();
+          
+        if (bError && bError.code !== 'PGRST116') { // PGRST116 is "Row not found", which is fine
+           console.error("[Supabase] Bankroll fetch error:", bError);
+        }
 
         if (bData?.data) {
           setBankroll(bData.data);
           localStorage.setItem('edgelab_bankroll', JSON.stringify(bData.data));
         }
 
-        const { data: sData } = await supabase
+        const { data: sData, error: sError } = await supabase
           .from('daily_slates')
           .select('queue, daily_plays, scan_results, reference_lines')
           .eq('user_id', userId)
           .eq('date', today)
           .single();
+
+        if (sError && sError.code !== 'PGRST116') {
+             console.error("[Supabase] Slate fetch error:", sError);
+             throw sError;
+        }
 
         if (sData) {
           if (sData.queue) setQueue(sData.queue);
@@ -145,7 +154,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     initData();
-  }, [userId, today]); // Removed isSyncEnabled from dependency array to prevent loops, but logic handles it
+  }, [userId, today]);
 
   // 2. Persist Bankroll (Instant Local, Debounced Cloud)
   useEffect(() => {
@@ -169,6 +178,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .upsert({ user_id: userId, data: bankroll });
       
       if (error) {
+         console.error("[Supabase] Bankroll save error:", error);
          setSyncStatus('error');
          if (error.message.includes("Invalid API key") || error.message.includes("configuration")) setIsSyncEnabled(false);
       } else {
@@ -210,6 +220,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
       
       if (error) {
+        console.error("[Supabase] Slate save error:", error);
         setSyncStatus('error');
       } else {
         setSyncStatus('saved');

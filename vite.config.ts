@@ -11,6 +11,7 @@ export default defineConfig(({ mode }) => {
       'process.env.API_KEY': JSON.stringify(env.API_KEY),
       'process.env.ODDS_API_KEY': JSON.stringify(env.ODDS_API_KEY || "c99ceaaa8dd6ba6be5d5293bfe7be3da"),
       'process.env.SUPABASE_URL': JSON.stringify(env.SUPABASE_URL || "https://thcstqwbinhbkpstcvme.supabase.co"),
+      // CONFIRMED: Using the Anon Key (JWT) for client-side access
       'process.env.SUPABASE_KEY': JSON.stringify(env.SUPABASE_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRoY3N0cXdiaW5oYmtwc3Rjdm1lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjYyNDQxMDIsImV4cCI6MjA4MTgyMDEwMn0.gdCn1H9MCPmoTPOo06m12QtzgWbTmpOqcX_bKSFLd_I"),
     },
   };
