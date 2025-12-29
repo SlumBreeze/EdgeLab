@@ -637,7 +637,7 @@ export const quickScanGame = async (game: Game): Promise<{ signal: 'RED' | 'YELL
 
   try {
     const response = await generateWithRetry(ai, {
-      model: 'gemini-3-pro-preview', // CONFIRMED: Using Gemini 3 Pro
+      model: 'gemini-3-flash-preview', // CHANGED: Using Gemini 3 Flash for speed
       contents: prompt,
       config: {
         tools: [{ googleSearch: {} }],
