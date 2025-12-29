@@ -443,16 +443,9 @@ You MUST return strictly valid JSON.
     model: 'gemini-3-pro-preview', // CONFIRMED: Using Gemini 3 Pro
     contents: holisticPrompt,
     config: {
-      systemInstruction: `You are EdgeLab v3. Analyze sports games using a "Sharp Math + Game Script" framework.
+      systemInstruction: HIGH_HIT_SYSTEM_PROMPT + `
       
-      RULES:
-      1. **Search:** Find critical injuries/lineup changes.
-      2. **Fade Narratives:** If the public loves a "Story" but the Sharps love the "Math," side with the Math.
-      3. **Single Game Script:** Ensure the straight bet makes sense within the likely flow of the game (Pace, Motivation, Matchups).
-      4. **Underdog Protocol:** If recommending a Moneyline > +200, check if the Spread is a safer option.
-      5. **Output:** RETURN ONLY JSON.
-      
-      JSON Schema:
+      IMPORTANT: You must return the result in this exact JSON format:
       {
         "decision": "PLAYABLE" or "PASS",
         "recommendedSide": "AWAY", "HOME", "OVER", "UNDER",
@@ -505,11 +498,42 @@ Situation favors: ${aiResult.situationFavors}`,
     };
   }
 
-  // UPDATED: Changed from const to let to allow modification
+  // UPDATED: Strict side selection from known value sides
   let selectedSide = sidesWithValue.find(s => 
     s.side === aiResult.recommendedSide && 
     s.market === aiResult.recommendedMarket
-  ) || sidesWithValue.find(s => s.side === aiResult.recommendedSide) || sidesWithValue[0];
+  ) || sidesWithValue.find(s => s.side === aiResult.recommendedSide);
+
+  // BUG FIX 1: If AI recommends a side that has NO positive math value, we must PASS.
+  // The previous fallback (|| sidesWithValue[0]) blindly picked the first valid side even if AI wanted something else.
+  if (!selectedSide) {
+    return {
+      decision: 'PASS',
+      vetoTriggered: true,
+      vetoReason: `MATH VETO: AI recommended ${aiResult.recommendedSide} but no positive mathematical value exists on that side.`,
+      researchSummary: `AI found situational edge on ${aiResult.recommendedSide} but the numbers don't support it.\n\nSituation favors: ${aiResult.situationFavors}`,
+      sharpImpliedProb,
+      publicNarrative: aiResult.publicNarrative,
+      gameScript: aiResult.gameScript
+    };
+  }
+
+  // BUG FIX 2: Contradiction Check
+  // If AI says situation favors X but recommends Y, something is wrong.
+  if (aiResult.situationFavors !== 'NEUTRAL' && 
+      (selectedSide.side === 'AWAY' || selectedSide.side === 'HOME') && 
+      aiResult.situationFavors !== selectedSide.side) {
+      
+      return {
+        decision: 'PASS',
+        vetoTriggered: true,
+        vetoReason: `CONTRADICTION: AI says situation favors ${aiResult.situationFavors} but recommended ${selectedSide.side}.`,
+        researchSummary: aiResult.reasoning,
+        sharpImpliedProb,
+        publicNarrative: aiResult.publicNarrative,
+        gameScript: aiResult.gameScript
+      };
+  }
 
   // === UNDERDOG SAFETY PROTOCOL ===
   // If AI recommends Moneyline on a heavy underdog (> +200),
@@ -527,6 +551,17 @@ Situation favors: ${aiResult.situationFavors}`,
     if (safeSpreadOption) {
       console.log(`[Safety] Switched ${game.awayTeam.name}/${game.homeTeam.name} from Risky ML (${selectedSide.bestSoftOdds}) to Safe Spread (${safeSpreadOption.bestSoftLine})`);
       selectedSide = safeSpreadOption;
+    } else {
+      // BUG FIX 3: If no spread backup exists for a risky longshot, VETO it.
+      return {
+        decision: 'PASS',
+        vetoTriggered: true,
+        vetoReason: `RISKY_ML: Longshot moneyline (>+200) without positive spread value support.`,
+        researchSummary: `AI liked the upset, but taking a >+200 ML without spread value is too high variance.\n\nSituation favors: ${aiResult.situationFavors}`,
+        sharpImpliedProb,
+        publicNarrative: aiResult.publicNarrative,
+        gameScript: aiResult.gameScript
+      };
     }
   }
 
@@ -538,7 +573,9 @@ Situation favors: ${aiResult.situationFavors}`,
       vetoTriggered: true,
       vetoReason: `JUICE_VETO: Recommended odds ${formatOddsForDisplay(bestOddsVal)} are worse than -160 limit.`,
       researchSummary: `AI liked the spot, but the price is too expensive.\n\nSituation favors: ${aiResult.situationFavors}`,
-      sharpImpliedProb
+      sharpImpliedProb,
+      publicNarrative: aiResult.publicNarrative,
+      gameScript: aiResult.gameScript
     };
   }
 
