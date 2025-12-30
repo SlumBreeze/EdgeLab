@@ -1,9 +1,75 @@
 
 import React, { useState } from 'react';
 import { useGameContext } from '../hooks/useGameContext';
-import { HighHitAnalysis, QueuedGame } from '../types';
+import { HighHitAnalysis, QueuedGame, SportsbookAccount } from '../types';
 import { MAX_DAILY_PLAYS } from '../constants';
 import { analyzeCard, CardAnalytics, DiversificationWarning, PLScenario } from '../utils/cardAnalytics';
+
+// Helper: Find alternative book with funds
+const getAlternativeBook = (
+  game: QueuedGame, 
+  analysis: HighHitAnalysis, 
+  bankroll: SportsbookAccount[], 
+  wagerAmount: number
+) => {
+  const { market, side, line: targetLine } = analysis;
+  const currentBook = analysis.softBestBook;
+  
+  // Helper to check balance
+  const hasFunds = (bookName: string) => {
+    const acc = bankroll.find(b => 
+      b.name.toLowerCase().includes(bookName.toLowerCase()) || 
+      bookName.toLowerCase().includes(b.name.toLowerCase())
+    );
+    return acc && acc.balance >= wagerAmount;
+  };
+
+  const candidates: { bookName: string, odds: string }[] = [];
+
+  game.softLines.forEach(book => {
+    // Skip the current book (the one with low balance)
+    if (book.bookName === currentBook) return;
+    
+    // Skip if we don't have funds here either
+    if (!hasFunds(book.bookName)) return;
+
+    let odds = '';
+    let valid = false;
+
+    if (market === 'Moneyline') {
+      odds = side === 'AWAY' ? book.mlOddsA : book.mlOddsB;
+      valid = odds && odds !== 'N/A';
+    } else if (market === 'Spread') {
+      const line = side === 'AWAY' ? book.spreadLineA : book.spreadLineB;
+      const price = side === 'AWAY' ? book.spreadOddsA : book.spreadOddsB;
+      // Exact line match required for safety
+      if (line === targetLine && price && price !== 'N/A') {
+        odds = price;
+        valid = true;
+      }
+    } else if (market === 'Total') {
+      const line = book.totalLine;
+      const price = side === 'OVER' ? book.totalOddsOver : book.totalOddsUnder;
+      // Target line usually comes as string "212.5" or "o212.5" depending on context, 
+      // but analysis.line is set from softBestLine which is usually just the number for totals or "o6.5" for props.
+      // In oddsService, totalLine is just number string "6.5".
+      // Let's assume loose matching or exact string match.
+      if (line === targetLine && price && price !== 'N/A') {
+        odds = price;
+        valid = true;
+      }
+    }
+
+    if (valid) {
+      candidates.push({ bookName: book.bookName, odds });
+    }
+  });
+
+  // Sort by best odds (American odds numeric sort: higher is better)
+  candidates.sort((a, b) => parseFloat(b.odds) - parseFloat(a.odds));
+
+  return candidates.length > 0 ? candidates[0] : null;
+};
 
 export default function Card() {
   const { queue, getPlayableCount, autoPickBestGames, totalBankroll, unitSizePercent } = useGameContext();
@@ -332,6 +398,11 @@ const PlayableCard: React.FC<{ game: QueuedGame; dim?: boolean }> = ({ game, dim
   const bookBalance = bookAccount?.balance || 0;
   const insufficientFunds = isWagerCalculated && bookBalance < wagerAmount;
 
+  let altBook = null;
+  if (insufficientFunds) {
+    altBook = getAlternativeBook(game, a, bankroll, wagerAmount);
+  }
+
   return (
     <div className={`p-4 rounded-2xl shadow-lg relative transition-all ${
       dim ? 'opacity-40 grayscale-[50%]' : ''
@@ -381,9 +452,16 @@ const PlayableCard: React.FC<{ game: QueuedGame; dim?: boolean }> = ({ game, dim
                 @ {a.softBestBook}
              </div>
              {insufficientFunds && (
-                <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">
-                    Low Bal: ${bookBalance.toFixed(2)}
-                </span>
+                <div className="flex items-center gap-1 flex-wrap">
+                    <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">
+                        Low Bal: ${bookBalance.toFixed(2)}
+                    </span>
+                    {altBook && (
+                        <span className="bg-indigo-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded flex items-center gap-1 shadow-sm border border-white/20">
+                            <span>↪ Try {altBook.bookName} ({altBook.odds})</span>
+                        </span>
+                    )}
+                </div>
              )}
           </div>
 
