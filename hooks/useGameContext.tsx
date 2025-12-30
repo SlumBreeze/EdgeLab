@@ -1,5 +1,5 @@
 
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useMemo } from 'react';
 import { QueuedGame, AnalysisState, Game, BookLines, DailyPlayTracker, SportsbookAccount, ScanResult, ReferenceLineData } from '../types';
 import { MAX_DAILY_PLAYS } from '../constants';
 import { supabase, isSupabaseConfigured } from '../services/supabaseClient';
@@ -62,6 +62,13 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return {};
     }
   });
+
+  // Derived: Active Books (balance > 0)
+  const activeBookNames = useMemo(() => {
+    return bankroll
+      .filter(account => account.balance > 0)
+      .map(account => account.name);
+  }, [bankroll]);
 
   // 1. Initial Load from Supabase & LocalStorage
   useEffect(() => {
@@ -330,7 +337,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       markAsPlayed, autoPickBestGames, bankroll, updateBankroll, totalBankroll: bankroll.reduce((s, b) => s + b.balance, 0),
       unitSizePercent, setUnitSizePercent, scanResults, setScanResult, referenceLines, setReferenceLine,
       allSportsData, loadSlates, syncStatus,
-      userId, setUserId: setUserIdManual
+      userId, setUserId: setUserIdManual,
+      activeBookNames
     }}>
       {children}
     </GameContext.Provider>

@@ -40,6 +40,7 @@ export interface QueuedGame extends Game {
   analysis?: HighHitAnalysis;
   isAnalyzing?: boolean;
   cardSlot?: number;
+  analysisError?: string; // Error message if Quick Analyze failed
 }
 
 export interface HighHitAnalysis {
@@ -139,4 +140,7 @@ export interface AnalysisState {
   // v2.5 User Identity
   userId: string;
   setUserId: (id: string) => void;
+
+  // v2.6 Active Books (Derived from Bankroll)
+  activeBookNames: string[];
 }

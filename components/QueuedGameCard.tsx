@@ -1,3 +1,4 @@
+
 import React, { useRef, useState } from 'react';
 import { QueuedGame, BookLines } from '../types';
 import { formatOddsForDisplay } from '../services/geminiService';
@@ -15,6 +16,12 @@ interface Props {
   onUploadSharp: (file: File) => void;
   onUploadSoft: (file: File) => void;
   onUpdateSoftBook: (index: number, name: string) => void;
+  
+  // New Queue Props
+  queuePosition: number;
+  isAnalyzing: boolean;
+  onQuickAnalyze: () => void;
+  onRemoveFromQueue: () => void;
 }
 
 const QueuedGameCard: React.FC<Props> = ({ 
@@ -25,9 +32,13 @@ const QueuedGameCard: React.FC<Props> = ({
   onAnalyze, 
   onUploadSharp, 
   onUploadSoft,
-  onUpdateSoftBook 
+  onUpdateSoftBook,
+  queuePosition,
+  isAnalyzing,
+  onQuickAnalyze,
+  onRemoveFromQueue
 }) => {
-  const { setSharpLines, addSoftLines, updateGame } = useGameContext();
+  const { setSharpLines, addSoftLines, updateGame, activeBookNames } = useGameContext();
   const sharpInputRef = useRef<HTMLInputElement>(null);
   const softInputRef = useRef<HTMLInputElement>(null);
   const [editingLineIndex, setEditingLineIndex] = useState<number | null>(null);
@@ -66,6 +77,26 @@ const QueuedGameCard: React.FC<Props> = ({
         if (lines) foundBooks.push(lines);
       });
       setApiSoftBooks(foundBooks);
+
+      // NEW: Auto-select books matching active bankroll
+      const autoSelected: BookLines[] = [];
+      foundBooks.forEach(book => {
+        const isActiveBook = activeBookNames.some(name =>
+          name.toLowerCase().includes(book.bookName.toLowerCase()) ||
+          book.bookName.toLowerCase().includes(name.toLowerCase())
+        );
+        if (isActiveBook) {
+          autoSelected.push(book);
+        }
+      });
+
+      // Add auto-selected books to game's softLines (if not already present)
+      autoSelected.forEach(book => {
+        const alreadyAdded = game.softLines.some(sl => sl.bookName === book.bookName);
+        if (!alreadyAdded) {
+          addSoftLines(game.id, book);
+        }
+      });
 
     } catch (e) {
       console.error(e);
@@ -241,17 +272,50 @@ const QueuedGameCard: React.FC<Props> = ({
 
       {/* Line Shopping Section */}
       <div className="px-4 py-3">
+        {/* Line Shopping Section Header */}
         <div className="flex justify-between items-center mb-3">
           <span className="text-xs text-slate-500 font-medium uppercase tracking-wide">Line Shopping</span>
-          <div className="flex gap-2">
-            {/* New Fetch Button */}
-            <button 
-              onClick={handleFetchLines}
-              className="text-xs bg-slate-800 hover:bg-slate-900 text-white px-3 py-1.5 rounded-lg font-bold transition-colors shadow-sm flex items-center gap-1"
-            >
-              <span>🔄</span> Fetch Live Lines
-            </button>
-          </div>
+          
+          {/* Button Group - Only show if no analysis exists yet */}
+          {!game.analysis && (
+            <div className="flex gap-2">
+              {isAnalyzing ? (
+                <div className="flex items-center gap-2 bg-coral-50 text-coral-600 px-4 py-2 rounded-xl">
+                  <span className="animate-spin text-sm">⚡</span>
+                  <span className="font-bold text-sm">Analyzing...</span>
+                </div>
+              ) : queuePosition >= 0 ? (
+                <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2">
+                  <span className="text-amber-700 font-medium text-sm">
+                    ⏳ Queued #{queuePosition + 1}
+                  </span>
+                  <button
+                    onClick={onRemoveFromQueue}
+                    className="text-amber-400 hover:text-amber-600 text-sm font-bold"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <button
+                    onClick={onQuickAnalyze}
+                    disabled={fetchingOdds}
+                    className="text-xs bg-gradient-to-r from-coral-500 to-orange-500 hover:from-coral-600 hover:to-orange-600 text-white px-4 py-2 rounded-xl font-bold transition-all shadow-md hover:shadow-lg disabled:opacity-50 flex items-center gap-1"
+                  >
+                    <span>⚡</span> Quick Analyze
+                  </button>
+                  <button
+                    onClick={handleFetchLines}
+                    disabled={fetchingOdds}
+                    className="text-xs bg-slate-800 hover:bg-slate-900 text-white px-3 py-2 rounded-xl font-bold transition-colors shadow-sm flex items-center gap-1"
+                  >
+                    <span>🔄</span> Fetch Only
+                  </button>
+                </>
+              )}
+            </div>
+          )}
           <input type="file" hidden ref={sharpInputRef} accept="image/*" onChange={(e) => handleFileChange(e, 'SHARP')} />
           <input type="file" hidden ref={softInputRef} accept="image/*" onChange={(e) => handleFileChange(e, 'SOFT')} />
         </div>
@@ -313,6 +377,12 @@ const QueuedGameCard: React.FC<Props> = ({
               {apiSoftBooks.map((book) => {
                 const isSelected = game.softLines.some(sl => sl.bookName === book.bookName);
                 const edgeText = calculateEdgeInfo(book);
+                
+                // Check if this is a preset book (matches active bankroll)
+                const isPresetBook = activeBookNames.some(name =>
+                  name.toLowerCase().includes(book.bookName.toLowerCase()) ||
+                  book.bookName.toLowerCase().includes(name.toLowerCase())
+                );
 
                 return (
                   <label key={book.bookName} className="flex items-center gap-3 p-2 bg-white rounded-lg border border-slate-100 cursor-pointer hover:border-teal-200 transition-colors">
@@ -324,7 +394,12 @@ const QueuedGameCard: React.FC<Props> = ({
                     />
                     <div className="flex-1">
                       <div className="flex justify-between items-center">
-                        <span className="font-bold text-slate-700 text-sm">{book.bookName}</span>
+                        <span className="font-bold text-slate-700 text-sm flex items-center gap-1">
+                          {book.bookName}
+                          {isPresetBook && (
+                            <span className="text-amber-500 text-xs" title="Matches your bankroll">⭐</span>
+                          )}
+                        </span>
                         {edgeText && (
                           <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
                             {edgeText}
@@ -408,7 +483,25 @@ const QueuedGameCard: React.FC<Props> = ({
               </div>
             </details>
           </div>
+        ) : game.analysisError ? (
+          /* New: Show error state if Quick Analyze failed */
+          <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+            <div className="flex items-center gap-2 text-red-600 font-bold text-sm mb-2">
+              <span>❌</span> Analysis Failed
+            </div>
+            <p className="text-red-600 text-xs">{game.analysisError}</p>
+            <button
+              onClick={onQuickAnalyze}
+              className="mt-3 text-xs bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 rounded-lg font-bold"
+            >
+              Retry
+            </button>
+          </div>
+        ) : isAnalyzing || queuePosition >= 0 ? (
+          /* Analysis in progress or queued - don't show manual button */
+          null
         ) : (
+          /* Manual flow: Show Run Analysis button only if lines are ready */
           <button 
             onClick={onAnalyze}
             disabled={!game.sharpLines || game.softLines.length === 0}
