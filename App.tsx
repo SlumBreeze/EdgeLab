@@ -1,6 +1,6 @@
-
 import React, { useState } from 'react';
 import { GameProvider, useGameContext } from './hooks/useGameContext';
+import { ToastProvider } from './components/Toast';
 import Scout from './pages/Scout';
 import Queue from './pages/Queue';
 import Card from './pages/Card';
@@ -120,7 +120,9 @@ const AppContent: React.FC = () => {
 export default function App() {
   return (
     <GameProvider>
-      <AppContent />
+      <ToastProvider>
+        <AppContent />
+      </ToastProvider>
     </GameProvider>
   );
 }

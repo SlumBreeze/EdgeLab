@@ -3,13 +3,19 @@ import React, { useState, useEffect } from 'react';
 import { useGameContext } from '../hooks/useGameContext';
 import { extractLinesFromScreenshot, quickScanGame, analyzeGame } from '../services/geminiService';
 import QueuedGameCard from '../components/QueuedGameCard';
+import SwipeableCard from '../components/SwipeableCard';
 import { fetchOddsForGame, getBookmakerLines, SOFT_BOOK_KEYS } from '../services/oddsService';
 import { BookLines } from '../types';
 import { ANALYSIS_QUEUE_DELAY_MS } from '../constants';
+import { useToast, createToastHelpers } from '../components/Toast';
 
 export default function Queue() {
   const { queue, removeFromQueue, updateGame, addSoftLines, updateSoftLineBook, setSharpLines, activeBookNames } = useGameContext();
   const [analyzingIds, setAnalyzingIds] = useState<Set<string>>(new Set());
+  
+  // Toast
+  const { addToast } = useToast();
+  const toast = createToastHelpers(addToast);
   
   // Sequential Queue State
   const [analysisQueue, setAnalysisQueue] = useState<string[]>([]);
@@ -91,13 +97,19 @@ export default function Queue() {
       });
       
       updateGame(game.id, { analysis: result, analysisError: undefined });
+      
+      if (result.decision === 'PLAYABLE') {
+        toast.showSuccess(`Analysis Complete: PLAYABLE (${game.awayTeam.name})`);
+      } else {
+        toast.showInfo(`Analysis Complete: PASS (${game.awayTeam.name})`);
+      }
 
     } catch (error) {
       console.error(`Analysis failed for game ${gameId}:`, error);
       // Update game with error state so the card can display the failure
-      updateGame(game.id, { 
-        analysisError: error instanceof Error ? error.message : "Analysis failed. Try manual flow."
-      });
+      const errorMessage = error instanceof Error ? error.message : "Analysis failed. Try manual flow.";
+      updateGame(game.id, { analysisError: errorMessage });
+      toast.showError(`Analysis failed: ${errorMessage}`);
     } finally {
       setActiveAnalysisId(null);
       // Note: Don't clear analysisStartTime here - the effect needs it to calculate next delay
@@ -119,6 +131,7 @@ export default function Queue() {
     if (activeAnalysisId) {
       // Another analysis is running — add to queue
       setAnalysisQueue(prev => [...prev, gameId]);
+      toast.showInfo("Added to analysis queue");
     } else {
       // Nothing running — start immediately
       processAnalysis(gameId);
@@ -127,6 +140,12 @@ export default function Queue() {
 
   const handleRemoveFromQueue = (gameId: string) => {
     setAnalysisQueue(prev => prev.filter(id => id !== gameId));
+    toast.showInfo("Removed from analysis queue");
+  };
+
+  const handleManualRemove = (gameId: string) => {
+    removeFromQueue(gameId);
+    toast.showInfo("Removed from queue");
   };
 
   const handleScan = async (gameId: string) => {
@@ -151,9 +170,15 @@ export default function Queue() {
     try {
       const result = await analyzeGame(game);
       updateGame(gameId, { analysis: result });
+      
+      if (result.decision === 'PLAYABLE') {
+        toast.showSuccess("Analysis: PLAYABLE");
+      } else {
+        toast.showInfo("Analysis: PASS");
+      }
     } catch (e) {
       console.error(e);
-      alert("Analysis failed. Please check your inputs and try again.");
+      toast.showError("Analysis failed. Please check inputs.");
     } finally {
       setAnalyzingIds(prev => {
         const next = new Set(prev);
@@ -173,9 +198,10 @@ export default function Queue() {
       } else {
         addSoftLines(gameId, lines);
       }
+      toast.showSuccess(`Lines extracted from ${type} screenshot`);
     } catch (error) {
       console.error(error);
-      alert("Failed to extract lines. Please try a clearer image.");
+      toast.showError("Failed to extract lines. Try a clearer image.");
     } finally {
       setAnalyzingIds(prev => {
         const next = new Set(prev);
@@ -186,41 +212,56 @@ export default function Queue() {
   };
 
   return (
-    <div className="p-4 max-w-lg mx-auto">
-      <header className="mb-6 flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-slate-800">Analysis Queue</h1>
-        <span className="bg-coral-100 text-coral-600 text-xs px-3 py-1.5 rounded-full font-bold">
-          {queue.length} Games
-        </span>
-      </header>
+    <div className="h-full overflow-y-auto p-4">
+      <div className="max-w-lg mx-auto pb-24">
+        <header className="mb-6 flex justify-between items-center">
+          <h1 className="text-2xl font-bold text-slate-800">Analysis Queue</h1>
+          <span className="bg-coral-100 text-coral-600 text-xs px-3 py-1.5 rounded-full font-bold">
+            {queue.length} Games
+          </span>
+        </header>
+        
+        {/* Swipe Hint */}
+        {queue.length > 0 && (
+          <div className="text-center text-[10px] text-slate-400 italic mb-2 animate-pulse">
+            ← Swipe left on cards to remove
+          </div>
+        )}
 
-      {queue.length === 0 ? (
-        <div className="text-center py-20 bg-white rounded-2xl border border-slate-200 shadow-sm">
-          <p className="mb-2 text-5xl">📋</p>
-          <p className="text-slate-500 font-medium">Your queue is empty.</p>
-          <p className="text-sm text-slate-400 mt-1">Go to Scout to add games.</p>
-        </div>
-      ) : (
-        <div className="space-y-6">
-          {queue.map(game => (
-            <QueuedGameCard
-              key={game.id}
-              game={game}
-              queuePosition={analysisQueue.indexOf(game.id)}
-              isAnalyzing={activeAnalysisId === game.id}
-              onQuickAnalyze={() => handleQuickAnalyze(game.id)}
-              onRemoveFromQueue={() => handleRemoveFromQueue(game.id)}
-              loading={analyzingIds.has(game.id) || analyzingIds.has(game.id + 'SHARP') || analyzingIds.has(game.id + 'SOFT')}
-              onRemove={() => removeFromQueue(game.id)}
-              onScan={() => handleScan(game.id)}
-              onAnalyze={() => handleAnalyze(game.id)}
-              onUploadSharp={(f) => handleFileUpload(game.id, 'SHARP', f)}
-              onUploadSoft={(f) => handleFileUpload(game.id, 'SOFT', f)}
-              onUpdateSoftBook={(idx, name) => updateSoftLineBook(game.id, idx, name)}
-            />
-          ))}
-        </div>
-      )}
+        {queue.length === 0 ? (
+          <div className="text-center py-20 bg-white rounded-2xl border border-slate-200 shadow-sm">
+            <p className="mb-2 text-5xl">📋</p>
+            <p className="text-slate-500 font-medium">Your queue is empty.</p>
+            <p className="text-sm text-slate-400 mt-1">Go to Scout to add games.</p>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {queue.map(game => (
+              <SwipeableCard
+                key={game.id}
+                onSwipeLeft={() => handleManualRemove(game.id)}
+                leftAction={{ label: 'Remove', icon: '🗑️', color: 'bg-red-500' }}
+                disabled={activeAnalysisId === game.id || analyzingIds.has(game.id) || analyzingIds.has(game.id + 'SHARP') || analyzingIds.has(game.id + 'SOFT')}
+              >
+                <QueuedGameCard
+                  game={game}
+                  queuePosition={analysisQueue.indexOf(game.id)}
+                  isAnalyzing={activeAnalysisId === game.id}
+                  onQuickAnalyze={() => handleQuickAnalyze(game.id)}
+                  onRemoveFromQueue={() => handleRemoveFromQueue(game.id)}
+                  loading={analyzingIds.has(game.id) || analyzingIds.has(game.id + 'SHARP') || analyzingIds.has(game.id + 'SOFT')}
+                  onRemove={() => handleManualRemove(game.id)}
+                  onScan={() => handleScan(game.id)}
+                  onAnalyze={() => handleAnalyze(game.id)}
+                  onUploadSharp={(f) => handleFileUpload(game.id, 'SHARP', f)}
+                  onUploadSoft={(f) => handleFileUpload(game.id, 'SOFT', f)}
+                  onUpdateSoftBook={(idx, name) => updateSoftLineBook(game.id, idx, name)}
+                />
+              </SwipeableCard>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -5,12 +5,18 @@ import { SPORTS_CONFIG } from '../constants';
 import { fetchOddsForSport, getBookmakerLines, fetchAllSportsOdds } from '../services/oddsService';
 import { quickScanGame } from '../services/geminiService';
 import { useGameContext } from '../hooks/useGameContext';
+import { useToast, createToastHelpers } from '../components/Toast';
+import PullToRefresh from '../components/PullToRefresh';
 
 export default function Scout() {
   const [selectedSport, setSelectedSport] = useState<Sport>('NBA');
   // Fixed: Use local date string to match user's day, not UTC (which is tomorrow in evenings)
   const [selectedDate, setSelectedDate] = useState(() => new Date().toLocaleDateString('en-CA'));
   const [loading, setLoading] = useState(false);
+  
+  // Toast Context
+  const { addToast } = useToast();
+  const toast = createToastHelpers(addToast);
   
   // Use Context for Data Persistence
   const { 
@@ -36,11 +42,23 @@ export default function Scout() {
     try {
       const allData = await fetchAllSportsOdds();
       loadSlates(allData); // Save to Context & LocalStorage
+      toast.showSuccess(`Loaded slates for ${Object.keys(allData).length} sports`);
     } catch (e) {
       console.error("Failed to load slates:", e);
-      alert("Failed to load slates. Try again.");
+      toast.showError("Failed to load slates. Please try again.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleRefresh = async () => {
+    try {
+      const allData = await fetchAllSportsOdds();
+      loadSlates(allData);
+      toast.showSuccess("Refreshed slates");
+    } catch (e) {
+      console.error("Refresh failed:", e);
+      toast.showError("Failed to refresh slates");
     }
   };
 
@@ -118,6 +136,7 @@ export default function Scout() {
         }
         await new Promise(r => setTimeout(r, 600));
       }
+      toast.showSuccess(`Batch scan complete for ${count} games`);
     } finally {
       setBatchScanning(false);
       setProgressText('');
@@ -133,6 +152,7 @@ export default function Scout() {
       edgeDescription: scanData.description 
     } : game;
     addToQueue(gameWithScan);
+    toast.showInfo(`Added ${game.awayTeam.name} vs ${game.homeTeam.name} to Queue`);
   };
 
   const getMovementAnalysis = (currentA: string, refA: string, homeName: string, awayName: string) => {
@@ -154,11 +174,12 @@ export default function Scout() {
 
   const sortedGames = [...apiGames].sort((a, b) => getSignalWeight(b.id) - getSignalWeight(a.id));
 
-  return (
-    <div className="p-4 max-w-lg mx-auto">
-      <header className="mb-4">
-        <h1 className="text-2xl font-bold text-slate-800 mb-4">EdgeLab Scout</h1>
-        {!slatesLoaded ? (
+  // If slates are NOT loaded, show the initial state (centered)
+  if (!slatesLoaded) {
+    return (
+      <div className="h-full overflow-y-auto p-4 max-w-lg mx-auto flex flex-col">
+        <header className="mb-4 shrink-0">
+          <h1 className="text-2xl font-bold text-slate-800 mb-4">EdgeLab Scout</h1>
           <button
             onClick={handleLoadSlates}
             disabled={loading}
@@ -166,36 +187,41 @@ export default function Scout() {
           >
             {loading ? <span className="flex items-center justify-center gap-2"><span className="animate-spin">🔄</span> Loading All Slates...</span> : <span>📊 Load Today's Slates</span>}
           </button>
-        ) : (
-          <button
-            onClick={handleLoadSlates}
-            disabled={loading}
-            className="w-full mb-4 py-2 bg-slate-100 text-slate-600 font-medium rounded-xl text-sm hover:bg-slate-200 transition-colors disabled:opacity-50"
-          >
-            {loading ? 'Refreshing...' : '🔄 Refresh All Slates'}
-          </button>
-        )}
-        
-        {slatesLoaded && (
-          <div className="flex overflow-x-auto space-x-2 pb-2 no-scrollbar">
-            {Object.entries(SPORTS_CONFIG).map(([key, config]) => (
-              <button
-                key={key}
-                onClick={() => setSelectedSport(key as Sport)}
-                className={`flex items-center space-x-2 px-4 py-2 rounded-full whitespace-nowrap transition-all shadow-sm ${
-                  selectedSport === key ? 'bg-gradient-to-r from-coral-500 to-orange-500 text-white font-bold shadow-md' : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
-                }`}
-              >
-                <span>{config.icon}</span>
-                <span>{config.label}</span>
-              </button>
-            ))}
-          </div>
-        )}
-      </header>
+        </header>
 
-      {slatesLoaded && (
-        <div className="mb-6 flex gap-2">
+        <div className="flex-1 flex flex-col justify-center items-center text-slate-400 bg-white rounded-2xl border border-slate-200 p-8 shadow-sm border-dashed">
+          <p className="text-4xl mb-3">📊</p>
+          <p className="font-medium text-center">Click "Load Today's Slates"<br/>to fetch fresh lines for all sports</p>
+        </div>
+      </div>
+    );
+  }
+
+  // If slates loaded, show Fixed Header + Pull-to-Refresh List
+  return (
+    <div className="h-full flex flex-col">
+      {/* Fixed Header Section */}
+      <div className="shrink-0 p-4 pb-2 max-w-lg mx-auto w-full">
+        <h1 className="text-2xl font-bold text-slate-800 mb-4">EdgeLab Scout</h1>
+        
+        {/* Sport Selector */}
+        <div className="flex overflow-x-auto space-x-2 pb-2 no-scrollbar mb-2">
+          {Object.entries(SPORTS_CONFIG).map(([key, config]) => (
+            <button
+              key={key}
+              onClick={() => setSelectedSport(key as Sport)}
+              className={`flex items-center space-x-2 px-4 py-2 rounded-full whitespace-nowrap transition-all shadow-sm ${
+                selectedSport === key ? 'bg-gradient-to-r from-coral-500 to-orange-500 text-white font-bold shadow-md' : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+              }`}
+            >
+              <span>{config.icon}</span>
+              <span>{config.label}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* Date & Scan Controls */}
+        <div className="flex gap-2 mb-2">
           <input 
             type="date" 
             value={selectedDate}
@@ -212,61 +238,62 @@ export default function Scout() {
             </button>
           )}
         </div>
-      )}
+      </div>
 
-      <div className="space-y-3">
-        {!slatesLoaded ? (
-          <div className="text-center py-10 text-slate-400 bg-white rounded-2xl border border-slate-200">
-            <p className="text-4xl mb-3">📊</p>
-            <p className="font-medium">Click "Load Today's Slates" to fetch lines</p>
-          </div>
-        ) : loading ? (
-          <div className="text-center py-10 text-slate-400">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-coral-500 mx-auto mb-3"></div>
-            Searching lines...
-          </div>
-        ) : apiGames.length === 0 ? (
-          <div className="text-center py-10 text-slate-400 bg-white rounded-2xl border border-slate-200">
-            No {selectedSport} games found for {selectedDate}.
-          </div>
-        ) : (
-          sortedGames.map(game => {
-            const pinnLines = getBookmakerLines(game, 'pinnacle');
-            const ref = referenceLines[game.id];
-            const movement = (pinnLines && ref) ? getMovementAnalysis(pinnLines.spreadLineA, ref.spreadLineA, game.home_team, game.away_team) : null;
-            const scan = scanResults[game.id];
-            const isScanning = scanningIds.has(game.id);
-            const inQueue = isInQueue(game.id);
-            const gameObj = mapToGameObject(game, pinnLines);
-
-            return (
-              <div key={game.id} className="bg-white border border-slate-200 rounded-xl p-3 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
-                {scan && <div className={`absolute top-0 left-0 bottom-0 w-1.5 ${scan.signal === 'RED' ? 'bg-red-500' : scan.signal === 'YELLOW' ? 'bg-amber-400' : 'bg-slate-200'}`} />}
-                <div className="flex justify-between items-center mb-2 pl-2">
-                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{new Date(game.commence_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
-                  <button onClick={() => handleAddToQueue(game, pinnLines)} disabled={inQueue} className={`px-2 py-1 rounded text-[10px] font-bold transition-colors ${inQueue ? 'bg-slate-100 text-slate-400' : 'bg-teal-50 text-teal-600 hover:bg-teal-100'}`}>{inQueue ? '✓ Queue' : '+ Add'}</button>
-                </div>
-                <div className="mb-2 pl-2">
-                  <div className="grid grid-cols-[2fr_1fr_1fr_2fr] gap-1 mb-1 text-[9px] text-slate-400 uppercase font-bold tracking-wider"><div>Team</div><div className="text-center">Ref</div><div className="text-center">Curr</div><div className="text-center">Move</div></div>
-                  <div className="grid grid-cols-[2fr_1fr_1fr_2fr] gap-1 items-center py-1 border-b border-slate-50">
-                    <div className="font-bold text-slate-700 truncate text-xs">{game.away_team}</div>
-                    <div className="text-center text-slate-400 text-[10px] font-mono">{ref?.spreadLineA || '-'}</div>
-                    <div className="text-center font-bold text-slate-800 bg-slate-50 rounded py-0.5 text-[10px] font-mono">{pinnLines?.spreadLineA || '-'}</div>
-                    <div className="row-span-2 flex flex-col items-center justify-center h-full">{movement && <><span className="text-sm leading-none mb-0.5">{movement.icon}</span><span className={`text-[8px] font-bold leading-none text-center ${movement.color}`}>{movement.text}</span></>}</div>
-                  </div>
-                  <div className="grid grid-cols-[2fr_1fr_1fr_2fr] gap-1 items-center py-1"><div className="font-bold text-slate-700 truncate text-xs">{game.home_team}</div><div className="text-center text-slate-400 text-[10px] font-mono">{ref?.spreadLineB || '-'}</div><div className="text-center font-bold text-slate-800 bg-slate-50 rounded py-0.5 text-[10px] font-mono">{pinnLines?.spreadLineB || '-'}</div></div>
-                </div>
-                <div className="pl-2">
-                  {scan ? (
-                    <div className={`p-2 rounded-lg flex items-start gap-2 ${scan.signal === 'RED' ? 'bg-red-50 border border-red-100' : scan.signal === 'YELLOW' ? 'bg-amber-50 border border-amber-100' : 'bg-slate-50 border border-slate-100'}`}><span className="text-sm">{getEdgeEmoji(scan.signal)}</span><span className="text-[10px] text-slate-600 leading-tight font-medium">{scan.description}</span></div>
-                  ) : (
-                    <button onClick={() => handleQuickScan(gameObj)} disabled={isScanning || batchScanning} className="w-full py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-500 hover:text-slate-700 rounded-lg text-[10px] font-bold transition-colors flex items-center justify-center gap-1">{isScanning ? <span className="animate-pulse">Scanning...</span> : <><span className="text-[10px]">⚡</span> Scan Injuries</>}</button>
-                  )}
-                </div>
+      {/* Scrollable List with Pull-to-Refresh */}
+      <div className="flex-1 overflow-hidden relative min-h-0">
+        <PullToRefresh onRefresh={handleRefresh} disabled={loading || batchScanning}>
+          <div className="p-4 pt-2 max-w-lg mx-auto space-y-3 pb-24">
+            
+            {loading ? (
+              <div className="text-center py-10 text-slate-400">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-coral-500 mx-auto mb-3"></div>
+                Searching lines...
               </div>
-            );
-          })
-        )}
+            ) : apiGames.length === 0 ? (
+              <div className="text-center py-10 text-slate-400 bg-white rounded-2xl border border-slate-200">
+                No {selectedSport} games found for {selectedDate}.
+              </div>
+            ) : (
+              sortedGames.map(game => {
+                const pinnLines = getBookmakerLines(game, 'pinnacle');
+                const ref = referenceLines[game.id];
+                const movement = (pinnLines && ref) ? getMovementAnalysis(pinnLines.spreadLineA, ref.spreadLineA, game.home_team, game.away_team) : null;
+                const scan = scanResults[game.id];
+                const isScanning = scanningIds.has(game.id);
+                const inQueue = isInQueue(game.id);
+                const gameObj = mapToGameObject(game, pinnLines);
+
+                return (
+                  <div key={game.id} className="bg-white border border-slate-200 rounded-xl p-3 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
+                    {scan && <div className={`absolute top-0 left-0 bottom-0 w-1.5 ${scan.signal === 'RED' ? 'bg-red-500' : scan.signal === 'YELLOW' ? 'bg-amber-400' : 'bg-slate-200'}`} />}
+                    <div className="flex justify-between items-center mb-2 pl-2">
+                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{new Date(game.commence_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                      <button onClick={() => handleAddToQueue(game, pinnLines)} disabled={inQueue} className={`px-2 py-1 rounded text-[10px] font-bold transition-colors ${inQueue ? 'bg-slate-100 text-slate-400' : 'bg-teal-50 text-teal-600 hover:bg-teal-100'}`}>{inQueue ? '✓ Queue' : '+ Add'}</button>
+                    </div>
+                    <div className="mb-2 pl-2">
+                      <div className="grid grid-cols-[2fr_1fr_1fr_2fr] gap-1 mb-1 text-[9px] text-slate-400 uppercase font-bold tracking-wider"><div>Team</div><div className="text-center">Ref</div><div className="text-center">Curr</div><div className="text-center">Move</div></div>
+                      <div className="grid grid-cols-[2fr_1fr_1fr_2fr] gap-1 items-center py-1 border-b border-slate-50">
+                        <div className="font-bold text-slate-700 truncate text-xs">{game.away_team}</div>
+                        <div className="text-center text-slate-400 text-[10px] font-mono">{ref?.spreadLineA || '-'}</div>
+                        <div className="text-center font-bold text-slate-800 bg-slate-50 rounded py-0.5 text-[10px] font-mono">{pinnLines?.spreadLineA || '-'}</div>
+                        <div className="row-span-2 flex flex-col items-center justify-center h-full">{movement && <><span className="text-sm leading-none mb-0.5">{movement.icon}</span><span className={`text-[8px] font-bold leading-none text-center ${movement.color}`}>{movement.text}</span></>}</div>
+                      </div>
+                      <div className="grid grid-cols-[2fr_1fr_1fr_2fr] gap-1 items-center py-1"><div className="font-bold text-slate-700 truncate text-xs">{game.home_team}</div><div className="text-center text-slate-400 text-[10px] font-mono">{ref?.spreadLineB || '-'}</div><div className="text-center font-bold text-slate-800 bg-slate-50 rounded py-0.5 text-[10px] font-mono">{pinnLines?.spreadLineB || '-'}</div></div>
+                    </div>
+                    <div className="pl-2">
+                      {scan ? (
+                        <div className={`p-2 rounded-lg flex items-start gap-2 ${scan.signal === 'RED' ? 'bg-red-50 border border-red-100' : scan.signal === 'YELLOW' ? 'bg-amber-50 border border-amber-100' : 'bg-slate-50 border border-slate-100'}`}><span className="text-sm">{getEdgeEmoji(scan.signal)}</span><span className="text-[10px] text-slate-600 leading-tight font-medium">{scan.description}</span></div>
+                      ) : (
+                        <button onClick={() => handleQuickScan(gameObj)} disabled={isScanning || batchScanning} className="w-full py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-500 hover:text-slate-700 rounded-lg text-[10px] font-bold transition-colors flex items-center justify-center gap-1">{isScanning ? <span className="animate-pulse">Scanning...</span> : <><span className="text-[10px]">⚡</span> Scan Injuries</>}</button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </PullToRefresh>
       </div>
     </div>
   );
