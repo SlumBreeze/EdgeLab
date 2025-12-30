@@ -77,6 +77,7 @@ export interface HighHitAnalysis {
   researchSummary: string; // What the AI found (injuries, rest, etc.)
   edgeNarrative?: string; // Plain English description of any situational edge. Do NOT assign percentages.
   confidence?: 'HIGH' | 'MEDIUM' | 'LOW';
+  dataQuality?: 'STRONG' | 'PARTIAL' | 'WEAK';
 }
 
 export interface DailyPlayTracker {

@@ -445,6 +445,20 @@ You MUST return strictly valid JSON.
     config: {
       systemInstruction: HIGH_HIT_SYSTEM_PROMPT + `
       
+      CRITICAL RULES FOR FACTUAL ACCURACY:
+      1. ONLY cite injuries, roster moves, or player status that appear DIRECTLY in your search results
+      2. If you cannot find current injury information for a team, say "No verified injury data found" — do NOT guess or infer
+      3. NEVER invent trades, signings, or roster moves — if you didn't find it in search results, it didn't happen
+      4. When citing a player's status, you must have seen it in a search result from the last 48 hours
+      5. If your search returns limited results, acknowledge the uncertainty rather than filling gaps
+      6. Distinguish between VERIFIED (from search) and INFERRED (your reasoning) — label them clearly
+
+      FORBIDDEN BEHAVIORS:
+      - Do not claim a player was traded unless you found a news article about the trade
+      - Do not claim a player is injured unless you found an injury report
+      - Do not invent statistics or records you didn't find in search results
+      - Do not assume roster changes between seasons
+
       IMPORTANT: You must return the result in this exact JSON format:
       {
         "decision": "PLAYABLE" or "PASS",
@@ -453,10 +467,11 @@ You MUST return strictly valid JSON.
         "reasoning": "...",
         "publicNarrative": "Describe the public/media story (if any)",
         "gameScript": "Briefly describe the likely game flow (e.g. Slow pace, shootout)",
-        "awayTeamInjuries": "...",
-        "homeTeamInjuries": "...",
+        "awayTeamInjuries": "List ONLY injuries found in search results. If none found, say 'No verified data'",
+        "homeTeamInjuries": "List ONLY injuries found in search results. If none found, say 'No verified data'",
         "situationFavors": "AWAY", "HOME", "NEUTRAL",
-        "confidence": "HIGH", "MEDIUM", "LOW"
+        "confidence": "HIGH", "MEDIUM", "LOW",
+        "dataQuality": "STRONG", "PARTIAL", "WEAK"
       }`,
       tools: [{ googleSearch: {} }],
       temperature: 0.1
@@ -473,11 +488,30 @@ You MUST return strictly valid JSON.
     awayTeamInjuries: 'Unknown',
     homeTeamInjuries: 'Unknown',
     situationFavors: 'NEUTRAL',
-    confidence: 'LOW'
+    confidence: 'LOW',
+    dataQuality: 'WEAK'
   };
 
   const aiResult = cleanAndParseJson(response.text, fallback);
   
+  // NEW: Data Quality Gate
+  if (aiResult.dataQuality === 'WEAK' && aiResult.decision === 'PLAYABLE') {
+    return {
+      decision: 'PASS',
+      vetoTriggered: true,
+      vetoReason: `DATA_QUALITY: AI recommended PLAYABLE but data quality was WEAK. Insufficient verified information to support the pick.`,
+      researchSummary: `Away (${game.awayTeam.name}): ${aiResult.awayTeamInjuries || 'No data'}
+Home (${game.homeTeam.name}): ${aiResult.homeTeamInjuries || 'No data'}
+
+⚠️ Data Quality: WEAK - Search results were limited. Passing to avoid acting on unverified information.
+
+📰 Public Narrative: ${aiResult.publicNarrative || 'None identified'}`,
+      sharpImpliedProb,
+      publicNarrative: aiResult.publicNarrative,
+      gameScript: aiResult.gameScript
+    };
+  }
+
   // Filter alignment logic
   if (aiResult.decision !== 'PLAYABLE' || !aiResult.recommendedSide) {
     return {
@@ -579,6 +613,12 @@ Situation favors: ${aiResult.situationFavors}`,
     };
   }
 
+  // Add caution for partial data
+  let dataCaution: string | undefined;
+  if (aiResult.dataQuality === 'PARTIAL') {
+    dataCaution = "⚠️ Partial data: Some injury/roster information could not be verified.";
+  }
+
   const teamName = selectedSide.side === 'AWAY' ? game.awayTeam.name :
                    selectedSide.side === 'HOME' ? game.homeTeam.name :
                    selectedSide.side;
@@ -617,6 +657,7 @@ Situation favors: ${aiResult.situationFavors}`,
     decision: 'PLAYABLE',
     vetoTriggered: false,
     vetoReason: undefined,
+    caution: dataCaution,
     researchSummary: `Away (${game.awayTeam.name}): ${aiResult.awayTeamInjuries || 'No major injuries'}
 Home (${game.homeTeam.name}): ${aiResult.homeTeamInjuries || 'No major injuries'}
 
@@ -624,7 +665,8 @@ Home (${game.homeTeam.name}): ${aiResult.homeTeamInjuries || 'No major injuries'
 🎬 Game Script: ${aiResult.gameScript || 'Standard flow expected'}
 
 Situation favors: ${aiResult.situationFavors}
-Confidence: ${aiResult.confidence}`,
+Confidence: ${aiResult.confidence}
+Data Quality: ${aiResult.dataQuality || 'UNKNOWN'}`,
     edgeNarrative: aiResult.reasoning,
     recommendation,
     recLine,
