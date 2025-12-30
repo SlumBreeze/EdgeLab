@@ -3,9 +3,10 @@ import React, { useState } from 'react';
 import { useGameContext } from '../hooks/useGameContext';
 import { HighHitAnalysis, QueuedGame } from '../types';
 import { MAX_DAILY_PLAYS } from '../constants';
+import { analyzeCard, CardAnalytics, DiversificationWarning, PLScenario } from '../utils/cardAnalytics';
 
 export default function Card() {
-  const { queue, getPlayableCount, autoPickBestGames } = useGameContext();
+  const { queue, getPlayableCount, autoPickBestGames, totalBankroll, unitSizePercent } = useGameContext();
   const [pickLimit, setPickLimit] = useState(6);
   
   const analyzedGames = queue.filter(g => g.analysis);
@@ -16,6 +17,25 @@ export default function Card() {
   const overLimit = playableCount > MAX_DAILY_PLAYS;
   
   const hasAutoPicked = queue.some(g => g.cardSlot !== undefined);
+
+  // ANALYTICS COMPUTATION
+  const analytics = analyzeCard(queue, totalBankroll, unitSizePercent, hasAutoPicked);
+  
+  // Filter scenarios to show key ones
+  const targetCount = hasAutoPicked 
+    ? queue.filter(g => g.cardSlot !== undefined).length
+    : playable.length;
+
+  const keyScenarios = analytics.plScenarios.filter(s => {
+    if (targetCount <= 3) return true;
+    return s.wins === targetCount || 
+           s.wins === targetCount - 1 || 
+           s.wins === Math.ceil(targetCount * 0.67) || 
+           s.isBreakEven || 
+           s.wins === Math.floor(targetCount * 0.33) || 
+           s.wins === 1 || 
+           s.wins === 0;
+  });
 
   const generateClipboardText = () => {
     const dateStr = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
@@ -124,6 +144,94 @@ export default function Card() {
         </div>
       ) : (
         <>
+          {/* Decision Support Ribbon */}
+          {playable.length >= 2 && totalBankroll > 0 && (
+            <div className="mb-6 space-y-4">
+              
+              {/* P&L Projection */}
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="px-4 py-3 bg-slate-50 border-b border-slate-100">
+                  <div className="flex justify-between items-center">
+                    <h3 className="font-bold text-slate-700 text-sm flex items-center gap-2">
+                      <span>📊</span> Projected Outcomes
+                    </h3>
+                    <span className="text-xs text-slate-400">
+                      {hasAutoPicked ? `${targetCount} picks` : `${playable.length} playable`}
+                    </span>
+                  </div>
+                </div>
+                
+                <div className="p-4">
+                  {/* Total at Risk */}
+                  <div className="flex justify-between items-center mb-4 pb-3 border-b border-slate-100">
+                    <span className="text-xs text-slate-500 uppercase font-bold tracking-wide">Total Wagered</span>
+                    <span className="font-bold text-slate-800 font-mono">${analytics.totalWagered.toFixed(2)}</span>
+                  </div>
+                  
+                  {/* Scenario Grid */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {keyScenarios.map(scenario => (
+                      <div 
+                        key={scenario.record}
+                        className={`p-3 rounded-xl text-center ${
+                          scenario.netPL > 0 
+                            ? 'bg-emerald-50 border border-emerald-100' 
+                            : scenario.isBreakEven
+                              ? 'bg-amber-50 border border-amber-100'
+                              : 'bg-red-50 border border-red-100'
+                        }`}
+                      >
+                        <div className="text-xs text-slate-500 font-medium mb-1">{scenario.record}</div>
+                        <div className={`font-bold font-mono ${scenario.color}`}>
+                          {scenario.netPL >= 0 ? '+' : ''}{scenario.netPL.toFixed(2)}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  
+                  {/* Quick Summary */}
+                  <div className="mt-4 pt-3 border-t border-slate-100 flex justify-between text-xs">
+                    <div>
+                      <span className="text-slate-400">Best case: </span>
+                      <span className="font-bold text-emerald-600">+${analytics.maxProfit.toFixed(2)}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400">Worst case: </span>
+                      <span className="font-bold text-red-600">${analytics.maxLoss.toFixed(2)}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Diversification Warnings */}
+              {analytics.diversificationWarnings.length > 0 && (
+                <div className="bg-amber-50 rounded-2xl border border-amber-200 overflow-hidden">
+                  <div className="px-4 py-3 bg-amber-100/50 border-b border-amber-200">
+                    <h3 className="font-bold text-amber-800 text-sm flex items-center gap-2">
+                      <span>⚠️</span> Concentration Alerts
+                    </h3>
+                  </div>
+                  
+                  <div className="p-4 space-y-3">
+                    {analytics.diversificationWarnings.map((warning, idx) => (
+                      <div key={idx} className="flex items-start gap-3">
+                        <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${
+                          warning.severity === 'WARNING' ? 'bg-red-500' :
+                          warning.severity === 'CAUTION' ? 'bg-amber-500' : 'bg-slate-400'
+                        }`} />
+                        <div>
+                          <div className="font-bold text-amber-900 text-sm">{warning.title}</div>
+                          <div className="text-amber-700 text-xs mt-0.5">{warning.message}</div>
+                          <div className="text-amber-600/70 text-[10px] mt-1 font-mono">{warning.breakdown}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Stats Grid */}
           <div className="grid grid-cols-2 gap-3 mb-6">
             <div className={`p-4 rounded-2xl border shadow-sm ${
