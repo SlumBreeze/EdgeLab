@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useGameContext } from '../hooks/useGameContext';
 import { HighHitAnalysis, QueuedGame, SportsbookAccount, AutoPickResult } from '../types';
@@ -5,6 +6,7 @@ import { MAX_DAILY_PLAYS } from '../constants';
 import { analyzeCard, CardAnalytics, DiversificationWarning, PLScenario } from '../utils/cardAnalytics';
 import { useToast, createToastHelpers } from '../components/Toast';
 import StickyCardSummary from '../components/StickyCardSummary';
+import { isPremiumEdge } from '../utils/edgeUtils';
 
 // Helper: Find alternative book with funds
 const getAlternativeBook = (
@@ -448,7 +450,9 @@ const PlayableCard: React.FC<{ game: QueuedGame; dim?: boolean }> = ({ game, dim
   // Quality indicator for smart pick
   const linePoints = a.lineValuePoints || 0;
   const juiceCents = a.lineValueCents || 0;
-  const isPremium = linePoints >= 0.5 || juiceCents >= 15 || a.confidence === 'HIGH';
+  
+  // UPDATED: Use shared utility
+  const isPremium = isPremiumEdge(linePoints, juiceCents, a.confidence);
 
   return (
     <div className={`p-4 rounded-2xl shadow-lg relative transition-all ${

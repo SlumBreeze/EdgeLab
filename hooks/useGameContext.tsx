@@ -1,7 +1,9 @@
+
 import React, { createContext, useContext, useState, useEffect, useRef, useMemo } from 'react';
 import { QueuedGame, AnalysisState, Game, BookLines, DailyPlayTracker, SportsbookAccount, ScanResult, ReferenceLineData, AutoPickResult } from '../types';
 import { MAX_DAILY_PLAYS } from '../constants';
 import { supabase, isSupabaseConfigured } from '../services/supabaseClient';
+import { isPremiumEdge, isStandardEdge } from '../utils/edgeUtils';
 
 const GameContext = createContext<AnalysisState | undefined>(undefined);
 
@@ -310,16 +312,9 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const juiceCents = a.lineValueCents || 0;
         const confidence = a.confidence || 'MEDIUM';
         
-        // PREMIUM: Strong mathematical edge OR high confidence situation
-        // - Getting 0.5+ points better than sharp (half point is huge)
-        // - OR getting 15+ cents better juice (meaningful price edge)
-        // - OR AI marked as HIGH confidence
-        const isPremium = linePoints >= 0.5 || juiceCents >= 15 || confidence === 'HIGH';
-        
-        // STANDARD: Any positive mathematical edge
-        // - Getting any extra points (even 0.5 matters in spreads)
-        // - OR getting 5+ cents better juice
-        const isStandard = linePoints > 0 || juiceCents >= 5;
+        // Use shared logic from edgeUtils
+        const isPremium = isPremiumEdge(linePoints, juiceCents, confidence);
+        const isStandard = isStandardEdge(linePoints, juiceCents);
         
         // Only auto-pick if it meets at least STANDARD threshold
         if (isPremium || isStandard) {
@@ -339,8 +334,9 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const bp = b.analysis!;
         
         // Premium picks first (HIGH confidence or big edges)
-        const aPremium = (ap.lineValuePoints || 0) >= 0.5 || (ap.lineValueCents || 0) >= 15 || ap.confidence === 'HIGH';
-        const bPremium = (bp.lineValuePoints || 0) >= 0.5 || (bp.lineValueCents || 0) >= 15 || bp.confidence === 'HIGH';
+        const aPremium = isPremiumEdge(ap.lineValuePoints, ap.lineValueCents, ap.confidence);
+        const bPremium = isPremiumEdge(bp.lineValuePoints, bp.lineValueCents, bp.confidence);
+        
         if (aPremium !== bPremium) return bPremium ? 1 : -1;
         
         // Then by line value points
