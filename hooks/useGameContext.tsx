@@ -1,6 +1,5 @@
-
 import React, { createContext, useContext, useState, useEffect, useRef, useMemo } from 'react';
-import { QueuedGame, AnalysisState, Game, BookLines, DailyPlayTracker, SportsbookAccount, ScanResult, ReferenceLineData } from '../types';
+import { QueuedGame, AnalysisState, Game, BookLines, DailyPlayTracker, SportsbookAccount, ScanResult, ReferenceLineData, AutoPickResult } from '../types';
 import { MAX_DAILY_PLAYS } from '../constants';
 import { supabase, isSupabaseConfigured } from '../services/supabaseClient';
 
@@ -277,21 +276,23 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }));
   };
 
-  const autoPickBestGames = (limit: number = 6) => {
+  // UPDATED: Smart auto-pick based on quality thresholds, not arbitrary limits
+  const autoPickBestGames = (): AutoPickResult => {
+    let pickedCount = 0;
+    let skippedCount = 0;
+    const skipReasons: string[] = [];
+    
     setQueue(prev => {
       const reset = prev.map(g => ({ ...g, cardSlot: undefined }));
       
+      // STEP 1: Filter to PLAYABLE with basic requirements
       const playable = reset.filter(g => {
         if (g.analysis?.decision !== 'PLAYABLE') return false;
         if (!g.analysis.softBestOdds) return false;
         
-        // AUTO-PICK FILTER: JUICE VETO
-        // Parse odds string like "+110" or "-150"
+        // JUICE VETO: Skip odds worse than -160
         const oddsStr = g.analysis.softBestOdds;
         const oddsVal = parseFloat(oddsStr);
-        
-        // Check if odds are worse than -160 (e.g. -170, -200)
-        // Since -170 < -160 mathematically, we require odds >= -160
         if (!isNaN(oddsVal) && oddsVal < -160) {
             return false;
         }
@@ -299,17 +300,72 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return true;
       });
       
-      playable.sort((a, b) => {
+      // STEP 2: Quality-based selection - only pick games that meet thresholds
+      const qualityPicks: QueuedGame[] = [];
+      const skippedPicks: QueuedGame[] = [];
+      
+      playable.forEach(g => {
+        const a = g.analysis!;
+        const linePoints = a.lineValuePoints || 0;
+        const juiceCents = a.lineValueCents || 0;
+        const confidence = a.confidence || 'MEDIUM';
+        
+        // PREMIUM: Strong mathematical edge OR high confidence situation
+        // - Getting 0.5+ points better than sharp (half point is huge)
+        // - OR getting 15+ cents better juice (meaningful price edge)
+        // - OR AI marked as HIGH confidence
+        const isPremium = linePoints >= 0.5 || juiceCents >= 15 || confidence === 'HIGH';
+        
+        // STANDARD: Any positive mathematical edge
+        // - Getting any extra points (even 0.5 matters in spreads)
+        // - OR getting 5+ cents better juice
+        const isStandard = linePoints > 0 || juiceCents >= 5;
+        
+        // Only auto-pick if it meets at least STANDARD threshold
+        if (isPremium || isStandard) {
+          qualityPicks.push(g);
+        } else {
+          skippedPicks.push(g);
+          const teamName = g.awayTeam.name;
+          skipReasons.push(`${teamName}: No meaningful edge (${linePoints} pts, ${juiceCents}¢)`);
+        }
+      });
+      
+      skippedCount = skippedPicks.length;
+      
+      // STEP 3: Sort by quality (best first)
+      qualityPicks.sort((a, b) => {
         const ap = a.analysis!;
         const bp = b.analysis!;
-        return (bp.lineValuePoints || 0) - (ap.lineValuePoints || 0) || 
-               (bp.lineValueCents || 0) - (ap.lineValueCents || 0) ||
-               a.id.localeCompare(b.id); // FIXED: Deterministic tiebreaker
+        
+        // Premium picks first (HIGH confidence or big edges)
+        const aPremium = (ap.lineValuePoints || 0) >= 0.5 || (ap.lineValueCents || 0) >= 15 || ap.confidence === 'HIGH';
+        const bPremium = (bp.lineValuePoints || 0) >= 0.5 || (bp.lineValueCents || 0) >= 15 || bp.confidence === 'HIGH';
+        if (aPremium !== bPremium) return bPremium ? 1 : -1;
+        
+        // Then by line value points
+        const pointDiff = (bp.lineValuePoints || 0) - (ap.lineValuePoints || 0);
+        if (pointDiff !== 0) return pointDiff;
+        
+        // Then by juice cents
+        const juiceDiff = (bp.lineValueCents || 0) - (ap.lineValueCents || 0);
+        if (juiceDiff !== 0) return juiceDiff;
+        
+        // Deterministic tiebreaker
+        return a.id.localeCompare(b.id);
       });
 
-      const topPicks = playable.slice(0, limit).map(g => g.id);
-      return reset.map(g => ({ ...g, cardSlot: topPicks.includes(g.id) ? topPicks.indexOf(g.id) + 1 : undefined }));
+      // STEP 4: Cap at MAX_DAILY_PLAYS for safety (but don't fill to it)
+      const finalPicks = qualityPicks.slice(0, MAX_DAILY_PLAYS).map(g => g.id);
+      pickedCount = finalPicks.length;
+      
+      return reset.map(g => ({ 
+        ...g, 
+        cardSlot: finalPicks.includes(g.id) ? finalPicks.indexOf(g.id) + 1 : undefined 
+      }));
     });
+    
+    return { picked: pickedCount, skipped: skippedCount, reasons: skipReasons };
   };
 
   const updateBankroll = (bookName: string, balance: number) => {

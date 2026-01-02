@@ -102,6 +102,13 @@ export interface ReferenceLineData {
   spreadLineB: string;
 }
 
+// Return type for smart auto-pick
+export interface AutoPickResult {
+  picked: number;
+  skipped: number;
+  reasons: string[];
+}
+
 export interface AnalysisState {
   queue: QueuedGame[];
   addToQueue: (game: Game) => void;
@@ -116,7 +123,9 @@ export interface AnalysisState {
   getPlayableCount: () => number;
   canAddMorePlays: () => boolean;
   markAsPlayed: (gameId: string) => void;
-  autoPickBestGames: (limit?: number) => void;
+  
+  // UPDATED: Smart auto-pick returns stats about what was picked
+  autoPickBestGames: () => AutoPickResult;
 
   // v2.2 Bankroll
   bankroll: SportsbookAccount[];

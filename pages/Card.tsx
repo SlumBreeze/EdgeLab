@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useGameContext } from '../hooks/useGameContext';
-import { HighHitAnalysis, QueuedGame, SportsbookAccount } from '../types';
+import { HighHitAnalysis, QueuedGame, SportsbookAccount, AutoPickResult } from '../types';
 import { MAX_DAILY_PLAYS } from '../constants';
 import { analyzeCard, CardAnalytics, DiversificationWarning, PLScenario } from '../utils/cardAnalytics';
 import { useToast, createToastHelpers } from '../components/Toast';
@@ -74,7 +74,7 @@ const getAlternativeBook = (
 
 export default function Card() {
   const { queue, getPlayableCount, autoPickBestGames, totalBankroll, unitSizePercent } = useGameContext();
-  const [pickLimit, setPickLimit] = useState(6);
+  const [lastPickResult, setLastPickResult] = useState<AutoPickResult | null>(null);
   
   // Toast
   const { addToast } = useToast();
@@ -106,6 +106,19 @@ export default function Card() {
            s.wins === 1 || 
            s.wins === 0;
   });
+
+  const handleSmartPick = () => {
+    const result = autoPickBestGames();
+    setLastPickResult(result);
+    
+    if (result.picked === 0) {
+      toast.showWarning("No picks met quality thresholds");
+    } else if (result.skipped > 0) {
+      toast.showSuccess(`Smart Card: ${result.picked} quality picks (${result.skipped} skipped)`);
+    } else {
+      toast.showSuccess(`Smart Card: ${result.picked} picks`);
+    }
+  };
 
   const generateClipboardText = () => {
     const dateStr = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
@@ -175,34 +188,45 @@ export default function Card() {
           hasAutoPicked={hasAutoPicked}
         />
         
-        {/* Auto-Pick Section */}
+        {/* Smart Pick Section */}
         {playable.length > 0 && (
           <div className="mb-6 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
               <div className="flex justify-between items-center mb-3">
-                  <span className="font-bold text-slate-700 text-sm">Auto-Pick Settings</span>
-                  <span className="text-xs font-bold bg-slate-100 text-slate-600 px-2 py-1 rounded">Top {pickLimit} Games</span>
+                  <div>
+                    <span className="font-bold text-slate-700 text-sm">Smart Pick</span>
+                    <p className="text-[10px] text-slate-400 mt-0.5">
+                      Only picks with real mathematical edge
+                    </p>
+                  </div>
+                  <span className="text-xs font-bold bg-slate-100 text-slate-600 px-2 py-1 rounded">
+                    {playable.length} playable
+                  </span>
               </div>
-              <input 
-                  type="range" 
-                  min="1" 
-                  max="8" 
-                  step="1"
-                  value={pickLimit}
-                  onChange={(e) => setPickLimit(parseInt(e.target.value))}
-                  className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-amber-500 mb-4"
-              />
+              
               <button
-                  onClick={() => {
-                      autoPickBestGames(pickLimit);
-                      toast.showSuccess(`Card Generated: Top ${pickLimit} Picks`);
-                  }}
+                  onClick={handleSmartPick}
                   className="w-full py-3 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 text-white font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
               >
-                  <span>🎯</span> Generate Card
+                  <span>🎯</span> Generate Smart Card
               </button>
+              
               <p className="text-center text-[10px] text-slate-400 mt-2">
-                  Filters out odds worse than -160 automatically.
+                  Requires: +0.5 pts, +15¢ juice, or HIGH confidence
               </p>
+              
+              {/* Show last pick result if skipped any */}
+              {lastPickResult && lastPickResult.skipped > 0 && (
+                <details className="mt-3 text-xs">
+                  <summary className="text-amber-600 font-medium cursor-pointer hover:text-amber-700">
+                    {lastPickResult.skipped} playable skipped (no edge)
+                  </summary>
+                  <div className="mt-2 p-2 bg-amber-50 rounded-lg text-amber-700 space-y-1">
+                    {lastPickResult.reasons.map((reason, idx) => (
+                      <div key={idx}>• {reason}</div>
+                    ))}
+                  </div>
+                </details>
+              )}
           </div>
         )}
 
@@ -421,6 +445,11 @@ const PlayableCard: React.FC<{ game: QueuedGame; dim?: boolean }> = ({ game, dim
     altBook = getAlternativeBook(game, a, bankroll, wagerAmount);
   }
 
+  // Quality indicator for smart pick
+  const linePoints = a.lineValuePoints || 0;
+  const juiceCents = a.lineValueCents || 0;
+  const isPremium = linePoints >= 0.5 || juiceCents >= 15 || a.confidence === 'HIGH';
+
   return (
     <div className={`p-4 rounded-2xl shadow-lg relative transition-all ${
       dim ? 'opacity-40 grayscale-[50%]' : ''
@@ -435,7 +464,8 @@ const PlayableCard: React.FC<{ game: QueuedGame; dim?: boolean }> = ({ game, dim
     }`}>
       {/* SLOT BADGE */}
       {slot && (
-        <div className="absolute -top-3 -right-2 bg-amber-400 text-amber-900 border-2 border-white shadow-md font-black italic px-3 py-1 rounded-full text-xs z-10">
+        <div className="absolute -top-3 -right-2 bg-amber-400 text-amber-900 border-2 border-white shadow-md font-black italic px-3 py-1 rounded-full text-xs z-10 flex items-center gap-1">
+          {isPremium && <span>⭐</span>}
           SLOT #{slot}
         </div>
       )}
@@ -451,11 +481,23 @@ const PlayableCard: React.FC<{ game: QueuedGame; dim?: boolean }> = ({ game, dim
 
       <div className="flex justify-between items-start mb-2">
         <span className={`text-xs font-bold uppercase ${hasCaution ? 'text-slate-700' : 'text-white/70'}`}>{game.sport}</span>
-        {a.recProbability !== undefined && a.recProbability > 0 && (
-          <span className={`text-xs font-mono px-2 py-1 rounded-full ${hasCaution ? 'bg-white/40 text-slate-900' : 'bg-white/20'}`}>
-            Fair: {a.recProbability.toFixed(1)}%
-          </span>
-        )}
+        <div className="flex items-center gap-2">
+          {/* Edge Quality Badge */}
+          {(linePoints > 0 || juiceCents > 0) && (
+            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+              hasCaution ? 'bg-white/40 text-slate-900' : 'bg-white/20'
+            }`}>
+              {linePoints > 0 && `+${linePoints}pts`}
+              {linePoints > 0 && juiceCents > 0 && ' '}
+              {juiceCents > 0 && `+${juiceCents}¢`}
+            </span>
+          )}
+          {a.recProbability !== undefined && a.recProbability > 0 && (
+            <span className={`text-xs font-mono px-2 py-1 rounded-full ${hasCaution ? 'bg-white/40 text-slate-900' : 'bg-white/20'}`}>
+              Fair: {a.recProbability.toFixed(1)}%
+            </span>
+          )}
+        </div>
       </div>
       
       {/* THE PICK - BIG AND BOLD */}
