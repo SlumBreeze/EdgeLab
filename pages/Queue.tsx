@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useGameContext } from '../hooks/useGameContext';
 import { extractLinesFromScreenshot, quickScanGame, analyzeGame } from '../services/geminiService';
@@ -138,6 +137,26 @@ export default function Queue() {
     }
   };
 
+  const handleAnalyzeAll = () => {
+    const gamesToAnalyze = queue.filter(g => 
+      !g.analysis && 
+      !g.analysisError &&
+      !analysisQueue.includes(g.id) && 
+      activeAnalysisId !== g.id
+    );
+
+    if (gamesToAnalyze.length === 0) {
+      toast.showInfo("No eligible games to analyze.");
+      return;
+    }
+
+    const ids = gamesToAnalyze.map(g => g.id);
+    setAnalysisQueue(prev => [...prev, ...ids]);
+    toast.showSuccess(`Queued ${ids.length} games for analysis.`);
+  };
+
+  const pendingCount = queue.filter(g => !g.analysis && !g.analysisError && !analysisQueue.includes(g.id) && activeAnalysisId !== g.id).length;
+
   const handleRemoveFromQueue = (gameId: string) => {
     setAnalysisQueue(prev => prev.filter(id => id !== gameId));
     toast.showInfo("Removed from analysis queue");
@@ -214,11 +233,23 @@ export default function Queue() {
   return (
     <div className="h-full overflow-y-auto p-4">
       <div className="max-w-lg mx-auto pb-24">
-        <header className="mb-6 flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-slate-800">Analysis Queue</h1>
-          <span className="bg-coral-100 text-coral-600 text-xs px-3 py-1.5 rounded-full font-bold">
-            {queue.length} Games
-          </span>
+        <header className="mb-6 flex flex-col gap-3">
+          <div className="flex justify-between items-center">
+            <h1 className="text-2xl font-bold text-slate-800">Analysis Queue</h1>
+            <span className="bg-coral-100 text-coral-600 text-xs px-3 py-1.5 rounded-full font-bold">
+              {queue.length} Games
+            </span>
+          </div>
+          
+          {pendingCount > 0 && (
+            <button 
+                onClick={handleAnalyzeAll}
+                className="w-full py-3 bg-gradient-to-r from-slate-700 to-slate-900 hover:from-slate-800 hover:to-black text-white rounded-xl font-bold shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2"
+            >
+                <span className="animate-pulse">⚡</span> 
+                {analysisQueue.length > 0 ? `Queued (${analysisQueue.length}) — Add ${pendingCount} More` : `Analyze Remaining (${pendingCount})`}
+            </button>
+          )}
         </header>
         
         {/* Swipe Hint */}
@@ -241,7 +272,7 @@ export default function Queue() {
                 key={game.id}
                 onSwipeLeft={() => handleManualRemove(game.id)}
                 leftAction={{ label: 'Remove', icon: '🗑️', color: 'bg-red-500' }}
-                disabled={activeAnalysisId === game.id || analyzingIds.has(game.id) || analyzingIds.has(game.id + 'SHARP') || analyzingIds.has(game.id + 'SOFT')}
+                disabled={activeAnalysisId === game.id || analysisQueue.includes(game.id) || analyzingIds.has(game.id) || analyzingIds.has(game.id + 'SHARP') || analyzingIds.has(game.id + 'SOFT')}
               >
                 <QueuedGameCard
                   game={game}
