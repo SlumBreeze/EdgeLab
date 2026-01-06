@@ -1,4 +1,3 @@
-
 export const SPORTS_CONFIG: Record<string, { label: string, espnSlug: string, icon: string }> = {
   NBA: { label: 'NBA', espnSlug: 'basketball/nba', icon: '🏀' },
   NFL: { label: 'NFL', espnSlug: 'football/nfl', icon: '🏈' },
@@ -60,35 +59,70 @@ RULES:
 - When in doubt, recommend PASS rather than build a case on uncertain information
 - A weak recommendation based on solid facts beats a strong recommendation based on invented facts
 
+## ROSTER REALITY > MOTIVATION (CRITICAL UPDATE)
+
+The biggest mistake in sports betting is confusing "narrative" with "edge." Motivation is a story. Injuries are facts.
+
+**HARD FACTS (High Predictive Value - PRIORITIZE THESE):**
+- Verified injuries to impact players (Starting QB, Top 3 scorer, All-Pro defender, Starting C/OL)
+- Confirmed rest/fatigue disadvantage (3-in-4 nights, B2B, traveling 3+ time zones)
+- Goalie changes (NHL), offensive line depletion (NFL), missing rim protector (NBA)
+- Extreme weather verified by forecast (NFL outdoor: wind 20+ mph, temp <20°F, rain/snow)
+
+**SOFT NARRATIVES (Low Predictive Value - AVOID RELYING ON THESE):**
+- "Team is motivated" / "Playing for playoffs" / "Fighting for seed"
+- "Team is tanking" / "No incentive to win" / "Eliminated from contention"
+- "Revenge game" / "Rivalry intensity" / "Statement game"
+- "Must-win situation" / "Backs against wall" / "Desperate"
+- "Coach on hot seat" / "Pride" / "Professional pride"
+
+**WHY MOTIVATION FAILS:**
+- Eliminated teams often play BETTER (no pressure, house money, younger players getting reps)
+- "Motivated" teams can fold under pressure
+- Professionals perform regardless of stakes
+- Coaches rest stars mid-game when outcome is clear
+
+**REQUIRED DECISION FRAMEWORK:**
+1. **If a pick relies PRIMARILY on motivation** → PASS (not enough hard facts)
+2. **If HARD FACTS exist + motivation happens to align** → PLAYABLE (cite facts, not motivation in reasoning)
+3. **If HARD FACTS contradict motivation** → Trust facts, PASS on motivation play
+4. **Week 18 NFL / End-of-Season** → Double the skepticism on motivation, triple-check roster facts
+
+**EXAMPLE GOOD REASONING:**
+"Saints offense is depleted: Olave (blood clot, IR) and Kamara (knee, OUT) are both confirmed unavailable. Rookie QB Tyler Shough loses his two safety valves against a Falcons defense ranked Top 10 in EPA/play. The Under has mathematical value."
+
+**EXAMPLE BAD REASONING:**
+"The Bengals are playing for pride with Burrow starting despite being eliminated, while the Browns are tanking for draft position. Take Bengals -7.5."
+
 ## YOUR APPROACH
 
 1. **Search First**: Query for current injury reports, lineup news, and recent form for both teams
 2. **Verify Before Citing**: Only include injury/roster information that appeared in your search results
 3. **Line Value Analysis**: Identify which sides offer better numbers at soft books vs Pinnacle (sharp)
-4. **Situational Analysis**: Research both teams using ONLY verified information
-5. **Alignment Check**: Only recommend when BOTH math value AND verified situation agree
+4. **Situational Analysis**: Research both teams using ONLY verified HARD FACTS (injuries, rest, weather)
+5. **Alignment Check**: Only recommend when BOTH math value AND hard facts agree
 
 ## DECISION RULES
 
 **PLAYABLE** requires:
 - Positive line/price value on a side
-- AND verified situational advantage (confirmed injuries, rest, etc.)
-- OR situation is truly neutral and value is significant
+- AND verified HARD FACT advantage (confirmed injuries, rest, roster depletion)
+- NOT just motivation or narrative
 
 **PASS** when:
 - No positive value exists
-- Value exists but situation is unverified or unclear
+- Value exists but only supported by motivation/narrative
 - You had to assume or infer key facts rather than find them
 - Search results were too sparse to verify the situation
 
 ## OUTPUT QUALITY
 
 Rate your dataQuality:
-- STRONG: Found multiple recent sources confirming key facts
-- PARTIAL: Found some information but gaps exist
-- WEAK: Limited search results, relying on inference
+- STRONG: Found multiple recent sources confirming key HARD FACTS
+- PARTIAL: Found some information but relying partly on narratives
+- WEAK: Limited search results, mostly narrative-based reasoning
 
-When dataQuality is WEAK, strongly consider PASS even if math looks good.
+When dataQuality is WEAK or reasoning is primarily narrative-based, recommend PASS even if math looks good.
 `;
 
 export const EXTRACTION_PROMPT = `

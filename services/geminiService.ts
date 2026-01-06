@@ -493,6 +493,42 @@ You MUST return strictly valid JSON.
   };
 
   const aiResult = cleanAndParseJson(response.text, fallback);
+
+  // ===============================================
+  // MOTIVATION VETO (ROSTER REALITY > MOTIVATION)
+  // ===============================================
+  if (aiResult.decision === 'PLAYABLE' && aiResult.reasoning) {
+    const motivationKeywords = [
+      'motivated', 'motivation', 'tanking', 'must-win', 'playoff', 
+      'eliminated', 'incentive', 'pride', 'desperate', 'revenge',
+      'rivalry', 'statement', 'hot seat', 'fighting for'
+    ];
+    
+    const hardFactKeywords = [
+      'injury', 'injured', 'out', 'questionable', 'doubtful',
+      'back-to-back', 'b2b', 'rest', 'fatigue', '3rd game',
+      'missing', 'without', 'depleted', 'goalie change',
+      'starting lineup', 'rotation', 'minutes restriction', 'travel',
+      'suspension', 'concussion', 'protocol', 'return'
+    ];
+    
+    const reasoningLower = aiResult.reasoning.toLowerCase();
+    const motivationCount = motivationKeywords.filter(k => reasoningLower.includes(k)).length;
+    const factCount = hardFactKeywords.filter(k => reasoningLower.includes(k)).length;
+    
+    // If reasoning has MORE motivation words than fact words, veto
+    if (motivationCount > factCount && motivationCount >= 2) {
+      return {
+        decision: 'PASS',
+        vetoTriggered: true,
+        vetoReason: `MOTIVATION_VETO: Reasoning relies too heavily on narrative (${motivationCount} motivation keywords vs ${factCount} hard facts). Need roster/rest facts to support pick.`,
+        researchSummary: aiResult.reasoning,
+        sharpImpliedProb,
+        publicNarrative: aiResult.publicNarrative,
+        gameScript: aiResult.gameScript
+      };
+    }
+  }
   
   // NEW: Data Quality Gate
   if (aiResult.dataQuality === 'WEAK' && aiResult.decision === 'PLAYABLE') {
