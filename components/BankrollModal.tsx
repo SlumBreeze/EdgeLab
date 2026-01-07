@@ -121,55 +121,49 @@ export const BankrollModal: React.FC<Props> = ({ isOpen, onClose }) => {
             })}
           </div>
 
-          {/* CLOUD SYNC SECTION */}
+          {/* SYNC IDENTITY SECTION */}
           <div className="mt-6 pt-4 border-t border-slate-200">
-             <button 
-                onClick={() => setShowSync(!showSync)}
-                className="flex items-center justify-between w-full text-left text-slate-600 font-bold text-xs mb-2 p-1 hover:bg-slate-50 rounded"
-             >
-                <span className="flex items-center gap-2">☁️ Cross-Device Sync</span>
-                <span className="text-slate-400">{showSync ? '▲' : '▼'}</span>
-             </button>
+             <h3 className="text-xs font-bold text-slate-700 mb-3 flex items-center gap-2">
+                <span>🔑</span> Access Key
+             </h3>
              
-             {showSync && (
-                <div className="bg-slate-50 rounded-xl p-3 border border-slate-200 text-sm">
-                    <p className="text-slate-500 mb-3 text-[10px] leading-relaxed">
-                        To access your data on another device, copy your ID below and paste it on the new device.
-                    </p>
-                    
-                    <div className="mb-3">
-                        <label className="text-[9px] uppercase font-bold text-slate-400 block mb-1">Your Current ID</label>
-                        <div className="flex gap-2">
-                            <code className="flex-1 bg-white border border-slate-200 p-1.5 rounded-lg font-mono text-[10px] text-slate-700 overflow-hidden text-ellipsis">
-                                {userId}
-                            </code>
-                            <button onClick={handleCopyId} className="bg-white border border-slate-200 hover:bg-slate-100 text-slate-600 px-2 rounded-lg text-[10px] font-bold">
-                                Copy
-                            </button>
-                        </div>
-                    </div>
-
-                    <div>
-                        <label className="text-[9px] uppercase font-bold text-slate-400 block mb-1">Load ID from another device</label>
-                        <div className="flex gap-2">
-                            <input 
-                                type="text" 
-                                value={inputUserId}
-                                onChange={(e) => setInputUserId(e.target.value)}
-                                placeholder="Paste ID here..."
-                                className="flex-1 border border-slate-200 p-1.5 rounded-lg text-[10px] focus:ring-2 focus:ring-coral-200 outline-none"
-                            />
-                            <button 
-                                onClick={handleLoadUser}
-                                disabled={inputUserId.length < 5}
-                                className="bg-slate-800 hover:bg-slate-900 text-white px-3 rounded-lg text-[10px] font-bold disabled:opacity-50"
-                            >
-                                Load
-                            </button>
-                        </div>
+             <div className="bg-slate-50 rounded-xl p-3 border border-slate-200">
+                <p className="text-slate-500 mb-3 text-[10px] leading-relaxed">
+                   This key saves your data to the cloud. Use it to access your bankroll on any device.
+                </p>
+                
+                <div className="mb-3">
+                    <label className="text-[9px] uppercase font-bold text-slate-400 block mb-1">Your Key</label>
+                    <div className="flex gap-2">
+                        <code className="flex-1 bg-white border border-slate-200 p-2 rounded-lg font-mono text-xs text-slate-700 overflow-hidden text-ellipsis shadow-sm">
+                            {userId}
+                        </code>
+                        <button onClick={handleCopyId} className="bg-white border border-slate-200 hover:bg-slate-100 text-slate-600 px-3 rounded-lg text-xs font-bold shadow-sm">
+                            Copy
+                        </button>
                     </div>
                 </div>
-             )}
+
+                <div>
+                    <label className="text-[9px] uppercase font-bold text-slate-400 block mb-1">Switch Account</label>
+                    <div className="flex gap-2">
+                        <input 
+                            type="text" 
+                            value={inputUserId}
+                            onChange={(e) => setInputUserId(e.target.value)}
+                            placeholder="Paste key from other device..."
+                            className="flex-1 border border-slate-200 p-2 rounded-lg text-xs focus:ring-2 focus:ring-coral-200 outline-none shadow-inner"
+                        />
+                        <button 
+                            onClick={handleLoadUser}
+                            disabled={inputUserId.length < 5}
+                            className="bg-slate-800 hover:bg-slate-900 text-white px-4 rounded-lg text-xs font-bold disabled:opacity-50 shadow-sm transition-all"
+                        >
+                            Load
+                        </button>
+                    </div>
+                </div>
+             </div>
           </div>
         </div>
 
