@@ -1,0 +1,13 @@
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args: [
+      'build',
+      '-t', 'gcr.io/$PROJECT_ID/edgelab2',
+      '--build-arg', 'GEMINI_API_KEY=$_GEMINI_API_KEY',
+      '--build-arg', 'ODDS_API_KEY=$_ODDS_API_KEY',
+      '--build-arg', 'SUPABASE_URL=$_SUPABASE_URL',
+      '--build-arg', 'SUPABASE_KEY=$_SUPABASE_KEY',
+      '.'
+    ]
+images:
+  - 'gcr.io/$PROJECT_ID/edgelab2'

@@ -1,8 +1,8 @@
 
 import { BookLines, Sport } from '../types';
 
-// UPDATED: Hardcoded fallback restored as requested to guarantee functionality
-const API_KEY = process.env.ODDS_API_KEY || "c99ceaaa8dd6ba6be5d5293bfe7be3da";
+// UPDATED: Hardcoded fallback removed to improve security
+const API_KEY = process.env.ODDS_API_KEY;
 const BASE_URL = 'https://api.the-odds-api.com/v4/sports';
 
 // Cache Duration: 60 minutes (keeps "Scout" free for an hour)

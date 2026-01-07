@@ -6,7 +6,6 @@ import { fetchOddsForSport, getBookmakerLines, fetchAllSportsOdds } from '../ser
 import { quickScanGame } from '../services/geminiService';
 import { useGameContext } from '../hooks/useGameContext';
 import { useToast, createToastHelpers } from '../components/Toast';
-import PullToRefresh from '../components/PullToRefresh';
 
 export default function Scout() {
   const [selectedSport, setSelectedSport] = useState<Sport>('NBA');
@@ -229,20 +228,29 @@ export default function Scout() {
             className="flex-1 bg-white text-slate-800 p-3 rounded-xl border border-slate-200 focus:outline-none focus:border-coral-400 focus:ring-2 focus:ring-coral-100 shadow-sm"
           />
           {apiGames.length > 0 && (
-            <button
-              onClick={handleScanAll}
-              disabled={batchScanning}
-              className={`px-4 rounded-xl font-bold text-sm shadow-sm transition-all whitespace-nowrap ${batchScanning ? 'bg-slate-100 text-slate-400' : 'bg-indigo-600 hover:bg-indigo-700 text-white'}`}
-            >
-              {batchScanning ? <span className="flex items-center gap-2"><span className="animate-spin text-xs">⚡</span> {progressText}</span> : '⚡ Scan All'}
-            </button>
+            <>
+              <button
+                onClick={handleScanAll}
+                disabled={batchScanning}
+                className={`flex-1 px-4 rounded-xl font-bold text-sm shadow-sm transition-all whitespace-nowrap ${batchScanning ? 'bg-slate-100 text-slate-400' : 'bg-indigo-600 hover:bg-indigo-700 text-white'}`}
+              >
+                {batchScanning ? <span className="flex items-center justify-center gap-2"><span className="animate-spin text-xs">⚡</span> {progressText}</span> : '⚡ Scan All'}
+              </button>
+              <button
+                onClick={handleRefresh}
+                disabled={loading || batchScanning}
+                className="px-4 bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 rounded-xl font-bold shadow-sm transition-all text-xl"
+                title="Refresh Slates"
+              >
+                🔄
+              </button>
+            </>
           )}
         </div>
       </div>
 
-      {/* Scrollable List with Pull-to-Refresh */}
-      <div className="flex-1 overflow-hidden relative min-h-0">
-        <PullToRefresh onRefresh={handleRefresh} disabled={loading || batchScanning}>
+      {/* Scrollable List */}
+      <div className="flex-1 overflow-y-auto min-h-0 relative">
           <div className="p-4 pt-2 max-w-lg mx-auto space-y-3 pb-24">
             
             {loading ? (
@@ -293,7 +301,6 @@ export default function Scout() {
               })
             )}
           </div>
-        </PullToRefresh>
       </div>
     </div>
   );
