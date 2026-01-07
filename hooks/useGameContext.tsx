@@ -7,7 +7,7 @@ import { isPremiumEdge, isStandardEdge } from '../utils/edgeUtils';
 
 const GameContext = createContext<AnalysisState | undefined>(undefined);
 
-const getTodayKey = () => new Date().toISOString().split('T')[0];
+const getTodayKey = () => new Date().toLocaleDateString('en-CA');
 
 const INITIAL_BOOKS: SportsbookAccount[] = [
   { name: 'DraftKings', balance: 0, color: 'bg-green-500' },
@@ -313,8 +313,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const confidence = a.confidence || 'MEDIUM';
         
         // Use shared logic from edgeUtils
-        const isPremium = isPremiumEdge(linePoints, juiceCents, confidence);
-        const isStandard = isStandardEdge(linePoints, juiceCents);
+        const isPremium = isPremiumEdge(linePoints, juiceCents, confidence, g.sport, g.analysis?.market);
+        const isStandard = isStandardEdge(linePoints, juiceCents, g.sport, g.analysis?.market);
         
         // Only auto-pick if it meets at least STANDARD threshold
         if (isPremium || isStandard) {
@@ -334,8 +334,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const bp = b.analysis!;
         
         // Premium picks first (HIGH confidence or big edges)
-        const aPremium = isPremiumEdge(ap.lineValuePoints, ap.lineValueCents, ap.confidence);
-        const bPremium = isPremiumEdge(bp.lineValuePoints, bp.lineValueCents, bp.confidence);
+        const aPremium = isPremiumEdge(ap.lineValuePoints, ap.lineValueCents, ap.confidence, a.sport, ap.market);
+        const bPremium = isPremiumEdge(bp.lineValuePoints, bp.lineValueCents, bp.confidence, b.sport, bp.market);
         
         if (aPremium !== bPremium) return bPremium ? 1 : -1;
         

@@ -452,7 +452,7 @@ const PlayableCard: React.FC<{ game: QueuedGame; dim?: boolean }> = ({ game, dim
   const juiceCents = a.lineValueCents || 0;
   
   // UPDATED: Use shared utility
-  const isPremium = isPremiumEdge(linePoints, juiceCents, a.confidence);
+  const isPremium = isPremiumEdge(linePoints, juiceCents, a.confidence, game.sport, a.market);
 
   return (
     <div className={`p-4 rounded-2xl shadow-lg relative transition-all ${

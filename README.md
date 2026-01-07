@@ -1,62 +1,61 @@
 <div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+<img width="1200" height="475" alt="EdgeLab Banner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
 </div>
 
-# EdgeLab - Sports Betting Analysis App
+# EdgeLab
 
-This app uses AI to analyze sports betting markets, identify positive value plays, and help manage your bankroll.
+**EdgeLab** is an advanced sports betting analysis platform that merges **Mathematical Edge Finding** with **AI-Powered Qualitative Research**.
 
-## Run Locally
+It helps you identify value plays by comparing "Sharp" bookmaker lines against the market and validating them with Gemini AI agents that check for injuries, motivation traps, and narrative contradictions.
 
-**Prerequisites:**  Node.js v20+
+## 🚀 Quick Start
 
-1. Install dependencies:
-   ```bash
-   npm install
-   ```
+1.  **Clone & Install:**
+    ```bash
+    git clone <repo-url>
+    cd edgelab
+    npm install
+    ```
 
-2. Configure Environment:
-   - Copy `.env.example` to `.env`
-   - Add your API keys (Gemini, Odds API, Supabase)
-   ```bash
-   cp .env.example .env
-   ```
+2.  **Configure:**
+    Copy `.env.example` to `.env` and add your keys (see [Setup Guide](docs/SETUP.md)).
+    ```bash
+    cp .env.example .env
+    ```
 
-3. Run the app:
-   ```bash
-   npm run dev
-   ```
+3.  **Run:**
+    ```bash
+    npm run dev
+    ```
 
-## Deployment (Google Cloud Run)
+## 📚 Documentation
 
-This project is configured for deployment on Google Cloud Run using Google Cloud Build.
+*   **[Features & Workflows](docs/FEATURES.md):** Detailed guide on Scout, Queue, Math Logic, and the Veto System.
+*   **[Setup & Config](docs/SETUP.md):** Environment variables and API keys.
 
-### Prerequisites
-- Google Cloud CLI (`gcloud`) installed and authenticated.
-- A Google Cloud Project with Cloud Run and Cloud Build APIs enabled.
+## 🛠 Tech Stack
 
-### 1. Build the Container
-Submit the build to Cloud Build. This securely bakes your API keys into the frontend application.
+*   **Frontend:** React 19, Vite, Tailwind CSS
+*   **AI:** Google Gemini (Pro & Flash models)
+*   **Data:** The Odds API, Supabase (Persistence)
 
+## ☁️ Deployment (Google Cloud Run)
+
+This project is optimized for Google Cloud Run.
+
+### 1. Build
 ```bash
-# Replace the placeholder values with your actual keys
 gcloud builds submit --config cloudbuild.yaml \
   --project YOUR_PROJECT_ID \
-  --substitutions="_GEMINI_API_KEY=your_key,_ODDS_API_KEY=your_key,_SUPABASE_URL=your_url,_SUPABASE_KEY=your_key"
+  --substitutions="_GEMINI_API_KEY=key,_ODDS_API_KEY=key,_SUPABASE_URL=url,_SUPABASE_KEY=key"
 ```
 
-### 2. Deploy to Cloud Run
-Deploy the built image to a Cloud Run service.
-
+### 2. Deploy
 ```bash
-gcloud run deploy edgelab2 \
-  --image gcr.io/YOUR_PROJECT_ID/edgelab2 \
+gcloud run deploy edgelab \
+  --image gcr.io/YOUR_PROJECT_ID/edgelab \
   --project YOUR_PROJECT_ID \
   --region us-central1 \
   --allow-unauthenticated
 ```
 
-### Quick Re-deploy
-If your API keys haven't changed, you can skip the build arguments in the build step, but you must ensure the `_VAR` substitutions are set or use the previously built image if no code changes occurred. Ideally, run both commands for a full update.
-
-```
