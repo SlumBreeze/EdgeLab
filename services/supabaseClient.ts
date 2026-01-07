@@ -16,9 +16,11 @@ console.log("[Supabase] URL:", supabaseUrl?.substring(0, 30) + "...");
 console.log("[Supabase] Configured:", isConfigured);
 
 if (!supabaseUrl || !supabaseKey) {
-    throw new Error("Supabase URL or Key is missing. Please check your .env file.");
+    console.warn("Supabase URL or Key is missing. Supabase features will be disabled.");
 }
 
-export const supabase = createClient(supabaseUrl, supabaseKey);
+export const supabase = (supabaseUrl && supabaseKey) 
+  ? createClient(supabaseUrl, supabaseKey) 
+  : createClient('https://placeholder.supabase.co', 'placeholder');
 
 export const isSupabaseConfigured = isConfigured;

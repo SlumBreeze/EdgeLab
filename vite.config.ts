@@ -13,6 +13,7 @@ export default defineConfig(({ mode }) => {
       'process.env.SUPABASE_URL': JSON.stringify(env.SUPABASE_URL),
       // CONFIRMED: Using the Anon Key (JWT) for client-side access
       'process.env.SUPABASE_KEY': JSON.stringify(env.SUPABASE_KEY),
+      'process.env': {},
     },
   };
 });
