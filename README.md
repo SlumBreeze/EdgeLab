@@ -50,9 +50,10 @@ When you need to redeploy after making code changes:
 
 **Step 1: Build the container image**
 ```bash
+# Get your API keys from .env file, then run:
 gcloud builds submit --config cloudbuild.yaml \
   --project gen-lang-client-0947461139 \
-  --substitutions="_GEMINI_API_KEY=AIzaSyAWsrEHiEUD4LYHMhvARh_grKGn_7JA3mE,_ODDS_API_KEY=c99ceaaa8dd6ba6be5d5293bfe7be3da,_SUPABASE_URL=https://thcstqwbinhbkpstcvme.supabase.co,_SUPABASE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRoY3N0cXdiaW5oYmtwc3Rjdm1lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjYyNDQxMDIsImV4cCI6MjA4MTgyMDEwMn0.gdCn1H9MCPmoTPOo06m12QtzgWbTmpOqcX_bKSFLd_I"
+  --substitutions="_GEMINI_API_KEY=YOUR_GEMINI_KEY,_ODDS_API_KEY=YOUR_ODDS_KEY,_SUPABASE_URL=YOUR_SUPABASE_URL,_SUPABASE_KEY=YOUR_SUPABASE_KEY"
 ```
 
 **Step 2: Deploy to Cloud Run**
