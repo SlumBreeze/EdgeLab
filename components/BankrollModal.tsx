@@ -67,16 +67,22 @@ export const BankrollModal: React.FC<Props> = ({ isOpen, onClose }) => {
 
             {/* SLIDER RESTORED */}
             <div className="mt-4">
-                <div className="flex justify-between text-[10px] opacity-60 font-bold mb-1">
+                <div className="flex justify-between items-center text-[10px] opacity-60 font-bold mb-1">
                     <span>Conservative (1%)</span>
+                    <button
+                        onClick={() => setUnitSizePercent(2.0)}
+                        className="text-xs text-slate-400 hover:text-slate-600 transition-colors"
+                    >
+                        Reset
+                    </button>
                     <span>Aggressive (5%)</span>
                 </div>
-                <input 
-                    type="range" 
-                    min="1" 
-                    max="5" 
+                <input
+                    type="range"
+                    min="1"
+                    max="5"
                     step="0.1"
-                    value={unitSizePercent} 
+                    value={unitSizePercent}
                     onChange={(e) => setUnitSizePercent(parseFloat(e.target.value))}
                     className="w-full h-2 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-emerald-400 hover:accent-emerald-300"
                 />
