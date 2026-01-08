@@ -28,6 +28,19 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // User ID for Database Persistence
   const [userId, setUserIdState] = useState(() => {
     try {
+      // 1. Check URL for quick-login
+      if (typeof window !== 'undefined') {
+        const params = new URLSearchParams(window.location.search);
+        const urlId = params.get('uid');
+        if (urlId && urlId.length > 5) {
+           localStorage.setItem('edgelab_user_id', urlId);
+           // Clear param from URL cleanly
+           window.history.replaceState({}, document.title, window.location.pathname);
+           return urlId;
+        }
+      }
+
+      // 2. Check LocalStorage
       let id = localStorage.getItem('edgelab_user_id');
       if (!id) {
         id = crypto.randomUUID();

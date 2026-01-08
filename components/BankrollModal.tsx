@@ -139,7 +139,14 @@ export const BankrollModal: React.FC<Props> = ({ isOpen, onClose }) => {
                             {userId}
                         </code>
                         <button onClick={handleCopyId} className="bg-white border border-slate-200 hover:bg-slate-100 text-slate-600 px-3 rounded-lg text-xs font-bold shadow-sm">
-                            Copy
+                            Copy ID
+                        </button>
+                        <button onClick={() => {
+                            const url = `${window.location.origin}?uid=${userId}`;
+                            navigator.clipboard.writeText(url);
+                            alert("Magic Link copied! Open this on another device to auto-sync.");
+                        }} className="bg-indigo-50 border border-indigo-100 hover:bg-indigo-100 text-indigo-600 px-3 rounded-lg text-xs font-bold shadow-sm">
+                            🔗 Link
                         </button>
                     </div>
                 </div>
