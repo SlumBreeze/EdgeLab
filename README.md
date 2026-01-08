@@ -41,21 +41,32 @@ It helps you identify value plays by comparing "Sharp" bookmaker lines against t
 
 ## ☁️ Deployment (Google Cloud Run)
 
-This project is optimized for Google Cloud Run.
+This project is deployed to Google Cloud Run at:
+**https://edgelab-92046617352.us-central1.run.app**
 
-### 1. Build
+### Quick Redeploy
+
+When you need to redeploy after making code changes:
+
+**Step 1: Build the container image**
 ```bash
 gcloud builds submit --config cloudbuild.yaml \
-  --project YOUR_PROJECT_ID \
-  --substitutions="_GEMINI_API_KEY=key,_ODDS_API_KEY=key,_SUPABASE_URL=url,_SUPABASE_KEY=key"
+  --project gen-lang-client-0947461139 \
+  --substitutions="_GEMINI_API_KEY=AIzaSyAWsrEHiEUD4LYHMhvARh_grKGn_7JA3mE,_ODDS_API_KEY=c99ceaaa8dd6ba6be5d5293bfe7be3da,_SUPABASE_URL=https://thcstqwbinhbkpstcvme.supabase.co,_SUPABASE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRoY3N0cXdiaW5oYmtwc3Rjdm1lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjYyNDQxMDIsImV4cCI6MjA4MTgyMDEwMn0.gdCn1H9MCPmoTPOo06m12QtzgWbTmpOqcX_bKSFLd_I"
 ```
 
-### 2. Deploy
+**Step 2: Deploy to Cloud Run**
 ```bash
 gcloud run deploy edgelab \
-  --image gcr.io/YOUR_PROJECT_ID/edgelab \
-  --project YOUR_PROJECT_ID \
+  --image gcr.io/gen-lang-client-0947461139/edgelab2 \
+  --project gen-lang-client-0947461139 \
   --region us-central1 \
   --allow-unauthenticated
 ```
+
+### Notes
+- Build typically takes 30-60 seconds
+- Deploy takes another 30-60 seconds
+- API keys are baked into the container at build time
+- If you update API keys in `.env`, you must rebuild the container
 
