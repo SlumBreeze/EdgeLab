@@ -453,6 +453,10 @@ You MUST return strictly valid JSON.
       4. When citing a player's status, you must have seen it in a search result from the last 48 hours
       5. If your search returns limited results, acknowledge the uncertainty rather than filling gaps
       6. Distinguish between VERIFIED (from search) and INFERRED (your reasoning) — label them clearly
+      7. Every factual statement in narrative_analysis MUST appear verbatim in facts_used.claim
+      8. Any prior game result, stat line, ranking, or numeric performance claim MUST be in facts_used with source_type: "BOX_SCORE" and confidence: "HIGH"
+      9. All injuries mentioned anywhere MUST be in injuries[]; narrative_analysis may only interpret injuries, never introduce them
+      10. If data is missing, use "DATA NOT PROVIDED" instead of inference
 
       FORBIDDEN BEHAVIORS:
       - Do not claim a player was traded unless you found a news article about the trade
@@ -465,7 +469,7 @@ You MUST return strictly valid JSON.
         "decision": "PLAYABLE" or "PASS",
         "recommendedSide": "AWAY", "HOME", "OVER", "UNDER",
         "recommendedMarket": "Spread", "Moneyline", "Total",
-        "narrative_analysis": "Interpretation only. Do NOT introduce new facts.",
+        "narrative_analysis": "Interpretation only. Restate facts_used verbatim; do NOT add new facts.",
         "facts_used": [
           {
             "claim": "A verifiable fact found in search results",

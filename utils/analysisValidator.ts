@@ -81,7 +81,26 @@ export const validateAnalysis = (input: ValidationInput): ValidationResult => {
   const dominanceRatio = tokenCount > 0 ? factMentions / tokenCount : 0;
   const thresholds = getDominanceThresholds(input.sport);
 
+  const logMissingFactSentence = () => {
+    const sentences = narrative
+      .split(/(?<=[.!?])\s+/)
+      .map(s => s.trim())
+      .filter(Boolean);
+    for (const sentence of sentences) {
+      const hasFactSignal = /\d/.test(sentence) || injuryKeywordPattern.test(sentence) || rosterChangePattern.test(sentence);
+      if (!hasFactSignal) continue;
+      const matchesFact = input.factsUsed.some(fact =>
+        sentence.toLowerCase().includes(fact.claim.toLowerCase())
+      );
+      if (!matchesFact) {
+        console.log(`VETO: narrative fact not declared in facts_used -> "${sentence}"`);
+        break;
+      }
+    }
+  };
+
   if (hasUnverifiedFacts(input.factsUsed)) {
+    logMissingFactSentence();
     return {
       vetoTriggered: true,
       vetoReason: 'UNVERIFIED_FACT_DEPENDENCY',
@@ -93,6 +112,7 @@ export const validateAnalysis = (input: ValidationInput): ValidationResult => {
 
   const noInjuryDataNoted = /no verified injury|data not provided/i.test(narrative);
   if (injuryKeywordPattern.test(narrative) && input.injuries.length === 0 && !noInjuryDataNoted) {
+    logMissingFactSentence();
     return {
       vetoTriggered: true,
       vetoReason: 'INJURY_TEXT_NOT_STRUCTURED',
@@ -103,6 +123,7 @@ export const validateAnalysis = (input: ValidationInput): ValidationResult => {
   }
 
   if (!hasBoxScoreSupport(input.factsUsed) && (statPattern.test(narrative) || scorePattern.test(narrative))) {
+    logMissingFactSentence();
     return {
       vetoTriggered: true,
       vetoReason: 'UNVERIFIED_HISTORICAL_CLAIM',
@@ -113,6 +134,7 @@ export const validateAnalysis = (input: ValidationInput): ValidationResult => {
   }
 
   if (!hasRosterChangeSupport(input.factsUsed) && rosterChangePattern.test(narrative)) {
+    logMissingFactSentence();
     return {
       vetoTriggered: true,
       vetoReason: 'UNVERIFIED_HISTORICAL_CLAIM',
@@ -123,6 +145,7 @@ export const validateAnalysis = (input: ValidationInput): ValidationResult => {
   }
 
   if (dominanceRatio < thresholds.warn) {
+    logMissingFactSentence();
     return {
       vetoTriggered: true,
       vetoReason: 'NARRATIVE_DOMINANCE',

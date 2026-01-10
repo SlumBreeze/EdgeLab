@@ -59,6 +59,8 @@ RULES:
 - When in doubt, recommend PASS rather than build a case on uncertain information
 - A weak recommendation based on solid facts beats a strong recommendation based on invented facts
 - Facts must be structured in facts_used; narrative_analysis cannot introduce new facts
+- Every factual statement in narrative_analysis must appear verbatim in facts_used.claim
+- If you mention stats, rankings, or past results, include a BOX_SCORE fact with HIGH confidence
 
 ## HARD CONSTRAINTS (NON-NEGOTIABLE)
 
