@@ -74,6 +74,13 @@ const getAlternativeBook = (
   return candidates.length > 0 ? candidates[0] : null;
 };
 
+const getFactConfidenceStyle = (confidence?: string) => {
+  if (confidence === 'HIGH') return 'bg-emerald-100 text-emerald-700 border-emerald-200';
+  if (confidence === 'MEDIUM') return 'bg-amber-100 text-amber-700 border-amber-200';
+  if (confidence === 'LOW') return 'bg-red-100 text-red-600 border-red-200';
+  return 'bg-slate-100 text-slate-500 border-slate-200';
+};
+
 export default function Card() {
   const { queue, getPlayableCount, autoPickBestGames, totalBankroll, unitSizePercent } = useGameContext();
   const [lastPickResult, setLastPickResult] = useState<AutoPickResult | null>(null);
@@ -424,6 +431,8 @@ const PlayableCard: React.FC<{ game: QueuedGame; dim?: boolean }> = ({ game, dim
   const a = game.analysis;
   
   const hasCaution = !!a.caution;
+  const hasFactConfidence = !!a.factConfidence;
+  const isFactConfidenceHigh = a.factConfidence === 'HIGH';
   const slot = game.cardSlot;
 
   // Wager Calculation
@@ -465,7 +474,7 @@ const PlayableCard: React.FC<{ game: QueuedGame; dim?: boolean }> = ({ game, dim
       hasCaution 
         ? 'bg-gradient-to-br from-amber-400 to-yellow-500 text-slate-800' 
         : 'bg-gradient-to-br from-teal-500 to-emerald-500 text-white'
-    }`}>
+    } ${hasFactConfidence && !isFactConfidenceHigh ? 'opacity-80' : ''}`}>
       {/* SLOT BADGE */}
       {slot && (
         <div className="absolute -top-3 -right-2 bg-amber-400 text-amber-900 border-2 border-white shadow-md font-black italic px-3 py-1 rounded-full text-xs z-10 flex items-center gap-1">
@@ -480,6 +489,12 @@ const PlayableCard: React.FC<{ game: QueuedGame; dim?: boolean }> = ({ game, dim
           hasCaution ? 'bg-amber-600/20 text-amber-900' : ''
         }`}>
           {a.caution}
+        </div>
+      )}
+
+      {hasFactConfidence && (
+        <div className={`mb-3 px-2 py-1 rounded-lg text-[10px] font-bold uppercase border ${getFactConfidenceStyle(a.factConfidence)}`}>
+          Fact Confidence: {a.factConfidence}
         </div>
       )}
 
@@ -609,6 +624,12 @@ const PassedCard: React.FC<{ game: QueuedGame }> = ({ game }) => {
           </span>
         )}
       </div>
+
+      {a.factConfidence && (
+        <div className={`mb-2 inline-flex px-2 py-1 rounded-lg text-[10px] font-bold uppercase border ${getFactConfidenceStyle(a.factConfidence)}`}>
+          Fact Confidence: {a.factConfidence}
+        </div>
+      )}
       
       <div className="font-bold text-slate-600 mb-2">
         {game.awayTeam.name} @ {game.homeTeam.name}

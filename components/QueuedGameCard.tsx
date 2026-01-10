@@ -159,6 +159,13 @@ const QueuedGameCard: React.FC<Props> = ({
     return '⚪';
   };
 
+  const getFactConfidenceStyle = (confidence?: string) => {
+    if (confidence === 'HIGH') return 'bg-emerald-100 text-emerald-700 border-emerald-200';
+    if (confidence === 'MEDIUM') return 'bg-amber-100 text-amber-700 border-amber-200';
+    if (confidence === 'LOW') return 'bg-red-100 text-red-600 border-red-200';
+    return 'bg-slate-100 text-slate-500 border-slate-200';
+  };
+
   // DraftKings-style line cell component
   const LineCell: React.FC<{ 
     line?: string; 
@@ -433,7 +440,12 @@ const QueuedGameCard: React.FC<Props> = ({
             game.analysis.decision === 'PLAYABLE' 
               ? 'bg-gradient-to-r from-teal-500 to-emerald-500 text-white' 
               : 'bg-slate-200 text-slate-600'
-          }`}>
+          } ${game.analysis.factConfidence && game.analysis.factConfidence !== 'HIGH' ? 'opacity-80' : ''}`}>
+            {game.analysis.factConfidence && (
+              <div className={`px-4 py-2 text-[10px] font-bold uppercase border-b ${getFactConfidenceStyle(game.analysis.factConfidence)}`}>
+                Fact Confidence: {game.analysis.factConfidence}
+              </div>
+            )}
             {/* Decision Header */}
             <div className="px-4 py-3 flex justify-between items-center">
               <span className="font-bold text-sm flex items-center gap-2">

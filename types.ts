@@ -30,6 +30,25 @@ export interface BookLines {
   mlOddsB: string;
 }
 
+export type FactSourceType = 'NBA_INJURY_REPORT' | 'BOX_SCORE' | 'ODDS_API';
+export type FactConfidence = 'HIGH' | 'MEDIUM';
+
+export interface Fact {
+  claim: string;
+  source_type: FactSourceType;
+  confidence: FactConfidence;
+  source_ref?: string;
+}
+
+export type InjuryStatus = 'OUT' | 'QUESTIONABLE' | 'PROBABLE';
+
+export interface InjuryFact {
+  team: string;
+  player: string;
+  status: InjuryStatus;
+  source: 'NBA_INJURY_REPORT';
+}
+
 export interface QueuedGame extends Game {
   visibleId: string;
   addedAt: number;
@@ -78,6 +97,11 @@ export interface HighHitAnalysis {
   edgeNarrative?: string; // Plain English description of any situational edge. Do NOT assign percentages.
   confidence?: 'HIGH' | 'MEDIUM' | 'LOW';
   dataQuality?: 'STRONG' | 'PARTIAL' | 'WEAK';
+  factsUsed?: Fact[];
+  narrativeAnalysis?: string;
+  injuries?: InjuryFact[];
+  factConfidence?: 'HIGH' | 'MEDIUM' | 'LOW';
+  dominanceRatio?: number;
 }
 
 export interface DailyPlayTracker {

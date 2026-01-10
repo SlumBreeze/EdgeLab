@@ -1,7 +1,8 @@
 
 import { GoogleGenAI, Type, Schema } from "@google/genai";
-import { BookLines, QueuedGame, HighHitAnalysis, Game } from '../types';
+import { BookLines, QueuedGame, HighHitAnalysis, Game, Fact, InjuryFact } from '../types';
 import { EXTRACTION_PROMPT, HIGH_HIT_SYSTEM_PROMPT } from '../constants';
+import { validateAnalysis, hasVerifiedAvailabilityMismatch } from '../utils/analysisValidator';
 
 const getAiClient = () => new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
@@ -464,11 +465,25 @@ You MUST return strictly valid JSON.
         "decision": "PLAYABLE" or "PASS",
         "recommendedSide": "AWAY", "HOME", "OVER", "UNDER",
         "recommendedMarket": "Spread", "Moneyline", "Total",
-        "reasoning": "...",
+        "narrative_analysis": "Interpretation only. Do NOT introduce new facts.",
+        "facts_used": [
+          {
+            "claim": "A verifiable fact found in search results",
+            "source_type": "NBA_INJURY_REPORT" | "BOX_SCORE" | "ODDS_API",
+            "confidence": "HIGH" | "MEDIUM",
+            "source_ref": "Optional short source label"
+          }
+        ],
+        "injuries": [
+          {
+            "team": "Team name",
+            "player": "Player name",
+            "status": "OUT" | "QUESTIONABLE" | "PROBABLE",
+            "source": "NBA_INJURY_REPORT"
+          }
+        ],
         "publicNarrative": "Describe the public/media story (if any)",
         "gameScript": "Briefly describe the likely game flow (e.g. Slow pace, shootout)",
-        "awayTeamInjuries": "List ONLY injuries found in search results. If none found, say 'No verified data'",
-        "homeTeamInjuries": "List ONLY injuries found in search results. If none found, say 'No verified data'",
         "situationFavors": "AWAY", "HOME", "NEUTRAL",
         "confidence": "HIGH", "MEDIUM", "LOW",
         "dataQuality": "STRONG", "PARTIAL", "WEAK"
@@ -482,11 +497,11 @@ You MUST return strictly valid JSON.
     decision: 'PASS',
     recommendedSide: null,
     recommendedMarket: null,
-    reasoning: 'Analysis could not be completed.',
+    narrative_analysis: 'Analysis could not be completed.',
+    facts_used: [] as Fact[],
+    injuries: [] as InjuryFact[],
     publicNarrative: 'Unknown',
     gameScript: 'Unknown',
-    awayTeamInjuries: 'Unknown',
-    homeTeamInjuries: 'Unknown',
     situationFavors: 'NEUTRAL',
     confidence: 'LOW',
     dataQuality: 'WEAK'
@@ -494,41 +509,38 @@ You MUST return strictly valid JSON.
 
   const aiResult = cleanAndParseJson(response.text, fallback);
 
-  // ===============================================
-  // MOTIVATION VETO (ROSTER REALITY > MOTIVATION)
-  // ===============================================
-  if (aiResult.decision === 'PLAYABLE' && aiResult.reasoning) {
-    const motivationKeywords = [
-      'motivated', 'motivation', 'tanking', 'must-win', 'playoff', 
-      'eliminated', 'incentive', 'pride', 'desperate', 'revenge',
-      'rivalry', 'statement', 'hot seat', 'fighting for'
-    ];
-    
-    const hardFactKeywords = [
-      'injury', 'injured', 'out', 'questionable', 'doubtful',
-      'back-to-back', 'b2b', 'rest', 'fatigue', '3rd game',
-      'missing', 'without', 'depleted', 'goalie change',
-      'starting lineup', 'rotation', 'minutes restriction', 'travel',
-      'suspension', 'concussion', 'protocol', 'return'
-    ];
-    
-    const reasoningLower = aiResult.reasoning.toLowerCase();
-    const motivationCount = motivationKeywords.filter(k => reasoningLower.includes(k)).length;
-    const factCount = hardFactKeywords.filter(k => reasoningLower.includes(k)).length;
-    
-    // If reasoning has MORE motivation words than fact words, veto
-    if (motivationCount > factCount && motivationCount >= 2) {
-      return {
-        decision: 'PASS',
-        vetoTriggered: true,
-        vetoReason: `MOTIVATION_VETO: Reasoning relies too heavily on narrative (${motivationCount} motivation keywords vs ${factCount} hard facts). Need roster/rest facts to support pick.`,
-        researchSummary: aiResult.reasoning,
-        sharpImpliedProb,
-        publicNarrative: aiResult.publicNarrative,
-        gameScript: aiResult.gameScript
-      };
-    }
+  const factsUsed: Fact[] = Array.isArray(aiResult.facts_used) ? aiResult.facts_used : [];
+  const injuries: InjuryFact[] = Array.isArray(aiResult.injuries) ? aiResult.injuries : [];
+  const narrativeAnalysis = typeof aiResult.narrative_analysis === 'string' ? aiResult.narrative_analysis : '';
+
+  const baseValidation = validateAnalysis({
+    narrativeAnalysis,
+    factsUsed,
+    injuries,
+    confidence: aiResult.confidence,
+    sport: game.sport
+  });
+
+  if (baseValidation.vetoTriggered) {
+    return {
+      decision: 'PASS',
+      vetoTriggered: true,
+      vetoReason: baseValidation.vetoReason,
+      researchSummary: narrativeAnalysis || 'Validation veto triggered before research summary.',
+      sharpImpliedProb,
+      publicNarrative: aiResult.publicNarrative,
+      gameScript: aiResult.gameScript,
+      factsUsed,
+      narrativeAnalysis,
+      injuries,
+      factConfidence: baseValidation.factConfidence,
+      dominanceRatio: baseValidation.dominanceRatio
+    };
   }
+
+  const injuriesSummary = injuries.length > 0
+    ? injuries.map(i => `${i.team}: ${i.player} (${i.status})`).join(', ')
+    : 'No verified data';
   
   // NEW: Data Quality Gate
   if (aiResult.dataQuality === 'WEAK' && aiResult.decision === 'PLAYABLE') {
@@ -536,15 +548,19 @@ You MUST return strictly valid JSON.
       decision: 'PASS',
       vetoTriggered: true,
       vetoReason: `DATA_QUALITY: AI recommended PLAYABLE but data quality was WEAK. Insufficient verified information to support the pick.`,
-      researchSummary: `Away (${game.awayTeam.name}): ${aiResult.awayTeamInjuries || 'No data'}
-Home (${game.homeTeam.name}): ${aiResult.homeTeamInjuries || 'No data'}
+      researchSummary: `Injuries: ${injuries.length > 0 ? injuries.map(i => `${i.team}: ${i.player} (${i.status})`).join(', ') : 'No verified data'}
 
 ⚠️ Data Quality: WEAK - Search results were limited. Passing to avoid acting on unverified information.
 
 📰 Public Narrative: ${aiResult.publicNarrative || 'None identified'}`,
       sharpImpliedProb,
       publicNarrative: aiResult.publicNarrative,
-      gameScript: aiResult.gameScript
+      gameScript: aiResult.gameScript,
+      factsUsed,
+      narrativeAnalysis,
+      injuries,
+      factConfidence: baseValidation.factConfidence,
+      dominanceRatio: baseValidation.dominanceRatio
     };
   }
 
@@ -553,18 +569,22 @@ Home (${game.homeTeam.name}): ${aiResult.homeTeamInjuries || 'No data'}
     return {
       decision: 'PASS',
       vetoTriggered: false,
-      vetoReason: aiResult.reasoning || 'AI did not find aligned edge',
-      researchSummary: `Away (${game.awayTeam.name}): ${aiResult.awayTeamInjuries || 'No data'}
-Home (${game.homeTeam.name}): ${aiResult.homeTeamInjuries || 'No data'}
+      vetoReason: narrativeAnalysis || 'AI did not find aligned edge',
+      researchSummary: `Injuries: ${injuriesSummary}
 
 📰 Public Narrative: ${aiResult.publicNarrative || 'None identified'}
 🎬 Game Script: ${aiResult.gameScript || 'Standard flow expected'}
 
 Situation favors: ${aiResult.situationFavors}`,
-      edgeNarrative: aiResult.reasoning,
+      edgeNarrative: narrativeAnalysis,
       sharpImpliedProb,
       publicNarrative: aiResult.publicNarrative,
-      gameScript: aiResult.gameScript
+      gameScript: aiResult.gameScript,
+      factsUsed,
+      narrativeAnalysis,
+      injuries,
+      factConfidence: baseValidation.factConfidence,
+      dominanceRatio: baseValidation.dominanceRatio
     };
   }
 
@@ -584,7 +604,41 @@ Situation favors: ${aiResult.situationFavors}`,
       researchSummary: `AI found situational edge on ${aiResult.recommendedSide} but the numbers don't support it.\n\nSituation favors: ${aiResult.situationFavors}`,
       sharpImpliedProb,
       publicNarrative: aiResult.publicNarrative,
-      gameScript: aiResult.gameScript
+      gameScript: aiResult.gameScript,
+      factsUsed,
+      narrativeAnalysis,
+      injuries,
+      factConfidence: baseValidation.factConfidence,
+      dominanceRatio: baseValidation.dominanceRatio
+    };
+  }
+
+  const lineValueCents = selectedSide.priceValue > 0 ? selectedSide.priceValue : 0;
+  const availabilityMismatch = hasVerifiedAvailabilityMismatch(factsUsed, injuries);
+  const finalValidation = validateAnalysis({
+    narrativeAnalysis,
+    factsUsed,
+    injuries,
+    confidence: baseValidation.adjustedConfidence,
+    sport: game.sport,
+    lineValueCents,
+    hasVerifiedAvailabilityMismatch: availabilityMismatch
+  });
+
+  if (finalValidation.vetoTriggered) {
+    return {
+      decision: 'PASS',
+      vetoTriggered: true,
+      vetoReason: finalValidation.vetoReason,
+      researchSummary: narrativeAnalysis || 'Validation veto triggered before recommendation.',
+      sharpImpliedProb,
+      publicNarrative: aiResult.publicNarrative,
+      gameScript: aiResult.gameScript,
+      factsUsed,
+      narrativeAnalysis,
+      injuries,
+      factConfidence: finalValidation.factConfidence,
+      dominanceRatio: finalValidation.dominanceRatio
     };
   }
 
@@ -598,10 +652,15 @@ Situation favors: ${aiResult.situationFavors}`,
         decision: 'PASS',
         vetoTriggered: true,
         vetoReason: `CONTRADICTION: AI says situation favors ${aiResult.situationFavors} but recommended ${selectedSide.side}.`,
-        researchSummary: aiResult.reasoning,
+        researchSummary: narrativeAnalysis,
         sharpImpliedProb,
         publicNarrative: aiResult.publicNarrative,
-        gameScript: aiResult.gameScript
+        gameScript: aiResult.gameScript,
+        factsUsed,
+        narrativeAnalysis,
+        injuries,
+        factConfidence: finalValidation.factConfidence,
+        dominanceRatio: finalValidation.dominanceRatio
       };
   }
 
@@ -630,7 +689,12 @@ Situation favors: ${aiResult.situationFavors}`,
         researchSummary: `AI liked the upset, but taking a >+200 ML without spread value is too high variance.\n\nSituation favors: ${aiResult.situationFavors}`,
         sharpImpliedProb,
         publicNarrative: aiResult.publicNarrative,
-        gameScript: aiResult.gameScript
+        gameScript: aiResult.gameScript,
+        factsUsed,
+        narrativeAnalysis,
+        injuries,
+        factConfidence: finalValidation.factConfidence,
+        dominanceRatio: finalValidation.dominanceRatio
       };
     }
   }
@@ -645,7 +709,12 @@ Situation favors: ${aiResult.situationFavors}`,
       researchSummary: `AI liked the spot, but the price is too expensive.\n\nSituation favors: ${aiResult.situationFavors}`,
       sharpImpliedProb,
       publicNarrative: aiResult.publicNarrative,
-      gameScript: aiResult.gameScript
+      gameScript: aiResult.gameScript,
+      factsUsed,
+      narrativeAnalysis,
+      injuries,
+      factConfidence: finalValidation.factConfidence,
+      dominanceRatio: finalValidation.dominanceRatio
     };
   }
 
@@ -694,16 +763,17 @@ Situation favors: ${aiResult.situationFavors}`,
     vetoTriggered: false,
     vetoReason: undefined,
     caution: dataCaution,
-    researchSummary: `Away (${game.awayTeam.name}): ${aiResult.awayTeamInjuries || 'No major injuries'}
-Home (${game.homeTeam.name}): ${aiResult.homeTeamInjuries || 'No major injuries'}
+    researchSummary: `Injuries: ${injuriesSummary}
 
 📰 Public Narrative: ${aiResult.publicNarrative || 'None identified'}
 🎬 Game Script: ${aiResult.gameScript || 'Standard flow expected'}
 
 Situation favors: ${aiResult.situationFavors}
-Confidence: ${aiResult.confidence}
-Data Quality: ${aiResult.dataQuality || 'UNKNOWN'}`,
-    edgeNarrative: aiResult.reasoning,
+Confidence: ${finalValidation.adjustedConfidence}
+Data Quality: ${aiResult.dataQuality || 'UNKNOWN'}
+Fact Confidence: ${finalValidation.factConfidence}
+Dominance Ratio: ${finalValidation.dominanceRatio.toFixed(2)}`,
+    edgeNarrative: narrativeAnalysis,
     recommendation,
     recLine,
     recProbability: selectedSide.side === 'AWAY' ? sharpImpliedProb : 100 - sharpImpliedProb,
@@ -713,7 +783,7 @@ Data Quality: ${aiResult.dataQuality || 'UNKNOWN'}`,
     sharpImpliedProb,
     softBestOdds: formatOddsForDisplay(selectedSide.bestSoftOdds),
     softBestBook: selectedSide.bestSoftBook,
-    lineValueCents: selectedSide.priceValue > 0 ? selectedSide.priceValue : 0,
+    lineValueCents,
     lineValuePoints: selectedSide.lineValue,
     
     // Thresholds
@@ -723,7 +793,13 @@ Data Quality: ${aiResult.dataQuality || 'UNKNOWN'}`,
 
     // Pro Analysis Fields
     publicNarrative: aiResult.publicNarrative,
-    gameScript: aiResult.gameScript
+    gameScript: aiResult.gameScript,
+    factsUsed,
+    narrativeAnalysis,
+    injuries,
+    confidence: finalValidation.adjustedConfidence,
+    factConfidence: finalValidation.factConfidence,
+    dominanceRatio: finalValidation.dominanceRatio
   };
 };
 
