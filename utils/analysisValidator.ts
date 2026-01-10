@@ -46,8 +46,24 @@ const getDominanceThresholds = (sport: Sport) => {
   return overrides[sport] || defaults;
 };
 
-const hasUnverifiedFacts = (factsUsed: Fact[]) =>
-  factsUsed.some(fact => fact.confidence !== 'HIGH');
+const getFactConfidenceWeight = (confidence: Fact['confidence']) => {
+  switch (confidence) {
+    case 'HIGH':
+      return 1.0;
+    case 'MEDIUM':
+      return 0.5;
+    default:
+      return 0.0;
+  }
+};
+
+const getFactQualityScore = (factsUsed: Fact[]) => {
+  if (factsUsed.length === 0) return 0;
+  const totalWeight = factsUsed.reduce((sum, fact) => sum + getFactConfidenceWeight(fact.confidence), 0);
+  return totalWeight / factsUsed.length;
+};
+
+const hasNoFactsProvided = (factsUsed: Fact[]) => factsUsed.length === 0;
 
 const hasBoxScoreSupport = (factsUsed: Fact[]) =>
   factsUsed.some(fact => fact.source_type === 'BOX_SCORE' && fact.confidence === 'HIGH');
@@ -75,10 +91,11 @@ export const validateAnalysis = (input: ValidationInput): ValidationResult => {
   const narrative = input.narrativeAnalysis || '';
   const narrativeTokenList = tokenize(narrative);
   const narrativeTokens = new Set(narrativeTokenList);
-  const tokenCount = narrativeTokenList.length;
-
   const factMentions = countFactMentions(input.factsUsed, narrativeTokens);
-  const dominanceRatio = tokenCount > 0 ? factMentions / tokenCount : 0;
+  const factCount = input.factsUsed.length;
+  const citationRatio = factCount > 0 ? factMentions / factCount : 0;
+  const qualityScore = getFactQualityScore(input.factsUsed);
+  const dominanceRatio = citationRatio * qualityScore;
   const thresholds = getDominanceThresholds(input.sport);
 
   const logMissingFactSentence = () => {
@@ -99,7 +116,7 @@ export const validateAnalysis = (input: ValidationInput): ValidationResult => {
     }
   };
 
-  if (hasUnverifiedFacts(input.factsUsed)) {
+  if (hasNoFactsProvided(input.factsUsed)) {
     logMissingFactSentence();
     return {
       vetoTriggered: true,
