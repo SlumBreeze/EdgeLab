@@ -9,70 +9,91 @@ import StickyCardSummary from '../components/StickyCardSummary';
 import { isPremiumEdge } from '../utils/edgeUtils';
 import { mapQueuedGameToDraftBet, DraftBet } from '../types/draftBet';
 
-// Helper: Find alternative book with funds
+type AlternativeBook = { bookName: string; odds: string; line?: string };
+type AvailableBalanceLookup = (bookName: string) => number | null;
+
+const parseNumber = (value?: string) => {
+  if (!value) return null;
+  const parsed = parseFloat(value.replace(/^[ou]/i, ''));
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const normalizeBookName = (name: string) => name.trim().toLowerCase();
+
+const findMatchingAccount = (bookName: string, bankroll: SportsbookAccount[]) => {
+  const target = normalizeBookName(bookName);
+  return bankroll.find(b => {
+    const name = normalizeBookName(b.name);
+    return name.includes(target) || target.includes(name);
+  }) || null;
+};
+
+// Helper: Find alternative book with funds and acceptable line/odds floors
 const getAlternativeBook = (
   game: QueuedGame, 
   analysis: HighHitAnalysis, 
-  bankroll: SportsbookAccount[], 
-  wagerAmount: number
-) => {
-  const { market, side, line: targetLine } = analysis;
+  wagerAmount: number,
+  getAvailableBalance: AvailableBalanceLookup
+): AlternativeBook | null => {
+  const { market, side, lineFloor, oddsFloor } = analysis;
   const currentBook = analysis.softBestBook;
-  
-  // Helper to check balance
-  const hasFunds = (bookName: string) => {
-    const acc = bankroll.find(b => 
-      b.name.toLowerCase().includes(bookName.toLowerCase()) || 
-      bookName.toLowerCase().includes(b.name.toLowerCase())
-    );
-    return acc && acc.balance >= wagerAmount;
-  };
 
-  const candidates: { bookName: string, odds: string }[] = [];
+  const floorLineVal = parseNumber(lineFloor);
+  const floorOddsVal = parseNumber(oddsFloor);
+  
+  const candidates: Array<AlternativeBook & { lineScore: number; oddsVal: number }> = [];
 
   game.softLines.forEach(book => {
-    // Skip the current book (the one with low balance)
     if (book.bookName === currentBook) return;
-    
-    // Skip if we don't have funds here either
-    if (!hasFunds(book.bookName)) return;
+    const available = getAvailableBalance(book.bookName);
+    if (available === null || available < wagerAmount) return;
 
     let odds = '';
-    let valid = false;
+    let line: string | undefined;
+    let lineOk = true;
 
     if (market === 'Moneyline') {
       odds = side === 'AWAY' ? book.mlOddsA : book.mlOddsB;
-      valid = odds && odds !== 'N/A';
     } else if (market === 'Spread') {
-      const line = side === 'AWAY' ? book.spreadLineA : book.spreadLineB;
-      const price = side === 'AWAY' ? book.spreadOddsA : book.spreadOddsB;
-      // Exact line match required for safety
-      if (line === targetLine && price && price !== 'N/A') {
-        odds = price;
-        valid = true;
-      }
+      line = side === 'AWAY' ? book.spreadLineA : book.spreadLineB;
+      odds = side === 'AWAY' ? book.spreadOddsA : book.spreadOddsB;
+      const lineVal = parseNumber(line);
+      lineOk = floorLineVal === null || (lineVal !== null && lineVal >= floorLineVal);
     } else if (market === 'Total') {
-      const line = book.totalLine;
-      const price = side === 'OVER' ? book.totalOddsOver : book.totalOddsUnder;
-      // Target line usually comes as string "212.5" or "o212.5" depending on context, 
-      // but analysis.line is set from softBestLine which is usually just the number for totals or "o6.5" for props.
-      // In oddsService, totalLine is just number string "6.5".
-      // Let's assume loose matching or exact string match.
-      if (line === targetLine && price && price !== 'N/A') {
-        odds = price;
-        valid = true;
+      line = book.totalLine;
+      odds = side === 'OVER' ? book.totalOddsOver : book.totalOddsUnder;
+      const lineVal = parseNumber(line);
+      if (floorLineVal !== null && lineVal !== null) {
+        lineOk = side === 'OVER' ? lineVal <= floorLineVal : lineVal >= floorLineVal;
       }
     }
 
-    if (valid) {
-      candidates.push({ bookName: book.bookName, odds });
+    const oddsVal = parseNumber(odds);
+    if (!odds || odds === 'N/A' || oddsVal === null || !lineOk) return;
+
+    if (floorOddsVal !== null && oddsVal < floorOddsVal) return;
+
+    const lineVal = line ? parseNumber(line) : null;
+    let lineScore = 0;
+    if (lineVal !== null && floorLineVal !== null) {
+      if (market === 'Total' && side === 'OVER') {
+        lineScore = floorLineVal - lineVal;
+      } else {
+        lineScore = lineVal - floorLineVal;
+      }
     }
+
+    candidates.push({ bookName: book.bookName, odds, line, lineScore, oddsVal });
   });
 
-  // Sort by best odds (American odds numeric sort: higher is better)
-  candidates.sort((a, b) => parseFloat(b.odds) - parseFloat(a.odds));
+  candidates.sort((a, b) => {
+    if (a.lineScore !== b.lineScore) return b.lineScore - a.lineScore;
+    return b.oddsVal - a.oddsVal;
+  });
 
-  return candidates.length > 0 ? candidates[0] : null;
+  if (candidates.length === 0) return null;
+  const { line, odds, bookName } = candidates[0];
+  return { bookName, line, odds };
 };
 
 const getFactConfidenceStyle = (confidence?: string) => {
@@ -83,7 +104,7 @@ const getFactConfidenceStyle = (confidence?: string) => {
 };
 
 export default function Card({ onLogBet }: { onLogBet: (draft: DraftBet) => void }) {
-  const { queue, getPlayableCount, autoPickBestGames, totalBankroll, unitSizePercent } = useGameContext();
+  const { queue, getPlayableCount, autoPickBestGames, totalBankroll, unitSizePercent, bankroll } = useGameContext();
   const [lastPickResult, setLastPickResult] = useState<AutoPickResult | null>(null);
   
   // Toast
@@ -99,6 +120,9 @@ export default function Card({ onLogBet }: { onLogBet: (draft: DraftBet) => void
   
   const hasAutoPicked = queue.some(g => g.cardSlot !== undefined);
   const pickCount = queue.filter(g => g.cardSlot !== undefined).length;
+  const playableInDisplayOrder = hasAutoPicked
+    ? [...playable].sort((a, b) => (a.cardSlot || 999) - (b.cardSlot || 999))
+    : playable;
 
   // ANALYTICS COMPUTATION
   const analytics = analyzeCard(queue, totalBankroll, unitSizePercent, hasAutoPicked);
@@ -116,6 +140,101 @@ export default function Card({ onLogBet }: { onLogBet: (draft: DraftBet) => void
            s.wins === 1 || 
            s.wins === 0;
   });
+
+  const playableAllocations = (() => {
+    const remainingByAccount = new Map<string, number>();
+    bankroll.forEach(acc => {
+      remainingByAccount.set(normalizeBookName(acc.name), acc.balance);
+    });
+
+    const getAvailableBalance: AvailableBalanceLookup = (bookName: string) => {
+      const acc = findMatchingAccount(bookName, bankroll);
+      if (!acc) return null;
+      const key = normalizeBookName(acc.name);
+      return remainingByAccount.has(key) ? remainingByAccount.get(key)! : acc.balance;
+    };
+
+    const reserveBalance = (bookName: string, amount: number) => {
+      const acc = findMatchingAccount(bookName, bankroll);
+      if (!acc) return;
+      const key = normalizeBookName(acc.name);
+      const current = remainingByAccount.get(key);
+      if (current === undefined) return;
+      remainingByAccount.set(key, Math.max(0, current - amount));
+    };
+
+    const oneUnit = (totalBankroll * unitSizePercent) / 100;
+
+    return playableInDisplayOrder.map(game => {
+      const analysis = game.analysis!;
+      const isWagerCalculated = totalBankroll > 0;
+      let wagerUnits = 1.0;
+      if (analysis.confidence === 'HIGH') wagerUnits = 1.5;
+      if (analysis.confidence === 'LOW') wagerUnits = 0.5;
+      const baseWagerAmount = oneUnit * wagerUnits;
+
+      let selectedBook = analysis.softBestBook || '';
+      let selectedAlt: AlternativeBook | null = null;
+      let usedAlt = false;
+
+      if (isWagerCalculated && selectedBook) {
+        const recBalance = getAvailableBalance(selectedBook);
+        const hasFullFunds = recBalance !== null && recBalance >= baseWagerAmount;
+        if (!hasFullFunds) {
+          const altFull = getAlternativeBook(game, analysis, baseWagerAmount, getAvailableBalance);
+          if (altFull) {
+            selectedAlt = altFull;
+            selectedBook = altFull.bookName;
+            usedAlt = true;
+          } else if (recBalance === null || recBalance <= 0) {
+            const altPartial = getAlternativeBook(game, analysis, 0.01, getAvailableBalance);
+            if (altPartial) {
+              selectedAlt = altPartial;
+              selectedBook = altPartial.bookName;
+              usedAlt = true;
+            }
+          }
+        }
+      }
+
+      const availableBalance = isWagerCalculated ? getAvailableBalance(selectedBook) : null;
+      const isCapped = isWagerCalculated && availableBalance !== null && availableBalance < baseWagerAmount;
+      const wagerAmount = isCapped ? Math.max(0, availableBalance) : baseWagerAmount;
+      const effectiveWagerUnits = isWagerCalculated && oneUnit > 0
+        ? Math.round((wagerAmount / oneUnit) * 100) / 100
+        : wagerUnits;
+
+      if (isWagerCalculated && availableBalance !== null) {
+        reserveBalance(selectedBook, wagerAmount);
+      }
+
+      let displayRecLine = analysis.recLine || '';
+      if (usedAlt && selectedAlt) {
+        if (analysis.market === 'Moneyline') {
+          displayRecLine = selectedAlt.odds;
+        } else {
+          const altLine = selectedAlt.line || analysis.line;
+          displayRecLine = altLine ? `${altLine} (${selectedAlt.odds})` : selectedAlt.odds;
+        }
+      }
+
+      const overrideOdds = usedAlt && selectedAlt ? parseFloat(selectedAlt.odds) : undefined;
+
+      return {
+        gameId: game.id,
+        wagerUnits: effectiveWagerUnits,
+        wagerAmount,
+        isWagerCalculated,
+        displayBook: selectedBook,
+        displayRecLine,
+        usedAlt,
+        isCapped,
+        availableBalance,
+        overrideBook: usedAlt && selectedAlt ? selectedAlt.bookName : undefined,
+        overrideOdds,
+      };
+    });
+  })();
 
   const handleSmartPick = () => {
     const result = autoPickBestGames();
@@ -376,17 +495,14 @@ export default function Card({ onLogBet }: { onLogBet: (draft: DraftBet) => void
                   <span className="mr-2">✅</span> Playable (Your Decision)
                 </h2>
                 <div className="space-y-3">
-                  {playable
-                    // If auto-picked, sort slots first
-                    .sort((a, b) => {
-                       if (!hasAutoPicked) return 0;
-                       // Slotted items first, sorted by slot number
-                       const slotA = a.cardSlot || 999;
-                       const slotB = b.cardSlot || 999;
-                       return slotA - slotB;
-                    })
-                    .map(g => (
-                      <PlayableCard key={g.id} game={g} dim={hasAutoPicked && !g.cardSlot} onLogBet={onLogBet} />
+                  {playableInDisplayOrder.map(g => (
+                      <PlayableCard
+                        key={g.id}
+                        game={g}
+                        dim={hasAutoPicked && !g.cardSlot}
+                        onLogBet={onLogBet}
+                        funding={playableAllocations.find(a => a.gameId === g.id)}
+                      />
                   ))}
                 </div>
               </section>
@@ -425,8 +541,19 @@ export default function Card({ onLogBet }: { onLogBet: (draft: DraftBet) => void
   );
 }
 
-const PlayableCard: React.FC<{ game: QueuedGame; dim?: boolean; onLogBet: (draft: DraftBet) => void }> = ({ game, dim, onLogBet }) => {
-  const { totalBankroll, unitSizePercent, bankroll } = useGameContext();
+const PlayableCard: React.FC<{ game: QueuedGame; dim?: boolean; onLogBet: (draft: DraftBet) => void; funding?: {
+  gameId: string;
+  wagerUnits: number;
+  wagerAmount: number;
+  isWagerCalculated: boolean;
+  displayBook: string;
+  displayRecLine: string;
+  usedAlt: boolean;
+  isCapped: boolean;
+  availableBalance: number | null;
+  overrideBook?: string;
+  overrideOdds?: number;
+} }> = ({ game, dim, onLogBet, funding }) => {
   
   if (!game.analysis) return null; // Defensive check
   const a = game.analysis;
@@ -436,26 +563,9 @@ const PlayableCard: React.FC<{ game: QueuedGame; dim?: boolean; onLogBet: (draft
   const isFactConfidenceHigh = a.factConfidence === 'HIGH';
   const slot = game.cardSlot;
 
-  // Wager Calculation
-  const oneUnit = (totalBankroll * unitSizePercent) / 100;
-  let wagerUnits = 1.0;
-  if (a.confidence === 'HIGH') wagerUnits = 1.5; // Bump to 1.5u or 2u for high confidence
-  if (a.confidence === 'LOW') wagerUnits = 0.5;
-
-  const wagerAmount = oneUnit * wagerUnits;
-  const isWagerCalculated = totalBankroll > 0;
-
-  // Book Balance Check
-  const recBookName = a.softBestBook || '';
-  // Normalize book names for check (e.g. "FanDuel" vs "fanduel")
-  const bookAccount = bankroll.find(b => b.name.toLowerCase().includes(recBookName.toLowerCase()) || recBookName.toLowerCase().includes(b.name.toLowerCase()));
-  const bookBalance = bookAccount?.balance || 0;
-  const insufficientFunds = isWagerCalculated && bookBalance < wagerAmount;
-
-  let altBook = null;
-  if (insufficientFunds) {
-    altBook = getAlternativeBook(game, a, bankroll, wagerAmount);
-  }
+  const wagerUnits = funding?.wagerUnits ?? 1.0;
+  const wagerAmount = funding?.wagerAmount ?? 0;
+  const isWagerCalculated = funding?.isWagerCalculated ?? false;
 
   // Quality indicator for smart pick
   const linePoints = a.lineValuePoints || 0;
@@ -464,38 +574,15 @@ const PlayableCard: React.FC<{ game: QueuedGame; dim?: boolean; onLogBet: (draft
   // UPDATED: Use shared utility
   const isPremium = isPremiumEdge(linePoints, juiceCents, a.confidence, game.sport, a.market);
 
-  // SWAP LOGIC: If insufficient funds, promote the alternative book
-  const useAltBook = insufficientFunds && altBook;
-  const displayBook = useAltBook ? altBook!.bookName : a.softBestBook;
-  
-  // Construct display line/odds
-  let displayRecLine = a.recLine;
-  
-  if (useAltBook) {
-      if (a.market === 'Moneyline') {
-          displayRecLine = altBook!.odds;
-      } else {
-          // Try to preserve line, just swap odds
-          // Standard format is usually "-6.5 (-110)"
-          if (a.line) {
-             displayRecLine = `${a.line} (${altBook!.odds})`;
-          } else {
-             displayRecLine = altBook!.odds;
-          }
-      }
-  }
+  const displayBook = funding?.displayBook || a.softBestBook;
+  const displayRecLine = funding?.displayRecLine || a.recLine;
 
   const handleLogClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     const draft = mapQueuedGameToDraftBet(game, wagerAmount);
     
-    // Override if using alt book
-    if (useAltBook) {
-        draft.sportsbook = displayBook;
-        // Parse the numeric odds from the string (e.g. "-110" -> -110)
-        draft.odds = parseFloat(altBook!.odds);
-        // Ensure line is preserved
-    }
+    if (funding?.overrideBook) draft.sportsbook = funding.overrideBook;
+    if (funding?.overrideOdds !== undefined) draft.odds = funding.overrideOdds;
     
     onLogBet(draft);
   };
@@ -556,16 +643,16 @@ const PlayableCard: React.FC<{ game: QueuedGame; dim?: boolean; onLogBet: (draft
           <div className="flex items-center gap-2 mt-1">
              <div className={`text-sm flex items-center gap-1 ${hasCaution ? 'text-slate-700' : 'text-white/70'}`}>
                 @ {displayBook}
-                {useAltBook && (
+                {funding?.usedAlt && (
                     <span className="bg-indigo-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow-sm border border-white/20 ml-1" title="Original book had insufficient funds">
                         ↱ Swapped (Funds)
                     </span>
                 )}
              </div>
-             {insufficientFunds && !useAltBook && (
+             {funding?.isCapped && (
                 <div className="flex items-center gap-1 flex-wrap">
                     <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">
-                        Low Bal: ${bookBalance.toFixed(2)}
+                        Capped: ${funding.availableBalance?.toFixed(2)}
                     </span>
                 </div>
              )}
