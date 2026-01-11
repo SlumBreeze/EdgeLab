@@ -171,7 +171,7 @@ export const BetForm: React.FC<BetFormProps> = ({
       };
 
       const genAI = new GoogleGenAI({
-        apiKey: process.env.GEMINI_API_KEY,
+        apiKey: import.meta.env.VITE_GEMINI_API_KEY,
       });
       const result = await genAI.models.generateContent({
         model: "gemini-1.5-flash",

@@ -4,7 +4,7 @@ import { BookLines, QueuedGame, HighHitAnalysis, Game, Fact, InjuryFact } from '
 import { EXTRACTION_PROMPT, HIGH_HIT_SYSTEM_PROMPT } from '../constants';
 import { validateAnalysis, hasVerifiedAvailabilityMismatch } from '../utils/analysisValidator';
 
-const getAiClient = () => new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+const getAiClient = () => new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
 
 // ============================================
 // MATH FUNCTIONS (TypeScript, NOT LLM)
