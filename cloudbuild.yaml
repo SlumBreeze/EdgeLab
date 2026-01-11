@@ -3,10 +3,10 @@ steps:
     args: [
       'build',
       '-t', 'gcr.io/$PROJECT_ID/edgelab2',
-      '--build-arg', 'GEMINI_API_KEY=$_GEMINI_API_KEY',
-      '--build-arg', 'ODDS_API_KEY=$_ODDS_API_KEY',
-      '--build-arg', 'SUPABASE_URL=$_SUPABASE_URL',
-      '--build-arg', 'SUPABASE_KEY=$_SUPABASE_KEY',
+      '--build-arg', 'VITE_GEMINI_API_KEY=$_GEMINI_API_KEY',
+      '--build-arg', 'VITE_ODDS_API_KEY=$_ODDS_API_KEY',
+      '--build-arg', 'VITE_SUPABASE_URL=$_SUPABASE_URL',
+      '--build-arg', 'VITE_SUPABASE_ANON_KEY=$_SUPABASE_KEY',
       '.'
     ]
 images:
