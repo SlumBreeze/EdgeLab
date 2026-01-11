@@ -136,26 +136,14 @@ export const calculateAdvancedStats = (bets: Bet[]): AdvancedStats => {
   // 2. Current Streak
   let streak = 0;
   if (settledBets.length > 0) {
-    let firstStatus = settledBets[0].status;
-    let startIndex = 0;
-
-    // Skip pushes at the beginning to find the real current streak
-    while (firstStatus === BetStatus.PUSH && startIndex < settledBets.length) {
-      startIndex++;
-      if (startIndex < settledBets.length) {
-        firstStatus = settledBets[startIndex].status;
-      }
-    }
-
+    const firstStatus = settledBets[0].status;
     if (firstStatus === BetStatus.WON || firstStatus === BetStatus.LOST) {
-      for (let i = startIndex; i < settledBets.length; i++) {
-        const bet = settledBets[i];
+      for (const bet of settledBets) {
         if (bet.status === firstStatus) {
           streak += (firstStatus === BetStatus.WON ? 1 : -1);
         } else if (bet.status !== BetStatus.PUSH) {
           break; 
         }
-        // If PUSH, we just continue (streak isn't broken, but doesn't increase)
       }
     }
   }

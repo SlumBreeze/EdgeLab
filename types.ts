@@ -211,6 +211,8 @@ export enum Sportsbook {
   UNDERDOG = 'Underdog Fantasy',
   DRAFTERS = 'Drafters',
   BETR = 'Betr',
+  BOVADA = 'Bovada',
+  BETONLINE = 'BetOnline',
   OTHER = 'Other',
 }
 
@@ -244,7 +246,7 @@ export interface BankrollState {
   startingBalance: number;
   currentBalance: number;
   totalWagered: number;
-  totalWon: number;
+  totalWon: number; // Pure profit
   totalLost: number;
   totalBets: number;
   wins: number;
@@ -268,3 +270,21 @@ export interface BankrollHistoryPoint {
   balance: number;
   formattedDate: string;
 }
+
+export interface GameScore {
+  id: string;
+  date: string; // YYYY-MM-DD
+  sport: string; // e.g. "NFL", "NBA"
+  status: 'SCHEDULED' | 'IN_PROGRESS' | 'FINAL' | 'POSTPONED';
+  clock: string; // e.g. "Q4 2:30" or "Final"
+  period: number;
+  homeTeam: string; // Abbreviation e.g. "LAL"
+  homeTeamName: string; // Mascot e.g. "Lakers"
+  homeScore: number;
+  awayTeam: string; // Abbreviation e.g. "BOS"
+  awayTeamName: string; // Mascot e.g. "Celtics"
+  awayScore: number;
+  winner?: 'home' | 'away';
+}
+
+export type ScoreMap = Record<string, GameScore[]>; // Key is YYYY-MM-DD

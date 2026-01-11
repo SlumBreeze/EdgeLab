@@ -162,8 +162,21 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
           .eq('date', today)
           .single();
 
-        if (sError && sError.code !== 'PGRST116') {
+        if (sError) {
+           // Handle missing table (404/406) or no row found (PGRST116)
+           if (sError.code === 'PGRST116') {
+             // No row found, but table exists. Valid state (new day).
+             console.log("[Supabase] No slate found for today (new day).");
+           } else if (sError.code === '42P01' || sError.code === 'PGRST205' || sError.message.includes('404')) {
+             // 42P01 is PostgreSQL "undefined_table". PGRST205 is schema cache miss. 404 is HTTP Not Found.
+             console.warn("[Supabase] 'daily_slates' table missing. Falling back to local storage.", sError);
+             setSyncStatus('idle'); // Treat as local-only, not error
+             return; 
+           } else {
              console.error("[Supabase] Slate fetch error:", sError);
+             setSyncStatus('error');
+             return;
+           }
         }
 
         if (sData) {
@@ -177,9 +190,15 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
         
         setSyncStatus('saved');
-      } catch (err) {
-        console.warn("[Context] Supabase init failed", err);
-        setSyncStatus('error');
+      } catch (err: any) {
+        // Catch network 404s that might throw instead of returning { error }
+        if (err.message && (err.message.includes('404') || err.status === 404)) {
+            console.warn("[Supabase] 'daily_slates' table missing (Catch). Falling back to local storage.");
+            setSyncStatus('idle');
+        } else {
+            console.warn("[Context] Supabase init failed", err);
+            setSyncStatus('error');
+        }
       }
     };
 
@@ -220,8 +239,13 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
       
       if (error) {
-        console.error("[Supabase] Slate save error:", error);
-        setSyncStatus('error');
+        if (error.code === '42P01' || error.code === 'PGRST205' || error.message.includes('404')) {
+             console.warn("[Supabase] 'daily_slates' table missing during save. Falling back to local storage.");
+             setSyncStatus('idle'); // Degrade gracefully
+        } else {
+             console.error("[Supabase] Slate save error:", error);
+             setSyncStatus('error');
+        }
       } else {
         setSyncStatus('saved');
       }
