@@ -22,8 +22,14 @@ export default function TrackerNewBet({ draftBet, onBack, onBetAdded }: Props) {
     currentBalance: acc.balance
   }));
 
-  const handleAddBet = (betData: any) => {
-    onBetAdded(betData);
+  const handleAddBet = (betData: Omit<Bet, 'id' | 'createdAt'>) => {
+    const fullBet: Bet = {
+      ...betData,
+      id: crypto.randomUUID(),
+      createdAt: Date.now(),
+      tags: betData.tags || []
+    };
+    onBetAdded(fullBet);
     // After adding, we might want to go back or to the tracker dashboard
     onBack(); 
   };
