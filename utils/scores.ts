@@ -131,34 +131,55 @@ export const fetchDailyScores = async (dateStr: string): Promise<GameScore[]> =>
   // Convert YYYY-MM-DD to YYYYMMDD for ESPN API
   const apiDate = dateStr.replace(/-/g, '');
   
+  console.log(`[Scores] Fetching for ${dateStr}...`);
+
   const promises = Object.entries(ENDPOINTS).map(async ([sport, url]) => {
     const targetUrl = `${url}?dates=${apiDate}&limit=200`;
     
+    // Helper to fetch with timeout
+    const fetchWithTimeout = (url: string, timeout = 5000) => {
+        return Promise.race([
+            fetch(url),
+            new Promise<Response>((_, reject) => setTimeout(() => reject(new Error('Timeout')), timeout))
+        ]);
+    };
+
     try {
-      // 1. Try direct fetch first (works if CORS is permissive or same-origin)
-      const res = await fetch(targetUrl);
+      // 1. Try direct fetch first
+      const res = await fetchWithTimeout(targetUrl);
       if (!res.ok) throw new Error(`Direct fetch status: ${res.status}`);
       const data = await res.json();
       return parseEspnResponse(data, sport, dateStr);
 
     } catch (e) {
-      // 2. Fallback to CORS proxy if direct fetch fails (likely CORS error)
+      // 2. Fallback to AllOrigins
       try {
         const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`;
-        const res = await fetch(proxyUrl);
-        if (!res.ok) throw new Error(`Proxy status: ${res.status}`);
+        const res = await fetchWithTimeout(proxyUrl);
+        if (!res.ok) throw new Error(`AllOrigins status: ${res.status}`);
         const data = await res.json();
         return parseEspnResponse(data, sport, dateStr);
 
       } catch (proxyError) {
-        console.error(`Error fetching ${sport} (after proxy fallback)`, proxyError);
-        return [];
+        // 3. Fallback to CorsProxy.io
+        try {
+            const proxyUrl2 = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
+            const res = await fetchWithTimeout(proxyUrl2);
+            if (!res.ok) throw new Error(`CorsProxy status: ${res.status}`);
+            const data = await res.json();
+            return parseEspnResponse(data, sport, dateStr);
+        } catch (finalError) {
+            console.error(`[Scores] Error fetching ${sport} (all attempts failed)`, finalError);
+            return [];
+        }
       }
     }
   });
 
   const results = await Promise.all(promises);
-  return results.flat();
+  const flatResults = results.flat();
+  console.log(`[Scores] Loaded ${flatResults.length} games for ${dateStr}`);
+  return flatResults;
 };
 
 /**
