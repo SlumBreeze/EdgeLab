@@ -91,6 +91,16 @@ export const SPORTSBOOK_THEME: Record<string, { bg: string, text: string, border
     text: '#ffffff', 
     border: '#6b1cb0' 
   },
+  [Sportsbook.BETONLINE]: { 
+    bg: '#D20A0A', 
+    text: '#ffffff', 
+    border: '#a30808' 
+  },
+  [Sportsbook.BOVADA]: { 
+    bg: '#CC0000', 
+    text: '#ffffff', 
+    border: '#990000' 
+  },
   [Sportsbook.OTHER]: { 
     bg: '#1e293b', 
     text: '#94a3b8', 
