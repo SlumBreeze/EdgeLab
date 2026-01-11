@@ -464,9 +464,40 @@ const PlayableCard: React.FC<{ game: QueuedGame; dim?: boolean; onLogBet: (draft
   // UPDATED: Use shared utility
   const isPremium = isPremiumEdge(linePoints, juiceCents, a.confidence, game.sport, a.market);
 
+  // SWAP LOGIC: If insufficient funds, promote the alternative book
+  const useAltBook = insufficientFunds && altBook;
+  const displayBook = useAltBook ? altBook!.bookName : a.softBestBook;
+  
+  // Construct display line/odds
+  let displayRecLine = a.recLine;
+  
+  if (useAltBook) {
+      if (a.market === 'Moneyline') {
+          displayRecLine = altBook!.odds;
+      } else {
+          // Try to preserve line, just swap odds
+          // Standard format is usually "-6.5 (-110)"
+          if (a.line) {
+             displayRecLine = `${a.line} (${altBook!.odds})`;
+          } else {
+             displayRecLine = altBook!.odds;
+          }
+      }
+  }
+
   const handleLogClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    onLogBet(mapQueuedGameToDraftBet(game, wagerAmount));
+    const draft = mapQueuedGameToDraftBet(game, wagerAmount);
+    
+    // Override if using alt book
+    if (useAltBook) {
+        draft.sportsbook = displayBook;
+        // Parse the numeric odds from the string (e.g. "-110" -> -110)
+        draft.odds = parseFloat(altBook!.odds);
+        // Ensure line is preserved
+    }
+    
+    onLogBet(draft);
   };
 
   return (
@@ -508,7 +539,7 @@ const PlayableCard: React.FC<{ game: QueuedGame; dim?: boolean; onLogBet: (draft
         <div className="mb-4">
           <div className="flex justify-between items-start">
             <div className="text-2xl font-bold leading-tight">
-                {a.recommendation} <span className={hasCaution ? 'text-slate-900' : 'text-white/90'}>{a.recLine}</span>
+                {a.recommendation} <span className={hasCaution ? 'text-slate-900' : 'text-white/90'}>{displayRecLine}</span>
             </div>
             <button 
                 onClick={handleLogClick}
@@ -523,19 +554,19 @@ const PlayableCard: React.FC<{ game: QueuedGame; dim?: boolean; onLogBet: (draft
           </div>
           
           <div className="flex items-center gap-2 mt-1">
-             <div className={`text-sm ${hasCaution ? 'text-slate-700' : 'text-white/70'}`}>
-                @ {a.softBestBook}
+             <div className={`text-sm flex items-center gap-1 ${hasCaution ? 'text-slate-700' : 'text-white/70'}`}>
+                @ {displayBook}
+                {useAltBook && (
+                    <span className="bg-indigo-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow-sm border border-white/20 ml-1" title="Original book had insufficient funds">
+                        ↱ Swapped (Funds)
+                    </span>
+                )}
              </div>
-             {insufficientFunds && (
+             {insufficientFunds && !useAltBook && (
                 <div className="flex items-center gap-1 flex-wrap">
                     <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">
                         Low Bal: ${bookBalance.toFixed(2)}
                     </span>
-                    {altBook && (
-                        <span className="bg-indigo-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded flex items-center gap-1 shadow-sm border border-white/20">
-                            <span>↪ Try {altBook.bookName} ({altBook.odds})</span>
-                        </span>
-                    )}
                 </div>
              )}
           </div>
