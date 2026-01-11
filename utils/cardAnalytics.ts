@@ -276,12 +276,12 @@ export const calculatePLScenarios = (
     const isBreakEven = Math.abs(netPL) < avgWager; // Within one unit of break-even
     
     // Color coding
-    let color = 'text-slate-500';
-    if (netPL > avgWager * 2) color = 'text-emerald-600';
-    else if (netPL > 0) color = 'text-emerald-500';
-    else if (isBreakEven) color = 'text-amber-500';
-    else if (netPL > -avgWager * 2) color = 'text-red-400';
-    else color = 'text-red-600';
+    let color = 'text-ink-text/60';
+    if (netPL > avgWager * 2) color = 'text-status-win';
+    else if (netPL > 0) color = 'text-status-win';
+    else if (isBreakEven) color = 'text-amber-300';
+    else if (netPL > -avgWager * 2) color = 'text-status-loss';
+    else color = 'text-status-loss';
     
     scenarios.push({
       record: `${wins}-${losses}`,

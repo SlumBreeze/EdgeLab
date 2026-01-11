@@ -192,7 +192,7 @@ export const SwipeableCard: React.FC<SwipeableCardProps> = ({
       {/* Card Content */}
       <div
         ref={containerRef}
-        className={`relative bg-white ${isDragging ? '' : 'transition-transform duration-200 ease-out'}`}
+        className={`relative bg-transparent ${isDragging ? '' : 'transition-transform duration-200 ease-out'}`}
         style={{ transform: `translateX(${translateX}px)` }}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}

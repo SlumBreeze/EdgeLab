@@ -44,7 +44,7 @@ export default function TrackerNewBet({ draftBet, onBack, onBetAdded }: Props) {
           </div>
           <button 
             onClick={onBack}
-            className="px-4 py-2 bg-white border border-ink-gray rounded-xl text-xs font-bold text-ink-text/60 hover:text-ink-text transition-all"
+            className="px-4 py-2 bg-ink-paper border border-ink-gray rounded-xl text-xs font-bold text-ink-text/70 hover:text-ink-text transition-all"
           >
             Cancel
           </button>
@@ -52,11 +52,11 @@ export default function TrackerNewBet({ draftBet, onBack, onBetAdded }: Props) {
 
         <div className="space-y-6">
           {draftBet && (
-            <div className="bg-white border border-ink-gray p-4 rounded-2xl shadow-sm">
+            <div className="bg-ink-paper border border-ink-gray p-4 rounded-2xl shadow-sm">
                 <div className="flex justify-between items-start mb-4">
                     <span className="text-[10px] font-bold text-ink-accent uppercase tracking-widest">{draftBet.sport} Analysis</span>
                     {draftBet.evPct !== null && (
-                        <span className="bg-emerald-100 text-emerald-700 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                        <span className="bg-status-win/10 text-status-win text-[10px] font-bold px-2 py-0.5 rounded-full border border-status-win/30">
                             +{draftBet.evPct}¢ Edge
                         </span>
                     )}

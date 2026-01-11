@@ -99,10 +99,10 @@ const getAlternativeBook = (
 };
 
 const getFactConfidenceStyle = (confidence?: string) => {
-  if (confidence === 'HIGH') return 'bg-emerald-100 text-emerald-700 border-emerald-200';
-  if (confidence === 'MEDIUM') return 'bg-amber-100 text-amber-700 border-amber-200';
-  if (confidence === 'LOW') return 'bg-red-100 text-red-600 border-red-200';
-  return 'bg-slate-100 text-slate-500 border-slate-200';
+  if (confidence === 'HIGH') return 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30';
+  if (confidence === 'MEDIUM') return 'bg-amber-500/10 text-amber-300 border-amber-500/30';
+  if (confidence === 'LOW') return 'bg-status-loss/10 text-status-loss border-status-loss/30';
+  return 'bg-ink-base text-ink-text/50 border-ink-gray';
 };
 
 export default function Card({ onLogBet }: { onLogBet: (draft: DraftBet) => void }) {
@@ -335,10 +335,11 @@ export default function Card({ onLogBet }: { onLogBet: (draft: DraftBet) => void
         const a = g.analysis!;
         if (g.cardSlot) output += `[SLOT #${g.cardSlot}] `;
         
-        output += `\n${g.sport}: ${g.awayTeam.name} @ ${g.homeTeam.name}\n`;
-        output += `Sharp Fair Prob: ${a.sharpImpliedProb?.toFixed(1) || 'N/A'}%\n`;
-        if (a.recommendation) {
-           output += `PICK: ${a.recommendation} ${a.recLine} @ ${a.softBestBook}\n`;
+      output += `\n${g.sport}: ${g.awayTeam.name} @ ${g.homeTeam.name}\n`;
+      output += `Sharp Fair Prob: ${a.sharpImpliedProb?.toFixed(1) || 'N/A'}%\n`;
+        const pickLabel = a.pick || (a.recommendation && a.recommendation.length > 4 ? a.recommendation : undefined);
+        if (pickLabel) {
+           output += `PICK: ${pickLabel} ${a.recLine} @ ${a.softBestBook}\n`;
         }
         if (a.lineValueCents && a.lineValueCents > 0) {
           output += `Line Value: +${a.lineValueCents} cents\n`;
@@ -375,8 +376,8 @@ export default function Card({ onLogBet }: { onLogBet: (draft: DraftBet) => void
         <header className="mb-6">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <h1 className="text-2xl font-bold text-slate-800 mb-1">Daily Card</h1>
-              <p className="text-slate-400 text-sm">
+              <h1 className="text-2xl font-bold text-ink-text mb-1">Daily Card</h1>
+              <p className="text-ink-text/60 text-sm">
                 {new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
               </p>
             </div>
@@ -385,8 +386,8 @@ export default function Card({ onLogBet }: { onLogBet: (draft: DraftBet) => void
               disabled={isRefreshing}
               className={`px-3 py-2 rounded-lg text-[11px] font-bold uppercase tracking-wide border shadow-sm transition-all ${
                 isRefreshing
-                  ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
-                  : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300 hover:text-slate-900'
+                  ? 'bg-ink-base text-ink-text/40 border-ink-gray cursor-not-allowed'
+                  : 'bg-ink-paper text-ink-text border-ink-gray hover:border-ink-text/40'
               }`}
               title="Refresh lines and re-check each pick"
             >
@@ -406,37 +407,37 @@ export default function Card({ onLogBet }: { onLogBet: (draft: DraftBet) => void
         
         {/* Smart Pick Section */}
         {playable.length > 0 && (
-          <div className="mb-6 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+          <div className="mb-6 bg-ink-paper p-4 rounded-xl border border-ink-gray shadow-sm">
               <div className="flex justify-between items-center mb-3">
                   <div>
-                    <span className="font-bold text-slate-700 text-sm">Smart Pick</span>
-                    <p className="text-[10px] text-slate-400 mt-0.5">
+                    <span className="font-bold text-ink-text text-sm">Smart Pick</span>
+                    <p className="text-[10px] text-ink-text/50 mt-0.5">
                       Only picks with real mathematical edge
                     </p>
                   </div>
-                  <span className="text-xs font-bold bg-slate-100 text-slate-600 px-2 py-1 rounded">
+                  <span className="text-xs font-bold bg-ink-base text-ink-text/60 px-2 py-1 rounded">
                     {playable.length} playable
                   </span>
               </div>
               
               <button
                   onClick={handleSmartPick}
-                  className="w-full py-3 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 text-white font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
+                  className="w-full py-3 bg-ink-accent hover:bg-sky-500 text-white font-bold rounded-xl shadow-sm transition-all flex items-center justify-center gap-2"
               >
                   <span>🎯</span> Generate Smart Card
               </button>
               
-              <p className="text-center text-[10px] text-slate-400 mt-2">
+              <p className="text-center text-[10px] text-ink-text/50 mt-2">
                   Requires: +0.5 pts, +15¢ juice, or HIGH confidence
               </p>
               
               {/* Show last pick result if skipped any */}
               {lastPickResult && lastPickResult.skipped > 0 && (
                 <details className="mt-3 text-xs">
-                  <summary className="text-amber-600 font-medium cursor-pointer hover:text-amber-700">
+                  <summary className="text-amber-300 font-medium cursor-pointer hover:text-amber-200">
                     {lastPickResult.skipped} playable skipped (no edge)
                   </summary>
-                  <div className="mt-2 p-2 bg-amber-50 rounded-lg text-amber-700 space-y-1">
+                  <div className="mt-2 p-2 bg-amber-500/10 rounded-lg text-amber-200 space-y-1 border border-amber-500/20">
                     {lastPickResult.reasons.map((reason, idx) => (
                       <div key={idx}>• {reason}</div>
                     ))}
@@ -448,12 +449,12 @@ export default function Card({ onLogBet }: { onLogBet: (draft: DraftBet) => void
 
         {/* DISCIPLINE WARNING */}
         {overLimit && (
-          <div className="mb-6 p-4 bg-coral-50 border border-coral-200 rounded-2xl">
-            <div className="flex items-center text-coral-600 font-bold mb-2">
+          <div className="mb-6 p-4 bg-status-loss/10 border border-status-loss/30 rounded-2xl">
+            <div className="flex items-center text-status-loss font-bold mb-2">
               <span className="text-xl mr-2">⚠️</span>
               DISCIPLINE WARNING
             </div>
-            <p className="text-coral-600 text-sm">
+            <p className="text-status-loss text-sm">
               You have {playableCount} playable games but the framework limits you to {MAX_DAILY_PLAYS} per day.
               Choose your best {MAX_DAILY_PLAYS} based on line value, not gut feel.
             </p>
@@ -462,8 +463,8 @@ export default function Card({ onLogBet }: { onLogBet: (draft: DraftBet) => void
 
         {analyzedGames.length === 0 ? (
           <div className="text-center py-20 bg-ink-paper rounded-2xl border border-ink-gray shadow-sm">
-            <p className="text-ink-text/40">No analyses completed yet.</p>
-            <p className="text-ink-text/60 text-sm mt-2">Add games from Scout → Upload lines → Run analysis</p>
+            <p className="text-ink-text/60">No analyses completed yet.</p>
+            <p className="text-ink-text/50 text-sm mt-2">Add games from Scout → Upload lines → Run analysis</p>
           </div>
         ) : (
           <>
@@ -478,7 +479,7 @@ export default function Card({ onLogBet }: { onLogBet: (draft: DraftBet) => void
                       <h3 className="font-bold text-ink-text text-sm flex items-center gap-2">
                         <span>📊</span> Projected Outcomes
                       </h3>
-                      <span className="text-xs text-ink-text/40">
+                      <span className="text-xs text-ink-text/60">
                         {hasAutoPicked ? `${targetCount} picks` : `${playable.length} playable`}
                       </span>
                     </div>
@@ -487,7 +488,7 @@ export default function Card({ onLogBet }: { onLogBet: (draft: DraftBet) => void
                   <div className="p-4">
                     {/* Total at Risk */}
                     <div className="flex justify-between items-center mb-4 pb-3 border-b border-ink-gray">
-                      <span className="text-xs text-ink-text/60 uppercase font-bold tracking-wide">Total Wagered</span>
+                      <span className="text-xs text-ink-text/70 uppercase font-bold tracking-wide">Total Wagered</span>
                       <span className="font-bold text-ink-text font-mono">${analytics.totalWagered.toFixed(2)}</span>
                     </div>
                     
@@ -515,11 +516,11 @@ export default function Card({ onLogBet }: { onLogBet: (draft: DraftBet) => void
                     {/* Quick Summary */}
                     <div className="mt-4 pt-3 border-t border-ink-gray flex justify-between text-xs">
                       <div>
-                        <span className="text-ink-text/40">Best case: </span>
+                        <span className="text-ink-text/60">Best case: </span>
                         <span className="font-bold text-status-win">+${analytics.maxProfit.toFixed(2)}</span>
                       </div>
                       <div>
-                        <span className="text-ink-text/40">Worst case: </span>
+                        <span className="text-ink-text/60">Worst case: </span>
                         <span className="font-bold text-status-loss">${analytics.maxLoss.toFixed(2)}</span>
                       </div>
                     </div>
@@ -560,25 +561,25 @@ export default function Card({ onLogBet }: { onLogBet: (draft: DraftBet) => void
               <div className={`p-4 rounded-2xl border shadow-sm ${
                 overLimit 
                   ? 'bg-status-loss/10 border-status-loss/30' 
-                  : 'bg-teal-900/20 border-teal-700/30'
+                  : 'bg-ink-paper border-ink-gray'
               }`}>
-                <div className={`text-3xl font-bold ${overLimit ? 'text-status-loss' : 'text-teal-500'}`}>
+                <div className={`text-3xl font-bold ${overLimit ? 'text-status-loss' : 'text-ink-accent'}`}>
                   {playableCount}
                 </div>
-                <div className="text-[10px] uppercase text-ink-text/40 font-bold tracking-wider mt-1">
+                <div className="text-[10px] uppercase text-ink-text/60 font-bold tracking-wider mt-1">
                   Playable / {MAX_DAILY_PLAYS} Max
                 </div>
               </div>
               <div className="bg-ink-paper border border-ink-gray p-4 rounded-2xl shadow-sm">
-                <div className="text-3xl font-bold text-ink-text/40">{passed.length}</div>
-                <div className="text-[10px] uppercase text-ink-text/40 font-bold tracking-wider mt-1">Passed</div>
+                <div className="text-3xl font-bold text-ink-text/60">{passed.length}</div>
+                <div className="text-[10px] uppercase text-ink-text/60 font-bold tracking-wider mt-1">Passed</div>
               </div>
             </div>
 
             {/* Playable Games */}
             {playable.length > 0 && (
               <section className="mb-6">
-                <h2 className="text-teal-500 font-bold text-sm uppercase tracking-wider mb-3 flex items-center">
+                <h2 className="text-ink-accent font-bold text-sm uppercase tracking-wider mb-3 flex items-center">
                   <span className="mr-2">✅</span> Playable (Your Decision)
                 </h2>
                 <div className="space-y-3">
@@ -598,7 +599,7 @@ export default function Card({ onLogBet }: { onLogBet: (draft: DraftBet) => void
             {/* Passed Games */}
             {passed.length > 0 && (
               <section>
-                <h2 className="text-ink-text/40 font-bold text-sm uppercase tracking-wider mb-3 flex items-center">
+                <h2 className="text-ink-text/60 font-bold text-sm uppercase tracking-wider mb-3 flex items-center">
                   <span className="mr-2">⛔</span> Passed (Veto Triggered)
                 </h2>
                 <div className="space-y-3">
@@ -611,13 +612,13 @@ export default function Card({ onLogBet }: { onLogBet: (draft: DraftBet) => void
 
             <button 
               onClick={copyToClipboard}
-              className="w-full mt-8 bg-ink-paper hover:bg-ink-base border border-ink-gray text-ink-text font-bold py-4 rounded-2xl shadow-lg transition-all"
+              className="w-full mt-8 bg-ink-base hover:bg-ink-paper border border-ink-gray text-ink-text font-bold py-4 rounded-2xl shadow-sm transition-all"
             >
               📋 Copy Daily Card
             </button>
 
             {/* Philosophy Reminder */}
-            <div className="mt-6 text-center text-ink-text/40 text-xs">
+            <div className="mt-6 text-center text-ink-text/60 text-xs">
               <p>EdgeLab v3 — Discipline Edition</p>
               <p className="mt-1 italic">"Passing is profitable."</p>
             </div>
@@ -649,6 +650,7 @@ const PlayableCard: React.FC<{ game: QueuedGame; dim?: boolean; onLogBet: (draft
   const hasFactConfidence = !!a.factConfidence;
   const isFactConfidenceHigh = a.factConfidence === 'HIGH';
   const slot = game.cardSlot;
+  const pickLabel = a.pick || (a.recommendation && a.recommendation.length > 4 ? a.recommendation : undefined);
 
   const wagerUnits = funding?.wagerUnits ?? 1.0;
   const wagerAmount = funding?.wagerAmount ?? 0;
@@ -675,33 +677,31 @@ const PlayableCard: React.FC<{ game: QueuedGame; dim?: boolean; onLogBet: (draft
   };
 
   return (
-    <div className={`p-4 rounded-2xl shadow-lg relative transition-all ${
-      dim ? 'opacity-40 grayscale-[50%]' : ''
+    <div className={`p-4 rounded-2xl shadow-sm relative transition-all border border-l-4 ${
+      dim ? 'opacity-50' : ''
     } ${
       slot 
-        ? 'border-4 border-amber-400' 
+        ? 'ring-1 ring-ink-accent' 
         : ''
     } ${
       hasCaution 
-        ? 'bg-gradient-to-br from-amber-400 to-yellow-500 text-slate-800' 
-        : 'bg-gradient-to-br from-teal-500 to-emerald-500 text-white'
+        ? 'bg-ink-paper text-ink-text border-amber-500/40 border-l-amber-400' 
+        : 'bg-ink-paper text-ink-text border-ink-gray border-l-ink-accent'
     } ${hasFactConfidence && !isFactConfidenceHigh ? 'opacity-80' : ''}`}>
       {/* SLOT BADGE */}
       <div className="flex justify-between items-start mb-2">
-        <span className={`text-xs font-bold uppercase ${hasCaution ? 'text-slate-700' : 'text-white/70'}`}>{game.sport}</span>
+        <span className="text-xs font-bold uppercase text-ink-text/60">{game.sport}</span>
         <div className="flex items-center gap-2">
           {/* Edge Quality Badge */}
           {(linePoints > 0 || juiceCents > 0) && (
-            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-              hasCaution ? 'bg-white/40 text-slate-900' : 'bg-white/20'
-            }`}>
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-ink-base text-ink-text/80 border border-ink-gray">
               {linePoints > 0 && `+${linePoints}pts`}
               {linePoints > 0 && juiceCents > 0 && ' '}
               {juiceCents > 0 && `+${juiceCents}¢`}
             </span>
           )}
           {a.recProbability !== undefined && a.recProbability > 0 && (
-            <span className={`text-xs font-mono px-2 py-1 rounded-full ${hasCaution ? 'bg-white/40 text-slate-900' : 'bg-white/20'}`}>
+            <span className="text-xs font-mono px-2 py-1 rounded-full bg-ink-base text-ink-text/80 border border-ink-gray">
               Fair: {a.recProbability.toFixed(1)}%
             </span>
           )}
@@ -709,18 +709,18 @@ const PlayableCard: React.FC<{ game: QueuedGame; dim?: boolean; onLogBet: (draft
       </div>
       
       {/* THE PICK - BIG AND BOLD */}
-      {a.recommendation && (
+      {pickLabel && (
         <div className="mb-4">
           <div className="flex justify-between items-start">
             <div className="text-2xl font-bold leading-tight">
-                {a.recommendation} <span className={hasCaution ? 'text-slate-900' : 'text-white/90'}>{displayRecLine}</span>
+                {pickLabel} <span className="text-ink-text/80">{displayRecLine}</span>
             </div>
             <button 
                 onClick={handleLogClick}
-                className={`ml-4 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-tighter border-2 transition-all active:scale-95 ${
+                className={`ml-4 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-tighter border transition-all active:scale-95 ${
                     hasCaution 
-                    ? 'bg-slate-900 text-amber-400 border-slate-900 hover:bg-slate-800' 
-                    : 'bg-white text-emerald-600 border-white hover:bg-emerald-50'
+                    ? 'bg-amber-500/10 text-amber-200 border-amber-500/40 hover:bg-amber-500/20' 
+                    : 'bg-ink-accent text-white border-ink-accent hover:bg-sky-500'
                 }`}
             >
                 Log Bet 📊
@@ -728,17 +728,17 @@ const PlayableCard: React.FC<{ game: QueuedGame; dim?: boolean; onLogBet: (draft
           </div>
           
           <div className="flex items-center gap-2 mt-1">
-             <div className={`text-sm flex items-center gap-1 ${hasCaution ? 'text-slate-700' : 'text-white/70'}`}>
+             <div className="text-sm flex items-center gap-1 text-ink-text/70">
                 @ {displayBook}
                 {funding?.usedAlt && (
-                    <span className="bg-indigo-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow-sm border border-white/20 ml-1" title="Original book had insufficient funds">
+                    <span className="bg-ink-base text-ink-text text-[9px] font-bold px-1.5 py-0.5 rounded border border-ink-gray ml-1" title="Original book had insufficient funds">
                         ↱ Swapped (Funds)
                     </span>
                 )}
              </div>
              {funding?.isCapped && (
                 <div className="flex items-center gap-1 flex-wrap">
-                    <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">
+                    <span className="bg-status-loss/10 text-status-loss text-[10px] font-bold px-1.5 py-0.5 rounded border border-status-loss/30">
                         Capped: ${funding.availableBalance?.toFixed(2)}
                     </span>
                 </div>
@@ -747,7 +747,7 @@ const PlayableCard: React.FC<{ game: QueuedGame; dim?: boolean; onLogBet: (draft
 
           {/* Line Threshold Info (NEW) */}
           {(a.lineFloor || a.oddsFloor) && (
-            <div className={`flex items-center gap-2 text-xs mt-2 ${hasCaution ? 'text-slate-800/80' : 'text-white/80'}`}>
+            <div className="flex items-center gap-2 text-xs mt-2 text-ink-text/70">
                 <span>📉</span>
                 <span>
                 {/* Clean display for ML vs Spread */}
@@ -762,22 +762,22 @@ const PlayableCard: React.FC<{ game: QueuedGame; dim?: boolean; onLogBet: (draft
       )}
 
       {/* WAGER RECOMMENDATION BAR */}
-      <div className={`flex items-center justify-between p-3 rounded-xl mb-4 ${hasCaution ? 'bg-white/30' : 'bg-black/20'}`}>
+      <div className="flex items-center justify-between p-3 rounded-xl mb-4 bg-ink-base border border-ink-gray">
         <div>
-            <div className={`text-[10px] uppercase font-bold tracking-wider ${hasCaution ? 'text-slate-800 opacity-60' : 'text-white/60'}`}>
+            <div className="text-[10px] uppercase font-bold tracking-wider text-ink-text/60">
                 Recommended Wager
             </div>
             {isWagerCalculated ? (
                 <div className="flex items-baseline gap-1">
                     <span className="text-xl font-bold font-mono">${wagerAmount.toFixed(2)}</span>
-                    <span className={`text-xs ${hasCaution ? 'text-slate-800' : 'text-white/80'}`}>({wagerUnits}u)</span>
+                    <span className="text-xs text-ink-text/70">({wagerUnits}u)</span>
                 </div>
             ) : (
-                <div className="text-xs italic opacity-70">Set bankroll to see calc</div>
+                <div className="text-xs italic text-ink-text/50">Set bankroll to see calc</div>
             )}
         </div>
         <div className="text-right">
-             <div className={`text-[10px] uppercase font-bold tracking-wider ${hasCaution ? 'text-slate-800 opacity-60' : 'text-white/60'}`}>
+             <div className="text-[10px] uppercase font-bold tracking-wider text-ink-text/60">
                 Edge Strength
             </div>
             <div className="font-bold">{a.confidence || 'MEDIUM'}</div>
@@ -785,26 +785,26 @@ const PlayableCard: React.FC<{ game: QueuedGame; dim?: boolean; onLogBet: (draft
       </div>
       
       {/* Matchup context */}
-      <div className={`text-sm mb-3 ${hasCaution ? 'text-slate-700' : 'text-white/60'}`}>
+      <div className="text-sm mb-3 text-ink-text/70">
         {game.awayTeam.name} @ {game.homeTeam.name}
       </div>
       
       {/* Line Value Badge */}
       {(a.lineValueCents !== undefined && a.lineValueCents > 0) && (
-        <div className={`inline-block text-xs px-3 py-1 rounded-full mb-3 ${hasCaution ? 'bg-white/30 text-slate-900' : 'bg-white/20 text-white'}`}>
+        <div className="inline-block text-xs px-3 py-1 rounded-full mb-3 bg-ink-base text-ink-text/80 border border-ink-gray">
           +{a.lineValueCents}¢ vs sharp
         </div>
       )}
       
       {a.edgeNarrative && (
-        <div className={`text-sm mb-3 italic ${hasCaution ? 'text-slate-800' : 'text-white/80'}`}>
+        <div className="text-sm mb-3 italic text-ink-text/70">
           "{a.edgeNarrative}"
         </div>
       )}
       
-      <details className={`text-xs border-t pt-2 ${hasCaution ? 'text-slate-700 border-slate-800/20' : 'text-white/70 border-white/20'}`}>
-        <summary className={`cursor-pointer font-medium ${hasCaution ? 'hover:text-slate-900' : 'hover:text-white'}`}>Research Summary</summary>
-        <div className={`mt-2 p-2 rounded-xl whitespace-pre-wrap ${hasCaution ? 'bg-white/20 text-slate-800' : 'bg-white/10'}`}>
+      <details className="text-xs border-t pt-2 text-ink-text/70 border-ink-gray">
+        <summary className="cursor-pointer font-medium hover:text-ink-text">Research Summary</summary>
+        <div className="mt-2 p-2 rounded-xl whitespace-pre-wrap bg-ink-base text-ink-text/70 border border-ink-gray">
           {a.researchSummary}
         </div>
       </details>
@@ -816,11 +816,11 @@ const PassedCard: React.FC<{ game: QueuedGame }> = ({ game }) => {
   const a = game.analysis!;
   
   return (
-    <div className="p-4 rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <div className="p-4 rounded-2xl border border-ink-gray bg-ink-paper shadow-sm">
       <div className="flex justify-between items-start mb-2">
-        <span className="text-xs font-bold text-slate-400 uppercase">{game.sport}</span>
+        <span className="text-xs font-bold text-ink-text/60 uppercase">{game.sport}</span>
         {a.vetoTriggered && (
-          <span className="text-xs bg-coral-100 text-coral-600 px-2 py-1 rounded-full font-medium">
+          <span className="text-xs bg-status-loss/10 text-status-loss px-2 py-1 rounded-full font-medium border border-status-loss/30">
             VETO
           </span>
         )}
@@ -832,19 +832,19 @@ const PassedCard: React.FC<{ game: QueuedGame }> = ({ game }) => {
         </div>
       )}
       
-      <div className="font-bold text-slate-600 mb-2">
+      <div className="font-bold text-ink-text mb-2">
         {game.awayTeam.name} @ {game.homeTeam.name}
       </div>
       
       {a.vetoReason && (
-        <div className="text-xs text-coral-500 mb-2">
+        <div className="text-xs text-status-loss mb-2">
           {a.vetoReason}
         </div>
       )}
       
-      <details className="text-xs text-slate-400">
-        <summary className="cursor-pointer hover:text-slate-600">Research Summary</summary>
-        <div className="mt-2 p-2 bg-slate-50 rounded-xl whitespace-pre-wrap text-slate-500">
+      <details className="text-xs text-ink-text/60">
+        <summary className="cursor-pointer hover:text-ink-text">Research Summary</summary>
+        <div className="mt-2 p-2 bg-ink-base rounded-xl whitespace-pre-wrap text-ink-text/60 border border-ink-gray">
           {a.researchSummary}
         </div>
       </details>

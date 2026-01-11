@@ -148,9 +148,9 @@ const QueuedGameCard: React.FC<Props> = ({
   };
 
   const getEdgeColor = (signal?: string) => {
-    if (signal === 'RED') return 'bg-red-100 text-red-600 border-red-200';
-    if (signal === 'YELLOW') return 'bg-amber-100 text-amber-700 border-amber-200';
-    return 'bg-slate-100 text-slate-600 border-slate-200';
+    if (signal === 'RED') return 'bg-status-loss/10 text-status-loss border-status-loss/30';
+    if (signal === 'YELLOW') return 'bg-amber-500/10 text-amber-300 border-amber-500/30';
+    return 'bg-ink-base text-ink-text/60 border-ink-gray';
   };
 
   const getEdgeEmoji = (signal?: string) => {
@@ -160,10 +160,10 @@ const QueuedGameCard: React.FC<Props> = ({
   };
 
   const getFactConfidenceStyle = (confidence?: string) => {
-    if (confidence === 'HIGH') return 'bg-emerald-100 text-emerald-700 border-emerald-200';
-    if (confidence === 'MEDIUM') return 'bg-amber-100 text-amber-700 border-amber-200';
-    if (confidence === 'LOW') return 'bg-red-100 text-red-600 border-red-200';
-    return 'bg-slate-100 text-slate-500 border-slate-200';
+    if (confidence === 'HIGH') return 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30';
+    if (confidence === 'MEDIUM') return 'bg-amber-500/10 text-amber-300 border-amber-500/30';
+    if (confidence === 'LOW') return 'bg-status-loss/10 text-status-loss border-status-loss/30';
+    return 'bg-ink-base text-ink-text/50 border-ink-gray';
   };
 
   // DraftKings-style line cell component
@@ -176,15 +176,15 @@ const QueuedGameCard: React.FC<Props> = ({
     <div className={`
       flex flex-col items-center justify-center p-2 rounded-lg min-w-[70px]
       ${isHighlighted 
-        ? 'bg-teal-900/20 border-2 border-teal-500/50' 
+        ? 'bg-ink-accent/10 border-2 border-ink-accent/40' 
         : 'bg-ink-base border border-ink-gray'
       }
     `}>
       {label && <span className="text-[9px] text-ink-text/40 uppercase font-medium mb-0.5">{label}</span>}
-      <span className={`font-bold text-sm ${isHighlighted ? 'text-teal-400' : 'text-ink-text'}`}>
+      <span className={`font-bold text-sm ${isHighlighted ? 'text-ink-accent' : 'text-ink-text'}`}>
         {line || 'N/A'}
       </span>
-      <span className={`text-xs ${isHighlighted ? 'text-teal-500' : 'text-ink-text/50'}`}>
+      <span className={`text-xs ${isHighlighted ? 'text-ink-accent' : 'text-ink-text/50'}`}>
         {odds ? formatOddsForDisplay(odds) : ''}
       </span>
     </div>
@@ -235,7 +235,7 @@ const QueuedGameCard: React.FC<Props> = ({
       {/* Header */}
       <div className="px-4 py-3 bg-ink-base border-b border-ink-gray flex justify-between items-center">
         <div className="flex items-center gap-2">
-          <span className="bg-ink-accent/20 text-ink-accent text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">
+          <span className="bg-ink-accent/10 text-ink-accent text-[10px] font-bold px-2 py-0.5 rounded-full uppercase border border-ink-accent/30">
             {game.sport}
           </span>
           <span className="text-ink-text/40 text-xs">#{game.visibleId}</span>
@@ -261,7 +261,7 @@ const QueuedGameCard: React.FC<Props> = ({
           {!game.edgeSignal && (
             <button 
               onClick={onScan} 
-              className="text-xs text-teal-400 hover:text-teal-300 font-medium flex items-center gap-1"
+              className="text-xs text-ink-accent hover:text-sky-400 font-medium flex items-center gap-1"
             >
               <span>⚡</span> Quick Scan
             </button>
@@ -287,18 +287,18 @@ const QueuedGameCard: React.FC<Props> = ({
           {!game.analysis && (
             <div className="flex gap-2">
               {isAnalyzing ? (
-                <div className="flex items-center gap-2 bg-ink-accent/10 text-ink-accent px-4 py-2 rounded-xl">
+                <div className="flex items-center gap-2 bg-ink-accent/10 text-ink-accent px-4 py-2 rounded-xl border border-ink-accent/30">
                   <span className="animate-spin text-sm">⚡</span>
                   <span className="font-bold text-sm">Analyzing...</span>
                 </div>
               ) : queuePosition >= 0 ? (
-                <div className="flex items-center gap-3 bg-amber-900/20 border border-amber-700/30 rounded-xl px-4 py-2">
-                  <span className="text-amber-500 font-medium text-sm">
+                <div className="flex items-center gap-3 bg-amber-500/10 border border-amber-500/30 rounded-xl px-4 py-2">
+                  <span className="text-amber-300 font-medium text-sm">
                     ⏳ Queued #{queuePosition + 1}
                   </span>
                   <button
                     onClick={onRemoveFromQueue}
-                    className="text-amber-500 hover:text-amber-400 text-sm font-bold"
+                    className="text-amber-300 hover:text-amber-200 text-sm font-bold"
                   >
                     ✕
                   </button>
@@ -308,14 +308,14 @@ const QueuedGameCard: React.FC<Props> = ({
                   <button
                     onClick={onQuickAnalyze}
                     disabled={fetchingOdds}
-                    className="text-xs bg-gradient-to-r from-ink-accent to-blue-600 hover:from-blue-400 hover:to-blue-500 text-white px-4 py-2 rounded-xl font-bold transition-all shadow-md hover:shadow-lg disabled:opacity-50 flex items-center gap-1"
+                    className="text-xs bg-ink-accent hover:bg-sky-500 text-white px-4 py-2 rounded-xl font-bold transition-all shadow-sm disabled:opacity-50 flex items-center gap-1"
                   >
                     <span>⚡</span> Quick Analyze
                   </button>
                   <button
                     onClick={handleFetchLines}
                     disabled={fetchingOdds}
-                    className="text-xs bg-ink-gray hover:bg-ink-text/20 text-white px-3 py-2 rounded-xl font-bold transition-colors shadow-sm flex items-center gap-1"
+                    className="text-xs bg-ink-base hover:bg-ink-paper text-ink-text/70 border border-ink-gray px-3 py-2 rounded-xl font-bold transition-colors shadow-sm flex items-center gap-1"
                   >
                     <span>🔄</span> Fetch Only
                   </button>
@@ -345,8 +345,8 @@ const QueuedGameCard: React.FC<Props> = ({
 
         {/* Sharp Lines (Pinnacle) */}
         {game.sharpLines ? (
-          <div className="bg-amber-900/10 rounded-xl p-3 mb-3 border border-amber-700/30">
-            <div className="text-[10px] font-bold text-amber-500 uppercase mb-2 flex items-center gap-1">
+          <div className="bg-amber-500/10 rounded-xl p-3 mb-3 border border-amber-500/30">
+            <div className="text-[10px] font-bold text-amber-300 uppercase mb-2 flex items-center gap-1">
               <span>📌</span> Pinnacle (Sharp)
             </div>
             <TeamRow
@@ -372,7 +372,7 @@ const QueuedGameCard: React.FC<Props> = ({
           </div>
         ) : (
           <div className="border-2 border-dashed border-ink-gray rounded-xl p-6 text-center mb-3">
-            <p className="text-ink-text/40 text-sm">Fetch lines or upload Pinnacle screenshot</p>
+            <p className="text-ink-text/60 text-sm">Fetch lines or upload Pinnacle screenshot</p>
           </div>
         )}
 
@@ -397,7 +397,7 @@ const QueuedGameCard: React.FC<Props> = ({
                       type="checkbox" 
                       checked={isSelected} 
                       onChange={() => toggleSoftBook(book)}
-                      className="w-5 h-5 text-ink-accent rounded focus:ring-ink-accent border-gray-600 bg-ink-base" 
+                      className="w-5 h-5 text-ink-accent rounded focus:ring-ink-accent border-ink-gray bg-ink-base" 
                     />
                     <div className="flex-1">
                       <div className="flex justify-between items-center">
@@ -408,7 +408,7 @@ const QueuedGameCard: React.FC<Props> = ({
                           )}
                         </span>
                         {edgeText && (
-                          <span className="text-xs font-bold text-emerald-400 bg-emerald-900/30 px-2 py-0.5 rounded-full border border-emerald-800">
+                          <span className="text-xs font-bold text-status-win bg-status-win/10 px-2 py-0.5 rounded-full border border-status-win/30">
                             {edgeText}
                           </span>
                         )}
@@ -436,10 +436,10 @@ const QueuedGameCard: React.FC<Props> = ({
       {/* Analysis Result / Action */}
       <div className="px-4 py-4 bg-ink-base border-t border-ink-gray">
         {game.analysis ? (
-          <div className={`rounded-xl overflow-hidden ${
+          <div className={`rounded-xl overflow-hidden border border-ink-gray ${
             game.analysis.decision === 'PLAYABLE' 
-              ? 'bg-gradient-to-r from-teal-600 to-emerald-600 text-white' 
-              : 'bg-ink-gray text-ink-text/60'
+              ? 'bg-ink-paper text-ink-text border-l-4 border-l-ink-accent' 
+              : 'bg-ink-base text-ink-text/70'
           } ${game.analysis.factConfidence && game.analysis.factConfidence !== 'HIGH' ? 'opacity-80' : ''}`}>
             {game.analysis.factConfidence && (
               <div className={`px-4 py-2 text-[10px] font-bold uppercase border-b ${getFactConfidenceStyle(game.analysis.factConfidence)}`}>
@@ -460,15 +460,15 @@ const QueuedGameCard: React.FC<Props> = ({
             </div>
             
             {/* The Pick */}
-            {game.analysis.decision === 'PLAYABLE' && game.analysis.recommendation && (
-              <div className="px-4 py-3 bg-white/10">
+            {game.analysis.decision === 'PLAYABLE' && (game.analysis.pick || (game.analysis.recommendation && game.analysis.recommendation.length > 4)) && (
+              <div className="px-4 py-3 bg-ink-base border-t border-ink-gray">
                 <div className="font-bold text-xl">
-                  {game.analysis.recommendation} {game.analysis.recLine}
+                  {game.analysis.pick || game.analysis.recommendation} {game.analysis.recLine}
                 </div>
                 <div className="text-sm opacity-80 mt-1">
                   @ {game.analysis.softBestBook} 
                   {game.analysis.lineValueCents && game.analysis.lineValueCents > 0 && (
-                    <span className="ml-2 bg-white/20 px-2 py-0.5 rounded-full text-xs">
+                    <span className="ml-2 bg-ink-base px-2 py-0.5 rounded-full text-xs border border-ink-gray">
                       +{game.analysis.lineValueCents}¢ value
                     </span>
                   )}
@@ -478,33 +478,31 @@ const QueuedGameCard: React.FC<Props> = ({
             
             {/* Veto Reason */}
             {game.analysis.vetoTriggered && game.analysis.vetoReason && (
-              <div className="px-4 py-2 bg-red-900/40 text-sm">
+              <div className="px-4 py-2 bg-status-loss/10 text-sm border-t border-status-loss/20 text-status-loss">
                 <strong>Veto:</strong> {game.analysis.vetoReason}
               </div>
             )}
             
             {/* Research Summary */}
-            <details className={`text-xs ${game.analysis.decision === 'PLAYABLE' ? 'bg-white/10' : 'bg-black/20'}`}>
-              <summary className="px-4 py-2 cursor-pointer hover:bg-white/10 font-medium">
+            <details className="text-xs bg-ink-base border-t border-ink-gray">
+              <summary className="px-4 py-2 cursor-pointer hover:bg-ink-paper font-medium">
                 Research Summary
               </summary>
-              <div className={`px-4 py-3 whitespace-pre-wrap ${
-                game.analysis.decision === 'PLAYABLE' ? 'text-white/90' : 'text-ink-text/80'
-              }`}>
+              <div className="px-4 py-3 whitespace-pre-wrap text-ink-text/70">
                 {game.analysis.researchSummary}
               </div>
             </details>
           </div>
         ) : game.analysisError ? (
           /* New: Show error state if Quick Analyze failed */
-          <div className="bg-red-900/20 border border-red-800/50 rounded-xl p-4">
-            <div className="flex items-center gap-2 text-red-400 font-bold text-sm mb-2">
+          <div className="bg-status-loss/10 border border-status-loss/30 rounded-xl p-4">
+            <div className="flex items-center gap-2 text-status-loss font-bold text-sm mb-2">
               <span>❌</span> Analysis Failed
             </div>
-            <p className="text-red-400 text-xs">{game.analysisError}</p>
+            <p className="text-status-loss text-xs">{game.analysisError}</p>
             <button
               onClick={onQuickAnalyze}
-              className="mt-3 text-xs bg-ink-gray hover:bg-ink-text/20 text-white px-4 py-2 rounded-lg font-bold"
+              className="mt-3 text-xs bg-ink-base hover:bg-ink-paper text-ink-text/80 border border-ink-gray px-4 py-2 rounded-lg font-bold"
             >
               Retry
             </button>
@@ -520,7 +518,7 @@ const QueuedGameCard: React.FC<Props> = ({
             className={`w-full py-4 rounded-xl font-bold text-sm transition-all transform hover:scale-[1.02] ${
               !game.sharpLines || game.softLines.length === 0
                 ? 'bg-ink-gray text-ink-text/40 cursor-not-allowed'
-                : 'bg-gradient-to-r from-ink-accent to-blue-600 text-white shadow-lg hover:shadow-xl'
+                : 'bg-ink-accent text-white shadow-sm hover:bg-sky-500'
             }`}
           >
             {!game.sharpLines || game.softLines.length === 0 

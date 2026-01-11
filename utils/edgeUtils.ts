@@ -1,4 +1,3 @@
-
 // Shared logic for determining edge quality
 // Used in Auto-Pick (GameContext) and UI Badges (Card)
 
@@ -30,7 +29,7 @@ export const isPremiumEdge = (
     if (sport === 'NHL' || sport === 'MLB') return absPoints >= 0.5;
   }
 
-  // Default fallback (Unknown sport)
+  // Default fallback
   return absPoints >= 0.5;
 };
 
@@ -40,9 +39,7 @@ export const isStandardEdge = (
   sport: string = 'NBA',
   market: string = 'Spread'
 ): boolean => {
-  // Standard = Any positive points (sport-adjusted), OR 5+ cents juice
   if (juiceCents >= 5) return true;
-  
   const absPoints = Math.abs(linePoints);
   
   if (market === 'Total') {
@@ -50,9 +47,58 @@ export const isStandardEdge = (
      if (sport === 'NFL' || sport === 'CFB') return absPoints >= 0.5;
      return absPoints >= 0.5;
   } else {
-     // Spreads
-     if (sport === 'NFL' || sport === 'CFB') return absPoints > 0; // Any +EV is standard for key numbers
+     if (sport === 'NFL' || sport === 'CFB') return absPoints > 0;
      if (sport === 'NBA') return absPoints >= 0.5;
      return absPoints >= 0.5;
   }
+};
+
+// --- Strict Bankroll Management & EV Math ---
+
+export const americanToDecimal = (american: number): number => {
+  if (american > 0) {
+    return 1 + (american / 100);
+  } else {
+    return 1 + (100 / Math.abs(american));
+  }
+};
+
+export const oddsToImpliedProbability = (decimalOdds: number): number => {
+  if (decimalOdds <= 0) return 0;
+  return (1 / decimalOdds) * 100;
+};
+
+export const calculateEV = (trueProbabilityPercent: number, decimalOdds: number): number => {
+  // ((TrueProb% / 100) * DecimalOdds) - 1
+  // Return as percentage
+  return (((trueProbabilityPercent / 100) * decimalOdds) - 1) * 100;
+};
+
+export const calculateUnitSize = (
+  bankroll: number, 
+  confidence: number, // 0-100
+  edge: number // EV percentage
+): number => {
+  if (edge <= 0) return 0;
+
+  let pct = 0.01; // Standard (1%)
+
+  if (edge > 10 && confidence > 80) {
+    pct = 0.05; // Max Play (5%)
+  } else if (edge > 7 && confidence > 70) {
+    pct = 0.03; // Aggressive (3%)
+  } else if (edge > 3 && confidence > 60) {
+    pct = 0.02; // Strong (2%)
+  }
+
+  return Math.floor(bankroll * pct);
+};
+
+export const formatCurrency = (amount: number): string => {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 0,
+    minimumFractionDigits: 0
+  }).format(amount);
 };

@@ -142,8 +142,8 @@ export const PullToRefresh: React.FC<PullToRefreshProps> = ({
         <div className="flex flex-col items-center py-2">
           <div 
             className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-200 shadow-sm
-              ${isReady ? 'bg-teal-500 text-white' : 'bg-slate-100 text-slate-400 border border-slate-200'}
-              ${isRefreshing ? 'bg-coral-500 text-white border-none' : ''}
+              ${isReady ? 'bg-ink-accent text-white' : 'bg-ink-base text-ink-text/50 border border-ink-gray'}
+              ${isRefreshing ? 'bg-ink-accent text-white border-none' : ''}
             `}
             style={{ transform: isRefreshing ? `rotate(${spinnerRotation}deg)` : `rotate(${pullProgress * 180}deg)` }}
           >
@@ -159,7 +159,7 @@ export const PullToRefresh: React.FC<PullToRefreshProps> = ({
             )}
           </div>
           <span className={`text-[10px] font-bold uppercase tracking-wide mt-1 transition-colors duration-200
-            ${isRefreshing ? 'text-coral-500' : isReady ? 'text-teal-600' : 'text-slate-400'}
+            ${isRefreshing ? 'text-ink-accent' : isReady ? 'text-ink-accent' : 'text-ink-text/50'}
           `}>
             {isRefreshing ? 'Refreshing...' : isReady ? 'Release' : 'Pull to refresh'}
           </span>

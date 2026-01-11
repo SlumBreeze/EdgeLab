@@ -38,16 +38,16 @@ export const StickyCardSummary: React.FC<StickyCardSummaryProps> = ({
   ).length;
 
   return (
-    <div className="sticky top-0 z-30 -mx-4 px-4 py-2 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-sm mb-4">
+    <div className="sticky top-0 z-30 -mx-4 px-4 py-2 bg-ink-base/95 backdrop-blur-md border-b border-ink-gray shadow-sm mb-4">
       <div className="flex items-center justify-between gap-4">
         {/* Left: Pick Count & Status */}
         <div className="flex items-center gap-3">
           {/* Pick Badge */}
           <div className={`
-            flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold
+            flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border
             ${hasAutoPicked 
-              ? 'bg-amber-100 text-amber-700 border border-amber-200' 
-              : 'bg-teal-100 text-teal-700 border border-teal-200'
+              ? 'bg-amber-500/10 text-amber-300 border-amber-500/30' 
+              : 'bg-ink-accent/10 text-ink-accent border-ink-accent/30'
             }
           `}>
             <span>{hasAutoPicked ? '🎯' : '✅'}</span>
@@ -56,7 +56,7 @@ export const StickyCardSummary: React.FC<StickyCardSummaryProps> = ({
 
           {/* Passed Count (smaller, muted) */}
           {passedCount > 0 && (
-            <div className="text-xs text-slate-400 font-medium">
+            <div className="text-xs text-ink-text/60 font-medium">
               {passedCount} passed
             </div>
           )}
@@ -65,10 +65,10 @@ export const StickyCardSummary: React.FC<StickyCardSummaryProps> = ({
         {/* Center: Warning Indicator (if any) */}
         {hasWarnings && (
           <div className={`
-            flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium
+            flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium border
             ${highSeverityWarnings > 0 
-              ? 'bg-red-100 text-red-600' 
-              : 'bg-amber-100 text-amber-600'
+              ? 'bg-status-loss/10 text-status-loss border-status-loss/30' 
+              : 'bg-amber-500/10 text-amber-300 border-amber-500/30'
             }
           `}>
             <span>⚠️</span>
@@ -78,10 +78,10 @@ export const StickyCardSummary: React.FC<StickyCardSummaryProps> = ({
 
         {/* Right: P&L Summary */}
         {analytics.totalWagered > 0 && (
-          <div className="flex items-center gap-3 text-xs">
+          <div className="flex items-center gap-3 text-xs text-ink-text/70">
             {/* Total Wagered */}
-            <div className="text-slate-500">
-              <span className="font-mono font-bold text-slate-700">
+            <div className="text-ink-text/70">
+              <span className="font-mono font-bold text-ink-text">
                 ${analytics.totalWagered.toFixed(0)}
               </span>
               <span className="ml-0.5">risk</span>
@@ -89,11 +89,11 @@ export const StickyCardSummary: React.FC<StickyCardSummaryProps> = ({
 
             {/* Best/Worst Range */}
             <div className="flex items-center gap-1.5">
-              <span className="text-emerald-600 font-mono font-bold">
+              <span className="text-status-win font-mono font-bold">
                 +{analytics.maxProfit.toFixed(0)}
               </span>
-              <span className="text-slate-300">/</span>
-              <span className="text-red-500 font-mono font-bold">
+              <span className="text-ink-text/40">/</span>
+              <span className="text-status-loss font-mono font-bold">
                 {analytics.maxLoss.toFixed(0)}
               </span>
             </div>

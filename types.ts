@@ -68,7 +68,8 @@ export interface HighHitAnalysis {
   caution?: string; // New field for yellow card warnings (e.g., bad ML juice)
   
   // Math-derived recommendation
-  recommendation?: string;  // "Buffalo Sabres Moneyline"
+  recommendation?: 'BET' | 'PASS' | 'LEAN';
+  pick?: string;  // "Buffalo Sabres Moneyline"
   recLine?: string;         // "+145" or "-6.5 (-108)"
   recProbability?: number;  // Fair prob for this specific bet
   
@@ -101,6 +102,14 @@ export interface HighHitAnalysis {
   injuries?: InjuryFact[];
   factConfidence?: 'HIGH' | 'MEDIUM' | 'LOW';
   dominanceRatio?: number;
+
+  // Stoic Handicapper fields
+  confidenceScore?: number;
+  reasoning?: string;
+  trueProbability?: number;
+  impliedProbability?: number;
+  edge?: number;
+  wagerType?: 'Moneyline' | 'Spread' | 'Total';
 }
 
 export interface DailyPlayTracker {

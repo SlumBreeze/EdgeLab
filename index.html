@@ -14,40 +14,22 @@
           extend: {
             colors: {
               ink: {
-                base: '#0f172a',   // Slate 900 (App Background)
-                paper: '#1e293b',  // Slate 800 (Card/Surface)
-                text: '#f1f5f9',   // Slate 100 (Primary Text)
-                gray: '#334155',   // Slate 700 (Borders/Secondary Text)
-                accent: '#38bdf8', // Sky 400 (FanDuel-ish Blue Accent)
+                base: '#0b1220',
+                paper: '#111a2b',
+                panel: '#151f33',
+                text: '#e6edf6',
+                gray: '#25324a',
+                muted: '#9aa7bd',
+                accent: '#1da8ff'
               },
               status: {
-                win: '#10b981',    // Emerald 500
-                loss: '#ef4444',   // Red 500
-              },
-              coral: {
-                50: '#fff1f2',
-                100: '#ffe4e6',
-                200: '#fecdd3',
-                300: '#fda4af',
-                400: '#fb7185',
-                500: '#f43f5e', // Rose instead of Coral for dark mode visibility? Keeping Coral for now but mapping to Rose/Red
-                600: '#e11d48',
-                700: '#be123c',
-                800: '#9f1239',
-                900: '#881337',
-              },
-              teal: {
-                50: '#f0fdfa',
-                100: '#ccfbf1',
-                200: '#99f6e4',
-                300: '#5eead4',
-                400: '#2dd4bf',
-                500: '#14b8a6',
-                600: '#0d9488',
-                700: '#0f766e',
-                800: '#115e59',
-                900: '#134e4a',
+                win: '#19c37d',
+                loss: '#ff4d4f'
               }
+            },
+            fontFamily: {
+              sans: ['system-ui', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'Arial', 'Noto Sans', 'sans-serif'],
+              mono: ['JetBrains Mono', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'Liberation Mono', 'monospace']
             }
           }
         }
@@ -55,8 +37,20 @@
     </script>
     <style>
       body {
-        background-color: #0f172a; /* ink.base */
-        color: #f1f5f9; /* ink.text */
+        background-color: #0b1220; /* ink.base */
+        color: #e6edf6; /* ink.text */
+      }
+      .edge-sharp .rounded,
+      .edge-sharp .rounded-md,
+      .edge-sharp .rounded-lg,
+      .edge-sharp .rounded-xl,
+      .edge-sharp .rounded-2xl,
+      .edge-sharp .rounded-3xl,
+      .edge-sharp .rounded-full {
+        border-radius: 4px !important;
+      }
+      .edge-sharp .rounded-sm {
+        border-radius: 2px !important;
       }
       /* Custom scrollbar for dark theme */
       ::-webkit-scrollbar {
@@ -64,10 +58,10 @@
         height: 8px;
       }
       ::-webkit-scrollbar-track {
-        background: #0f172a; 
+        background: #0b1220; 
       }
       ::-webkit-scrollbar-thumb {
-        background: #334155; 
+        background: #25324a; 
         border-radius: 4px;
       }
       ::-webkit-scrollbar-thumb:hover {
@@ -91,7 +85,7 @@
 }
 </script>
 </head>
-  <body>
+  <body class="edge-sharp">
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
   </body>

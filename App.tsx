@@ -115,7 +115,7 @@ const AppContent: React.FC = () => {
       <BankrollModal isOpen={isBankrollOpen} onClose={() => setIsBankrollOpen(false)} />
 
       {/* Bottom Navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-ink-paper border-t border-ink-gray z-50 shadow-lg">
+      <nav className="fixed bottom-0 left-0 right-0 bg-ink-panel border-t border-ink-gray z-50 shadow-lg">
         <div className="flex justify-around items-center h-16 max-w-lg mx-auto">
           <button 
             onClick={() => setActiveTab('scout')}

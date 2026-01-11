@@ -86,7 +86,7 @@ function parseLine(text: string | undefined | null): number | null {
 // Start conservative: only map fields you’re confident exist.
 export function mapQueuedGameToDraftBet(q: any, wager?: number): DraftBet {
   // Determine source string for parsing (prefer recLine as it usually has the numbers)
-  const rawString = q?.analysis?.recLine || q?.analysis?.recommendation || '';
+  const rawString = q?.analysis?.recLine || q?.analysis?.pick || '';
   
   // Calculate parsed values
   const parsedOdds = parseOdds(rawString);
@@ -101,7 +101,7 @@ export function mapQueuedGameToDraftBet(q: any, wager?: number): DraftBet {
     homeTeam: q?.homeTeam?.name ?? q?.homeTeam ?? q?.home,
     awayTeam: q?.awayTeam?.name ?? q?.awayTeam ?? q?.away,
 
-    pickTeam: q?.analysis?.side ?? q?.analysis?.recommendation ?? q?.pick,
+    pickTeam: q?.analysis?.side ?? q?.analysis?.pick ?? q?.pick,
     market: q?.analysis?.market ?? q?.market,
     
     // Prefer explicit line field if valid, otherwise use parsed line

@@ -235,8 +235,8 @@ export default function Queue() {
       <div className="max-w-lg mx-auto pb-24">
         <header className="mb-6 flex flex-col gap-3">
           <div className="flex justify-between items-center">
-            <h1 className="text-2xl font-bold text-slate-800">Analysis Queue</h1>
-            <span className="bg-coral-100 text-coral-600 text-xs px-3 py-1.5 rounded-full font-bold">
+            <h1 className="text-2xl font-bold text-ink-text">Analysis Queue</h1>
+            <span className="bg-ink-base text-ink-text/70 text-xs px-3 py-1.5 rounded-full font-bold border border-ink-gray">
               {queue.length} Games
             </span>
           </div>
@@ -244,7 +244,7 @@ export default function Queue() {
           {pendingCount > 0 && (
             <button 
                 onClick={handleAnalyzeAll}
-                className="w-full py-3 bg-gradient-to-r from-slate-700 to-slate-900 hover:from-slate-800 hover:to-black text-white rounded-xl font-bold shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2"
+                className="w-full py-3 bg-ink-accent hover:bg-sky-500 text-white rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-2"
             >
                 <span className="animate-pulse">⚡</span> 
                 {analysisQueue.length > 0 ? `Queued (${analysisQueue.length}) — Add ${pendingCount} More` : `Analyze Remaining (${pendingCount})`}
@@ -254,16 +254,16 @@ export default function Queue() {
         
         {/* Swipe Hint */}
         {queue.length > 0 && (
-          <div className="text-center text-[10px] text-slate-400 italic mb-2 animate-pulse">
+          <div className="text-center text-[10px] text-ink-text/50 italic mb-2 animate-pulse">
             ← Swipe left on cards to remove
           </div>
         )}
 
         {queue.length === 0 ? (
-          <div className="text-center py-20 bg-white rounded-2xl border border-slate-200 shadow-sm">
+          <div className="text-center py-20 bg-ink-paper rounded-2xl border border-ink-gray shadow-sm">
             <p className="mb-2 text-5xl">📋</p>
-            <p className="text-slate-500 font-medium">Your queue is empty.</p>
-            <p className="text-sm text-slate-400 mt-1">Go to Scout to add games.</p>
+            <p className="text-ink-text/70 font-medium">Your queue is empty.</p>
+            <p className="text-sm text-ink-text/50 mt-1">Go to Scout to add games.</p>
           </div>
         ) : (
           <div className="space-y-6">

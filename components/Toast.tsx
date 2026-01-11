@@ -123,28 +123,32 @@ const ToastItem: React.FC<{
     switch (toast.type) {
       case 'success':
         return {
-          bg: 'bg-gradient-to-r from-emerald-500 to-teal-500',
+          bg: 'bg-ink-paper',
           icon: '✅',
-          border: 'border-emerald-400'
+          border: 'border-l-status-win',
+          accent: 'text-status-win'
         };
       case 'error':
         return {
-          bg: 'bg-gradient-to-r from-red-500 to-rose-500',
+          bg: 'bg-ink-paper',
           icon: '❌',
-          border: 'border-red-400'
+          border: 'border-l-status-loss',
+          accent: 'text-status-loss'
         };
       case 'warning':
         return {
-          bg: 'bg-gradient-to-r from-amber-500 to-orange-500',
+          bg: 'bg-ink-paper',
           icon: '⚠️',
-          border: 'border-amber-400'
+          border: 'border-l-amber-400',
+          accent: 'text-amber-300'
         };
       case 'info':
       default:
         return {
-          bg: 'bg-gradient-to-r from-slate-700 to-slate-600',
+          bg: 'bg-ink-paper',
           icon: 'ℹ️',
-          border: 'border-slate-500'
+          border: 'border-l-ink-accent',
+          accent: 'text-ink-accent'
         };
     }
   };
@@ -155,7 +159,7 @@ const ToastItem: React.FC<{
     <div
       className={`
         ${styles.bg} ${styles.border}
-        text-white px-4 py-3 rounded-xl shadow-lg border
+        text-ink-text px-4 py-3 rounded-xl shadow-sm border border-ink-gray border-l-4
         flex items-center gap-3 pointer-events-auto
         transform transition-all duration-300 ease-out
         ${isEntering ? 'translate-y-4 opacity-0' : 'translate-y-0 opacity-100'}
@@ -164,7 +168,7 @@ const ToastItem: React.FC<{
       onClick={onRemove}
       role="alert"
     >
-      <span className="text-lg flex-shrink-0">{styles.icon}</span>
+      <span className={`text-lg flex-shrink-0 ${styles.accent}`}>{styles.icon}</span>
       <span className="text-sm font-medium flex-1">{toast.message}</span>
       <button 
         onClick={(e) => { e.stopPropagation(); onRemove(); }}

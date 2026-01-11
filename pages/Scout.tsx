@@ -159,9 +159,9 @@ export default function Scout() {
     const curr = parseFloat(currentA);
     const ref = parseFloat(refA);
     if (isNaN(curr) || isNaN(ref)) return null;
-    if (Math.abs(curr - ref) < 0.1) return { icon: '➡️', text: '', color: 'text-slate-300' };
-    if (curr > ref) return { icon: '⬆️', text: `Sharps on ${homeName.split(' ').pop()}`, color: 'text-emerald-600' };
-    if (curr < ref) return { icon: '⬇️', text: `Sharps on ${awayName.split(' ').pop()}`, color: 'text-emerald-600' };
+    if (Math.abs(curr - ref) < 0.1) return { icon: '➡️', text: '', color: 'text-ink-text/40' };
+    if (curr > ref) return { icon: '⬆️', text: `Sharps on ${homeName.split(' ').pop()}`, color: 'text-ink-accent' };
+    if (curr < ref) return { icon: '⬇️', text: `Sharps on ${awayName.split(' ').pop()}`, color: 'text-ink-accent' };
     return null;
   };
 
@@ -178,17 +178,17 @@ export default function Scout() {
     return (
       <div className="h-full overflow-y-auto p-4 max-w-lg mx-auto flex flex-col">
         <header className="mb-4 shrink-0">
-          <h1 className="text-2xl font-bold text-slate-800 mb-4">EdgeLab Scout</h1>
+          <h1 className="text-2xl font-bold text-ink-text mb-4">EdgeLab Scout</h1>
           <button
             onClick={handleLoadSlates}
             disabled={loading}
-            className="w-full mb-4 py-3 bg-gradient-to-r from-coral-500 to-orange-500 text-white font-bold rounded-xl shadow-lg hover:shadow-xl transition-all disabled:opacity-50"
+            className="w-full mb-4 py-3 bg-ink-accent text-white font-bold rounded-xl shadow-sm hover:bg-sky-500 transition-all disabled:opacity-50"
           >
             {loading ? <span className="flex items-center justify-center gap-2"><span className="animate-spin">🔄</span> Loading All Slates...</span> : <span>📊 Load Today's Slates</span>}
           </button>
         </header>
 
-        <div className="flex-1 flex flex-col justify-center items-center text-slate-400 bg-white rounded-2xl border border-slate-200 p-8 shadow-sm border-dashed">
+        <div className="flex-1 flex flex-col justify-center items-center text-ink-text/60 bg-ink-paper rounded-2xl border border-ink-gray p-8 shadow-sm border-dashed">
           <p className="text-4xl mb-3">📊</p>
           <p className="font-medium text-center">Click "Load Today's Slates"<br/>to fetch fresh lines for all sports</p>
         </div>
@@ -201,7 +201,7 @@ export default function Scout() {
     <div className="h-full flex flex-col">
       {/* Fixed Header Section */}
       <div className="shrink-0 p-4 pb-2 max-w-lg mx-auto w-full">
-        <h1 className="text-2xl font-bold text-slate-800 mb-4">EdgeLab Scout</h1>
+        <h1 className="text-2xl font-bold text-ink-text mb-4">EdgeLab Scout</h1>
         
         {/* Sport Selector */}
         <div className="flex overflow-x-auto space-x-2 pb-2 no-scrollbar mb-2">
@@ -209,8 +209,8 @@ export default function Scout() {
             <button
               key={key}
               onClick={() => setSelectedSport(key as Sport)}
-              className={`flex items-center space-x-2 px-4 py-2 rounded-full whitespace-nowrap transition-all shadow-sm ${
-                selectedSport === key ? 'bg-gradient-to-r from-coral-500 to-orange-500 text-white font-bold shadow-md' : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+              className={`flex items-center space-x-2 px-4 py-2 rounded-full whitespace-nowrap transition-all shadow-sm border ${
+                selectedSport === key ? 'bg-ink-accent text-white font-bold border-ink-accent shadow-sm' : 'bg-ink-paper text-ink-text/70 hover:text-ink-text border-ink-gray'
               }`}
             >
               <span>{config.icon}</span>
@@ -225,21 +225,21 @@ export default function Scout() {
             type="date" 
             value={selectedDate}
             onChange={(e) => setSelectedDate(e.target.value)}
-            className="flex-1 bg-white text-slate-800 p-3 rounded-xl border border-slate-200 focus:outline-none focus:border-coral-400 focus:ring-2 focus:ring-coral-100 shadow-sm"
+            className="flex-1 bg-ink-paper text-ink-text p-3 rounded-xl border border-ink-gray focus:outline-none focus:border-ink-accent focus:ring-2 focus:ring-ink-accent/20 shadow-sm"
           />
           {apiGames.length > 0 && (
             <>
               <button
                 onClick={handleScanAll}
                 disabled={batchScanning}
-                className={`flex-1 px-4 rounded-xl font-bold text-sm shadow-sm transition-all whitespace-nowrap ${batchScanning ? 'bg-slate-100 text-slate-400' : 'bg-indigo-600 hover:bg-indigo-700 text-white'}`}
+                className={`flex-1 px-4 rounded-xl font-bold text-sm shadow-sm transition-all whitespace-nowrap ${batchScanning ? 'bg-ink-base text-ink-text/40' : 'bg-ink-accent hover:bg-sky-500 text-white'}`}
               >
                 {batchScanning ? <span className="flex items-center justify-center gap-2"><span className="animate-spin text-xs">⚡</span> {progressText}</span> : '⚡ Scan All'}
               </button>
               <button
                 onClick={handleRefresh}
                 disabled={loading || batchScanning}
-                className="px-4 bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 rounded-xl font-bold shadow-sm transition-all text-xl"
+                className="px-4 bg-ink-paper text-ink-text/70 border border-ink-gray hover:text-ink-text rounded-xl font-bold shadow-sm transition-all text-xl"
                 title="Refresh Slates"
               >
                 🔄
@@ -254,12 +254,12 @@ export default function Scout() {
           <div className="p-4 pt-2 max-w-lg mx-auto space-y-3 pb-24">
             
             {loading ? (
-              <div className="text-center py-10 text-slate-400">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-coral-500 mx-auto mb-3"></div>
+              <div className="text-center py-10 text-ink-text/60">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-ink-accent mx-auto mb-3"></div>
                 Searching lines...
               </div>
             ) : apiGames.length === 0 ? (
-              <div className="text-center py-10 text-slate-400 bg-white rounded-2xl border border-slate-200">
+              <div className="text-center py-10 text-ink-text/60 bg-ink-paper rounded-2xl border border-ink-gray">
                 No {selectedSport} games found for {selectedDate}.
               </div>
             ) : (

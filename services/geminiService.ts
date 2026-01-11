@@ -1,10 +1,36 @@
 
 import { GoogleGenAI, Type, Schema } from "@google/genai";
-import { BookLines, QueuedGame, HighHitAnalysis, Game, Fact, InjuryFact } from '../types';
-import { EXTRACTION_PROMPT, HIGH_HIT_SYSTEM_PROMPT } from '../constants';
-import { validateAnalysis, hasVerifiedAvailabilityMismatch } from '../utils/analysisValidator';
+import { BookLines, QueuedGame, HighHitAnalysis, Game } from '../types';
+import { EXTRACTION_PROMPT } from '../constants';
 
-const getAiClient = () => new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
+const GoogleGenerativeAI = GoogleGenAI;
+const getAiClient = () => new GoogleGenerativeAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
+
+const SYSTEM_PROMPT = `
+You are the Stoic Handicapper. You are cold, calculated, and indifferent to narratives.
+
+NON-NEGOTIABLE RULES:
+- Ignore sports narratives, media hype, and "vibes."
+- Ignore ALL player props. Only evaluate Game Lines: Moneyline, Spread, Total.
+- Only act on math and Positive Expected Value (+EV).
+
+STRATEGIES:
+- Fade the Public: If >80% of public bets are on one side and the line moves the opposite way, call it "Reverse Line Movement."
+- Market Overreaction: Detect recency bias (e.g., a blowout last game) and avoid overreacting.
+- Discipline: If edge <= 0%, recommendation must be PASS.
+
+OUTPUT:
+Return strict JSON with:
+recommendation (BET | PASS | LEAN)
+confidence (0-100)
+reasoning (max 2 sentences; blunt, data-only)
+trueProbability (number, win %)
+impliedProbability (number, % from odds)
+edge (number, true - implied)
+wagerType (Moneyline | Spread | Total)
+
+No extra keys. No props. No narrative fluff.
+`;
 
 // ============================================
 // MATH FUNCTIONS (TypeScript, NOT LLM)
@@ -375,473 +401,275 @@ export const extractLinesFromScreenshot = async (file: File): Promise<BookLines>
 };
 
 // ============================================
-// MAIN ANALYSIS
+// MAIN ANALYSIS (Stoic Handicapper)
 // ============================================
 
-export const analyzeGame = async (game: QueuedGame): Promise<HighHitAnalysis> => {
-  const ai = getAiClient();
-  
-  // STEP 1: PRICE VETOES
-  const priceVeto = checkPriceVetoes(game);
-  if (priceVeto.triggered) {
+type GameData = QueuedGame;
+type AnalysisResult = HighHitAnalysis;
+
+type StoicAiResult = {
+  recommendation: 'BET' | 'PASS' | 'LEAN';
+  confidence: number;
+  reasoning: string;
+  trueProbability: number;
+  impliedProbability: number;
+  edge: number;
+  wagerType: 'Moneyline' | 'Spread' | 'Total';
+};
+
+const stoicResponseSchema: Schema = {
+  type: Type.OBJECT,
+  properties: {
+    recommendation: { type: Type.STRING },
+    confidence: { type: Type.NUMBER },
+    reasoning: { type: Type.STRING },
+    trueProbability: { type: Type.NUMBER },
+    impliedProbability: { type: Type.NUMBER },
+    edge: { type: Type.NUMBER },
+    wagerType: { type: Type.STRING }
+  },
+  required: ['recommendation', 'confidence', 'reasoning', 'trueProbability', 'impliedProbability', 'edge', 'wagerType']
+};
+
+const clampConfidence = (value: number) => Math.max(0, Math.min(100, Math.round(value)));
+
+const normalizeRecommendation = (value?: string): 'BET' | 'PASS' | 'LEAN' => {
+  if (!value) return 'PASS';
+  const upper = value.toUpperCase();
+  if (upper === 'BET' || upper === 'PASS' || upper === 'LEAN') return upper as 'BET' | 'PASS' | 'LEAN';
+  return 'PASS';
+};
+
+const normalizeWagerType = (value?: string): 'Moneyline' | 'Spread' | 'Total' | null => {
+  if (!value) return null;
+  const normalized = value.toLowerCase();
+  if (normalized === 'moneyline') return 'Moneyline';
+  if (normalized === 'spread') return 'Spread';
+  if (normalized === 'total') return 'Total';
+  return null;
+};
+
+const trimToTwoSentences = (text: string) => {
+  if (!text) return '';
+  const sentences = text.split(/(?<=[.!?])\s+/).filter(Boolean);
+  return sentences.slice(0, 2).join(' ');
+};
+
+const confidenceToLabel = (score: number): 'HIGH' | 'MEDIUM' | 'LOW' => {
+  if (score >= 70) return 'HIGH';
+  if (score >= 50) return 'MEDIUM';
+  return 'LOW';
+};
+
+const getNoVigForMarket = (market: SideValue['market'], sharp: BookLines) => {
+  if (market === 'Moneyline') {
+    return calculateNoVigProb(sharp.mlOddsA, sharp.mlOddsB);
+  }
+  if (market === 'Spread') {
+    return calculateNoVigProb(sharp.spreadOddsA, sharp.spreadOddsB);
+  }
+  return calculateNoVigProb(sharp.totalOddsOver, sharp.totalOddsUnder);
+};
+
+const getTrueProbability = (market: SideValue['market'], side: SideValue['side'], sharp: BookLines) => {
+  const noVig = getNoVigForMarket(market, sharp);
+  if (market === 'Total') {
+    return side === 'OVER' ? noVig.probA : noVig.probB;
+  }
+  return side === 'AWAY' ? noVig.probA : noVig.probB;
+};
+
+export const analyzeGame = async (game: GameData): Promise<AnalysisResult> => {
+  if (!game.sharpLines || game.softLines.length === 0) {
     return {
       decision: 'PASS',
       vetoTriggered: true,
-      vetoReason: priceVeto.reason,
-      researchSummary: 'Price veto triggered before research.',
+      vetoReason: 'DATA_MISSING: Sharp or soft lines missing.',
+      recommendation: 'PASS',
+      reasoning: 'Insufficient pricing data.',
+      researchSummary: 'Insufficient pricing data.',
+      confidenceScore: 0
     };
   }
-  
-  // STEP 2: MATH ANALYSIS
-  let sharpImpliedProb = 50;
-  let allSides: SideValue[] = [];
 
-  if (game.sharpLines) {
-    const noVig = calculateNoVigProb(game.sharpLines.mlOddsA, game.sharpLines.mlOddsB);
-    sharpImpliedProb = noVig.probA;
-
-    if (game.softLines.length > 0) {
-      allSides = analyzeAllSides(game.sharpLines, game.softLines);
-    }
-  }
-  
-  const sidesWithValue = allSides.filter(s => s.hasPositiveValue);
-  
-  if (sidesWithValue.length === 0) {
+  const allSides = analyzeAllSides(game.sharpLines, game.softLines);
+  if (allSides.length === 0) {
     return {
       decision: 'PASS',
       vetoTriggered: true,
-      vetoReason: "NO_VALUE: No positive line or price value found on any side.",
-      researchSummary: "Math scan complete. All soft book lines are equal or worse than Pinnacle.",
-      sharpImpliedProb,
-      lineValueCents: 0,
-      lineValuePoints: 0
+      vetoReason: 'NO_MARKET_DATA: No valid lines found.',
+      recommendation: 'PASS',
+      reasoning: 'No valid market lines available.',
+      researchSummary: 'No valid market lines available.',
+      confidenceScore: 0
     };
   }
 
-  // STEP 3: PREPARE PROMPT
-  const dateObj = new Date(game.date);
-  const readableDate = dateObj.toLocaleDateString('en-US', { weekday: 'short', month: 'long', day: 'numeric' });
+  const candidates = allSides.map(s => {
+    const trueProbability = getTrueProbability(s.market, s.side, game.sharpLines!);
+    const impliedProbability = americanToImpliedProb(s.bestSoftOdds);
+    const edge = Math.round((trueProbability - impliedProbability) * 10) / 10;
+    return { ...s, trueProbability, impliedProbability, edge };
+  });
+
+  const best = candidates.sort((a, b) => b.edge - a.edge)[0];
+  if (!best || best.edge <= 0) {
+    return {
+      decision: 'PASS',
+      vetoTriggered: true,
+      vetoReason: 'NO_EDGE: No positive EV.',
+      recommendation: 'PASS',
+      reasoning: 'Edge <= 0%.',
+      researchSummary: 'Edge <= 0%.',
+      confidenceScore: 0,
+      trueProbability: best?.trueProbability ?? 0,
+      impliedProbability: best?.impliedProbability ?? 0,
+      edge: best?.edge ?? 0,
+      wagerType: best?.market ?? undefined
+    };
+  }
+
   const refLines = getReferenceLines(game.id);
+  const lineMovement = refLines && best.market === 'Spread'
+    ? `Reference spread: ${refLines.spreadLineA} -> Current: ${game.sharpLines.spreadLineA}`
+    : 'No reference line data available.';
 
-  let movementNarrative = "Movement: No reference line data available (first time seen).";
-  if (refLines && game.sharpLines) {
-    const refA = parseFloat(refLines.spreadLineA);
-    const currA = parseFloat(game.sharpLines.spreadLineA);
-    if (!isNaN(refA) && !isNaN(currA)) {
-      const diff = currA - refA;
-      const absDiff = Math.abs(diff);
-      if (absDiff < 0.1) {
-        movementNarrative = "Movement: Line is stable.";
-      } else {
-        const direction = diff < 0 ? "TOWARD" : "AGAINST";
-        movementNarrative = `Movement: Sharps moved ${absDiff.toFixed(1)} points ${direction} ${game.awayTeam.name}.`;
-      }
-    }
-  }
+  const teamName = best.side === 'AWAY' ? game.awayTeam.name :
+                   best.side === 'HOME' ? game.homeTeam.name :
+                   best.side;
 
-  const valueSummary = sidesWithValue.map(s => {
-    const teamName = s.side === 'AWAY' ? game.awayTeam.name : 
-                     s.side === 'HOME' ? game.homeTeam.name : s.side;
-    const valueDesc = [];
-    if (s.lineValue > 0) valueDesc.push(`+${s.lineValue} points`);
-    if (s.lineValue < 0) valueDesc.push(`${s.lineValue} points`);
-    if (s.priceValue > 0) valueDesc.push(`+${s.priceValue} cents juice`);
-    return `- ${teamName} ${s.market} ${s.bestSoftLine} @ ${s.bestSoftBook}: ${valueDesc.join(', ')}`;
-  }).join('\n');
+  const pick = `${teamName} ${best.market}`;
+  const recLine = best.market === 'Moneyline'
+    ? formatOddsForDisplay(best.bestSoftOdds)
+    : `${best.bestSoftLine} (${formatOddsForDisplay(best.bestSoftOdds)})`;
 
-  const holisticPrompt = `
-## GAME ANALYSIS REQUEST
-
-**Matchup:** ${game.awayTeam.name} (AWAY) at ${game.homeTeam.name} (HOME)
-**Sport:** ${game.sport}
-**Date:** ${readableDate}
-
-## SHARP LINES (Pinnacle)
-Reference Line: ${refLines ? `${game.awayTeam.name} ${refLines.spreadLineA}` : 'N/A'}
-Current Pinnacle: ${game.awayTeam.name} ${game.sharpLines?.spreadLineA} (${game.sharpLines?.spreadOddsA})
-${movementNarrative}
-
-## SIDES WITH POSITIVE VALUE
-${valueSummary}
-
-## YOUR TASK
-1. **Search & Verify:** Check current injury reports and confirmed lineups using Google Search.
-2. **Fade the Public Narrative:** Identify the "Public Story" (e.g., "Team A is hot," "Star Player revenge game"). Does the Sharp Math disagree? If Sharps are fading the story, we want to be on the Sharp side.
-3. **Game Script Validation (Straight Bet Focus):**
-   - Visualize the game flow. Does the wager make sense for the likely script?
-   - *Example (Spread):* If betting the Favorite (-7), can they keep the lead late, or does the Underdog have a "backdoor cover" offense?
-   - *Example (Total):* If betting the Under, are both teams slow-paced?
-4. **Final Decision:** Does the "Math Edge" align with the "Game Reality"?
-
-## CRITICAL OUTPUT
-You MUST return strictly valid JSON.
-`;
-
-  const response = await generateWithRetry(ai, {
-    model: 'gemini-3-pro-preview', // CONFIRMED: Using Gemini 3 Pro
-    contents: holisticPrompt,
-    config: {
-      systemInstruction: HIGH_HIT_SYSTEM_PROMPT + `
-      
-      CRITICAL RULES FOR FACTUAL ACCURACY:
-      1. ONLY cite injuries, roster moves, or player status that appear DIRECTLY in your search results
-      2. If you cannot find current injury information for a team, say "No verified injury data found" — do NOT guess or infer
-      3. NEVER invent trades, signings, or roster moves — if you didn't find it in search results, it didn't happen
-      4. When citing a player's status, you must have seen it in a search result from the last 48 hours
-      5. If your search returns limited results, acknowledge the uncertainty rather than filling gaps
-      6. Distinguish between VERIFIED (from search) and INFERRED (your reasoning) — label them clearly
-      7. Every factual statement in narrative_analysis MUST appear verbatim in facts_used.claim
-      8. Any prior game result, stat line, ranking, or numeric performance claim MUST be in facts_used with source_type: "BOX_SCORE" and confidence: "HIGH"
-      9. All injuries mentioned anywhere MUST be in injuries[]; narrative_analysis may only interpret injuries, never introduce them
-      10. If data is missing, use "DATA NOT PROVIDED" instead of inference
-
-      FORBIDDEN BEHAVIORS:
-      - Do not claim a player was traded unless you found a news article about the trade
-      - Do not claim a player is injured unless you found an injury report
-      - Do not invent statistics or records you didn't find in search results
-      - Do not assume roster changes between seasons
-
-      IMPORTANT: You must return the result in this exact JSON format:
-      {
-        "decision": "PLAYABLE" or "PASS",
-        "recommendedSide": "AWAY", "HOME", "OVER", "UNDER",
-        "recommendedMarket": "Spread", "Moneyline", "Total",
-        "narrative_analysis": "Interpretation only. Restate facts_used verbatim; do NOT add new facts.",
-        "facts_used": [
-          {
-            "claim": "A verifiable fact found in search results",
-            "source_type": "NBA_INJURY_REPORT" | "BOX_SCORE" | "ODDS_API",
-            "confidence": "HIGH" | "MEDIUM",
-            "source_ref": "Optional short source label"
-          }
-        ],
-        "injuries": [
-          {
-            "team": "Team name",
-            "player": "Player name",
-            "status": "OUT" | "QUESTIONABLE" | "PROBABLE",
-            "source": "NBA_INJURY_REPORT"
-          }
-        ],
-        "publicNarrative": "Describe the public/media story (if any)",
-        "gameScript": "Briefly describe the likely game flow (e.g. Slow pace, shootout)",
-        "situationFavors": "AWAY", "HOME", "NEUTRAL",
-        "confidence": "HIGH", "MEDIUM", "LOW",
-        "dataQuality": "STRONG", "PARTIAL", "WEAK"
-      }`,
-      tools: [{ googleSearch: {} }],
-      temperature: 0.1
-    }
-  });
-
-  const fallback = {
-    decision: 'PASS',
-    recommendedSide: null,
-    recommendedMarket: null,
-    narrative_analysis: 'Analysis could not be completed.',
-    facts_used: [] as Fact[],
-    injuries: [] as InjuryFact[],
-    publicNarrative: 'Unknown',
-    gameScript: 'Unknown',
-    situationFavors: 'NEUTRAL',
-    confidence: 'LOW',
-    dataQuality: 'WEAK'
-  };
-
-  const aiResult = cleanAndParseJson(response.text, fallback);
-
-  const factsUsed: Fact[] = Array.isArray(aiResult.facts_used) ? aiResult.facts_used : [];
-  const injuries: InjuryFact[] = Array.isArray(aiResult.injuries) ? aiResult.injuries : [];
-  const narrativeAnalysis = typeof aiResult.narrative_analysis === 'string' ? aiResult.narrative_analysis : '';
-
-  const baseValidation = validateAnalysis({
-    narrativeAnalysis,
-    factsUsed,
-    injuries,
-    confidence: aiResult.confidence,
-    sport: game.sport
-  });
-
-  if (baseValidation.vetoTriggered) {
-    return {
-      decision: 'PASS',
-      vetoTriggered: true,
-      vetoReason: baseValidation.vetoReason,
-      researchSummary: narrativeAnalysis || 'Validation veto triggered before research summary.',
-      sharpImpliedProb,
-      publicNarrative: aiResult.publicNarrative,
-      gameScript: aiResult.gameScript,
-      factsUsed,
-      narrativeAnalysis,
-      injuries,
-      factConfidence: baseValidation.factConfidence,
-      dominanceRatio: baseValidation.dominanceRatio
-    };
-  }
-
-  const injuriesSummary = injuries.length > 0
-    ? injuries.map(i => `${i.team}: ${i.player} (${i.status})`).join(', ')
-    : 'No verified data';
-  
-  // NEW: Data Quality Gate
-  if (aiResult.dataQuality === 'WEAK' && aiResult.decision === 'PLAYABLE') {
-    return {
-      decision: 'PASS',
-      vetoTriggered: true,
-      vetoReason: `DATA_QUALITY: AI recommended PLAYABLE but data quality was WEAK. Insufficient verified information to support the pick.`,
-      researchSummary: `Injuries: ${injuries.length > 0 ? injuries.map(i => `${i.team}: ${i.player} (${i.status})`).join(', ') : 'No verified data'}
-
-⚠️ Data Quality: WEAK - Search results were limited. Passing to avoid acting on unverified information.
-
-📰 Public Narrative: ${aiResult.publicNarrative || 'None identified'}`,
-      sharpImpliedProb,
-      publicNarrative: aiResult.publicNarrative,
-      gameScript: aiResult.gameScript,
-      factsUsed,
-      narrativeAnalysis,
-      injuries,
-      factConfidence: baseValidation.factConfidence,
-      dominanceRatio: baseValidation.dominanceRatio
-    };
-  }
-
-  // Filter alignment logic
-  if (aiResult.decision !== 'PLAYABLE' || !aiResult.recommendedSide) {
-    return {
-      decision: 'PASS',
-      vetoTriggered: false,
-      vetoReason: narrativeAnalysis || 'AI did not find aligned edge',
-      researchSummary: `Injuries: ${injuriesSummary}
-
-📰 Public Narrative: ${aiResult.publicNarrative || 'None identified'}
-🎬 Game Script: ${aiResult.gameScript || 'Standard flow expected'}
-
-Situation favors: ${aiResult.situationFavors}`,
-      edgeNarrative: narrativeAnalysis,
-      sharpImpliedProb,
-      publicNarrative: aiResult.publicNarrative,
-      gameScript: aiResult.gameScript,
-      factsUsed,
-      narrativeAnalysis,
-      injuries,
-      factConfidence: baseValidation.factConfidence,
-      dominanceRatio: baseValidation.dominanceRatio
-    };
-  }
-
-  // UPDATED: Strict side selection from known value sides
-  let selectedSide = sidesWithValue.find(s => 
-    s.side === aiResult.recommendedSide && 
-    s.market === aiResult.recommendedMarket
-  ) || sidesWithValue.find(s => s.side === aiResult.recommendedSide);
-
-  // BUG FIX 1: If AI recommends a side that has NO positive math value, we must PASS.
-  // The previous fallback (|| sidesWithValue[0]) blindly picked the first valid side even if AI wanted something else.
-  if (!selectedSide) {
-    return {
-      decision: 'PASS',
-      vetoTriggered: true,
-      vetoReason: `MATH VETO: AI recommended ${aiResult.recommendedSide} but no positive mathematical value exists on that side.`,
-      researchSummary: `AI found situational edge on ${aiResult.recommendedSide} but the numbers don't support it.\n\nSituation favors: ${aiResult.situationFavors}`,
-      sharpImpliedProb,
-      publicNarrative: aiResult.publicNarrative,
-      gameScript: aiResult.gameScript,
-      factsUsed,
-      narrativeAnalysis,
-      injuries,
-      factConfidence: baseValidation.factConfidence,
-      dominanceRatio: baseValidation.dominanceRatio
-    };
-  }
-
-  const lineValueCents = selectedSide.priceValue > 0 ? selectedSide.priceValue : 0;
-  const availabilityMismatch = hasVerifiedAvailabilityMismatch(factsUsed, injuries);
-  const finalValidation = validateAnalysis({
-    narrativeAnalysis,
-    factsUsed,
-    injuries,
-    confidence: baseValidation.adjustedConfidence,
-    sport: game.sport,
-    lineValueCents,
-    hasVerifiedAvailabilityMismatch: availabilityMismatch
-  });
-
-  if (finalValidation.vetoTriggered) {
-    return {
-      decision: 'PASS',
-      vetoTriggered: true,
-      vetoReason: finalValidation.vetoReason,
-      researchSummary: narrativeAnalysis || 'Validation veto triggered before recommendation.',
-      sharpImpliedProb,
-      publicNarrative: aiResult.publicNarrative,
-      gameScript: aiResult.gameScript,
-      factsUsed,
-      narrativeAnalysis,
-      injuries,
-      factConfidence: finalValidation.factConfidence,
-      dominanceRatio: finalValidation.dominanceRatio
-    };
-  }
-
-  // BUG FIX 2: Contradiction Check
-  // If AI says situation favors X but recommends Y, something is wrong.
-  if (aiResult.situationFavors !== 'NEUTRAL' && 
-      (selectedSide.side === 'AWAY' || selectedSide.side === 'HOME') && 
-      aiResult.situationFavors !== selectedSide.side) {
-      
-      return {
-        decision: 'PASS',
-        vetoTriggered: true,
-        vetoReason: `CONTRADICTION: AI says situation favors ${aiResult.situationFavors} but recommended ${selectedSide.side}.`,
-        researchSummary: narrativeAnalysis,
-        sharpImpliedProb,
-        publicNarrative: aiResult.publicNarrative,
-        gameScript: aiResult.gameScript,
-        factsUsed,
-        narrativeAnalysis,
-        injuries,
-        factConfidence: finalValidation.factConfidence,
-        dominanceRatio: finalValidation.dominanceRatio
-      };
-  }
-
-  // === UNDERDOG SAFETY PROTOCOL ===
-  // If AI recommends Moneyline on a heavy underdog (> +200),
-  // force a switch to the SPREAD if it has positive value.
-  const impliedProb = americanToImpliedProb(selectedSide.bestSoftOdds);
-  const isLongshot = impliedProb < 33; // Approx +200 odds or longer
-
-  if (selectedSide.market === 'Moneyline' && isLongshot) {
-    const safeSpreadOption = sidesWithValue.find(s => 
-      s.side === selectedSide.side && 
-      s.market === 'Spread' && 
-      s.hasPositiveValue
-    );
-
-    if (safeSpreadOption) {
-      console.log(`[Safety] Switched ${game.awayTeam.name}/${game.homeTeam.name} from Risky ML (${selectedSide.bestSoftOdds}) to Safe Spread (${safeSpreadOption.bestSoftLine})`);
-      selectedSide = safeSpreadOption;
-    } else {
-      // BUG FIX 3: If no spread backup exists for a risky longshot, VETO it.
-      return {
-        decision: 'PASS',
-        vetoTriggered: true,
-        vetoReason: `RISKY_ML: Longshot moneyline (>+200) without positive spread value support.`,
-        researchSummary: `AI liked the upset, but taking a >+200 ML without spread value is too high variance.\n\nSituation favors: ${aiResult.situationFavors}`,
-        sharpImpliedProb,
-        publicNarrative: aiResult.publicNarrative,
-        gameScript: aiResult.gameScript,
-        factsUsed,
-        narrativeAnalysis,
-        injuries,
-        factConfidence: finalValidation.factConfidence,
-        dominanceRatio: finalValidation.dominanceRatio
-      };
-    }
-  }
-
-  // JUICE VETO CHECK
-  const bestOddsVal = parseFloat(selectedSide.bestSoftOdds);
-  if (!isNaN(bestOddsVal) && bestOddsVal < -160) {
-    return {
-      decision: 'PASS',
-      vetoTriggered: true,
-      vetoReason: `JUICE_VETO: Recommended odds ${formatOddsForDisplay(bestOddsVal)} are worse than -160 limit.`,
-      researchSummary: `AI liked the spot, but the price is too expensive.\n\nSituation favors: ${aiResult.situationFavors}`,
-      sharpImpliedProb,
-      publicNarrative: aiResult.publicNarrative,
-      gameScript: aiResult.gameScript,
-      factsUsed,
-      narrativeAnalysis,
-      injuries,
-      factConfidence: finalValidation.factConfidence,
-      dominanceRatio: finalValidation.dominanceRatio
-    };
-  }
-
-  // Add caution for partial data
-  let dataCaution: string | undefined;
-  if (aiResult.dataQuality === 'PARTIAL') {
-    dataCaution = "⚠️ Partial data: Some injury/roster information could not be verified.";
-  }
-
-  const teamName = selectedSide.side === 'AWAY' ? game.awayTeam.name :
-                   selectedSide.side === 'HOME' ? game.homeTeam.name :
-                   selectedSide.side;
-
-  const recommendation = `${teamName} ${selectedSide.market}`;
-  const recLine = selectedSide.market === 'Moneyline' 
-    ? formatOddsForDisplay(selectedSide.bestSoftOdds)
-    : `${selectedSide.bestSoftLine} (${formatOddsForDisplay(selectedSide.bestSoftOdds)})`;
-  
-  // NEW: Calculate Thresholds (Line Floors)
   let lineFloor: string | undefined;
   let oddsFloor: string | undefined;
   let floorReason: string | undefined;
 
-  if (selectedSide.market === 'Spread' || selectedSide.market === 'Total') {
-     lineFloor = selectedSide.market === 'Total' 
-        ? `${selectedSide.side === 'OVER' ? 'o' : 'u'}${selectedSide.sharpLine}`
-        : selectedSide.sharpLine;
-        
-     const sOdds = normalizeToAmerican(selectedSide.sharpOdds);
-     // -130 standard limit. If sharp is worse (e.g. -140), match sharp.
-     const threshold = -130;
-     const floorVal = (sOdds < threshold) ? sOdds : threshold;
-     oddsFloor = formatOddsForDisplay(floorVal);
-     
-     floorReason = selectedSide.market === 'Spread' 
-        ? "Matches sharp line - no edge below this"
-        : "Matches sharp line";
-  } else if (selectedSide.market === 'Moneyline') {
-     lineFloor = undefined; // N/A for ML
-     oddsFloor = formatOddsForDisplay(selectedSide.sharpOdds);
-     floorReason = "Matches sharp price";
+  if (best.market === 'Spread' || best.market === 'Total') {
+    lineFloor = best.market === 'Total'
+      ? `${best.side === 'OVER' ? 'o' : 'u'}${best.sharpLine}`
+      : best.sharpLine;
+
+    const sOdds = normalizeToAmerican(best.sharpOdds);
+    const threshold = -130;
+    const floorVal = (sOdds < threshold) ? sOdds : threshold;
+    oddsFloor = formatOddsForDisplay(floorVal);
+    floorReason = best.market === 'Spread'
+      ? 'Matches sharp line - no edge below this'
+      : 'Matches sharp line';
+  } else {
+    oddsFloor = formatOddsForDisplay(best.sharpOdds);
+    floorReason = 'Matches sharp price';
   }
 
+  const prompt = `
+Matchup: ${game.awayTeam.name} at ${game.homeTeam.name}
+Sport: ${game.sport}
+
+Market: ${best.market}
+Side: ${best.side}
+Sharp line/odds: ${best.sharpLine} (${best.sharpOdds})
+Soft best line/odds: ${best.bestSoftLine} (${best.bestSoftOdds}) at ${best.bestSoftBook}
+
+TrueProbability: ${best.trueProbability}%
+ImpliedProbability: ${best.impliedProbability}%
+Edge: ${best.edge}%
+
+Line Movement: ${lineMovement}
+
+Tasks:
+- Use search to find public betting % and line movement. If >80% public on one side and line moves opposite, call "Reverse Line Movement."
+- Check if recency bias is driving the move (market overreaction).
+- Ignore player props entirely. Only evaluate Moneyline/Spread/Total.
+- Reasoning max 2 sentences, blunt and data-only.
+Return JSON only.
+`;
+
+  const ai = getAiClient();
+  let aiResult: StoicAiResult;
+  try {
+    const response = await generateWithRetry(ai, {
+      model: 'gemini-3-pro-preview',
+      contents: prompt,
+      config: {
+        systemInstruction: SYSTEM_PROMPT,
+        tools: [{ googleSearch: {} }],
+        responseMimeType: "application/json",
+        responseSchema: stoicResponseSchema,
+        temperature: 0.1
+      }
+    });
+    aiResult = cleanAndParseJson(response.text, {
+      recommendation: 'PASS',
+      confidence: 0,
+      reasoning: 'No actionable edge.',
+      trueProbability: best.trueProbability,
+      impliedProbability: best.impliedProbability,
+      edge: best.edge,
+      wagerType: best.market
+    });
+  } catch (error) {
+    return {
+      decision: 'PASS',
+      vetoTriggered: true,
+      vetoReason: 'AI_ERROR: Stoic analysis failed.',
+      recommendation: 'PASS',
+      reasoning: 'AI error.',
+      researchSummary: 'AI error.',
+      confidenceScore: 0,
+      trueProbability: best.trueProbability,
+      impliedProbability: best.impliedProbability,
+      edge: best.edge,
+      wagerType: best.market
+    };
+  }
+
+  const normalizedRec = normalizeRecommendation(aiResult.recommendation);
+  const normalizedWagerType = normalizeWagerType(aiResult.wagerType);
+  const confidenceScore = clampConfidence(aiResult.confidence);
+  const reasoning = trimToTwoSentences(aiResult.reasoning || '');
+
+  const finalRecommendation = best.edge <= 0 || normalizedWagerType !== best.market
+    ? 'PASS'
+    : normalizedRec;
+
+  const decision = finalRecommendation === 'BET' ? 'PLAYABLE' : 'PASS';
+
   return {
-    decision: 'PLAYABLE',
-    vetoTriggered: false,
-    vetoReason: undefined,
-    caution: dataCaution,
-    researchSummary: `Injuries: ${injuriesSummary}
-
-📰 Public Narrative: ${aiResult.publicNarrative || 'None identified'}
-🎬 Game Script: ${aiResult.gameScript || 'Standard flow expected'}
-
-Situation favors: ${aiResult.situationFavors}
-Confidence: ${finalValidation.adjustedConfidence}
-Data Quality: ${aiResult.dataQuality || 'UNKNOWN'}
-Fact Confidence: ${finalValidation.factConfidence}
-Dominance Ratio: ${finalValidation.dominanceRatio.toFixed(2)}`,
-    edgeNarrative: narrativeAnalysis,
-    recommendation,
+    decision,
+    vetoTriggered: finalRecommendation !== 'BET',
+    vetoReason: finalRecommendation === 'PASS'
+      ? (best.edge <= 0 ? 'NO_EDGE: Edge <= 0%.' : 'STOIC_PASS: No bet.')
+      : finalRecommendation === 'LEAN'
+        ? 'LEAN_ONLY: Not strong enough to bet.'
+        : undefined,
+    caution: finalRecommendation === 'LEAN' ? 'Lean only: marginal edge.' : undefined,
+    recommendation: finalRecommendation,
+    pick,
     recLine,
-    recProbability: selectedSide.side === 'AWAY' ? sharpImpliedProb : 100 - sharpImpliedProb,
-    market: selectedSide.market,
-    side: selectedSide.side,
-    line: selectedSide.bestSoftLine,
-    sharpImpliedProb,
-    softBestOdds: formatOddsForDisplay(selectedSide.bestSoftOdds),
-    softBestBook: selectedSide.bestSoftBook,
-    lineValueCents,
-    lineValuePoints: selectedSide.lineValue,
-    
-    // Thresholds
+    recProbability: best.trueProbability,
+    market: best.market,
+    side: best.side,
+    line: best.bestSoftLine,
+    sharpImpliedProb: best.trueProbability,
+    softBestOdds: formatOddsForDisplay(best.bestSoftOdds),
+    softBestBook: best.bestSoftBook,
+    lineValueCents: best.priceValue > 0 ? best.priceValue : 0,
+    lineValuePoints: best.lineValue,
     lineFloor,
     oddsFloor,
     floorReason,
-
-    // Pro Analysis Fields
-    publicNarrative: aiResult.publicNarrative,
-    gameScript: aiResult.gameScript,
-    factsUsed,
-    narrativeAnalysis,
-    injuries,
-    confidence: finalValidation.adjustedConfidence,
-    factConfidence: finalValidation.factConfidence,
-    dominanceRatio: finalValidation.dominanceRatio
+    researchSummary: reasoning || 'Stoic: No narrative, math only.',
+    edgeNarrative: reasoning || 'Stoic: No narrative, math only.',
+    confidence: confidenceToLabel(confidenceScore),
+    confidenceScore,
+    reasoning,
+    trueProbability: best.trueProbability,
+    impliedProbability: best.impliedProbability,
+    edge: best.edge,
+    wagerType: best.market
   };
 };
 
@@ -869,13 +697,13 @@ export const refreshAnalysisMathOnly = (game: QueuedGame): HighHitAnalysis => {
     };
   }
 
-  const noVig = calculateNoVigProb(game.sharpLines.mlOddsA, game.sharpLines.mlOddsB);
-  const sharpImpliedProb = noVig.probA;
   const allSides = analyzeAllSides(game.sharpLines, game.softLines);
 
   const selectedSide = allSides.find(s =>
     s.side === prior.side && s.market === prior.market
   );
+
+  let sharpImpliedProb = prior.sharpImpliedProb ?? 50;
 
   if (!selectedSide || !selectedSide.hasPositiveValue) {
     return {
@@ -888,6 +716,8 @@ export const refreshAnalysisMathOnly = (game: QueuedGame): HighHitAnalysis => {
       lineValuePoints: 0
     };
   }
+
+  sharpImpliedProb = getTrueProbability(selectedSide.market, selectedSide.side, game.sharpLines);
 
   const lineValueCents = selectedSide.priceValue > 0 ? selectedSide.priceValue : 0;
 
@@ -957,9 +787,10 @@ export const refreshAnalysisMathOnly = (game: QueuedGame): HighHitAnalysis => {
     decision: 'PLAYABLE',
     vetoTriggered: false,
     vetoReason: undefined,
-    recommendation: `${teamName} ${selectedSide.market}`,
+    recommendation: prior.recommendation ?? 'BET',
+    pick: `${teamName} ${selectedSide.market}`,
     recLine,
-    recProbability: selectedSide.side === 'AWAY' ? sharpImpliedProb : 100 - sharpImpliedProb,
+    recProbability: sharpImpliedProb,
     market: selectedSide.market,
     side: selectedSide.side,
     line: selectedSide.bestSoftLine,
