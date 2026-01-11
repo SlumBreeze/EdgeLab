@@ -43,7 +43,7 @@ export const BankrollTrendChart: React.FC<BankrollTrendChartProps> = ({ data }) 
   const strokeColor = isPositive ? '#34d399' : '#f87171'; // Emerald or Red
 
   return (
-    <ResponsiveContainer width="100%" height="100%">
+    <ResponsiveContainer width="100%" height="100%" minHeight={200}>
       <AreaChart
         data={data}
         margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
