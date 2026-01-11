@@ -317,7 +317,6 @@ export const findMatchingGame = (bet: Bet, scores: GameScore[]): GameScore | und
   }
 
   // 3. Fallback: Try matching based on the pick field (single team)
-  // Only use this if we have high confidence
   const pickNormalized = normalize(bet.pick);
   
   for (const game of candidates) {
@@ -346,6 +345,24 @@ export const findMatchingGame = (bet: Bet, scores: GameScore[]): GameScore | und
     }
   }
 
-  // No confident match found
+  // 4. Last Resort: Relaxed Matchup Match (Single Team Strong Match in Matchup String)
+  // If we haven't matched yet, but we are looking at the right sport, maybe the matchup string
+  // is just "Lakers" or "LAL" without a clear separator, or one team name is misspelled.
+  // If we find a game where the matchup string *strongly* matches one of the teams, use it.
+  const matchupNormalized = normalize(bet.matchup);
+  for (const game of candidates) {
+      const extendedGame = game as GameScore & { homeTeamFullName?: string; awayTeamFullName?: string };
+      
+      // Check if the matchup string matches the Home Team
+      const homeMatch = teamMatchesGame(matchupNormalized, { ...extendedGame, awayTeam: '', awayTeamName: '', awayTeamFullName: '' } as any);
+      
+      // Check if the matchup string matches the Away Team
+      const awayMatch = teamMatchesGame(matchupNormalized, { ...extendedGame, homeTeam: '', homeTeamName: '', homeTeamFullName: '' } as any);
+
+      if (homeMatch || awayMatch) {
+          return game;
+      }
+  }
+
   return undefined;
 };
