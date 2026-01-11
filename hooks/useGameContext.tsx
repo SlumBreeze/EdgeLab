@@ -171,6 +171,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
              // 42P01 is PostgreSQL "undefined_table". PGRST205 is schema cache miss. 404 is HTTP Not Found.
              console.warn("[Supabase] 'daily_slates' table missing. Falling back to local storage.", sError);
              setSyncStatus('idle'); // Treat as local-only, not error
+             setIsSyncEnabled(false); // Disable further sync attempts for this session
              return; 
            } else {
              console.error("[Supabase] Slate fetch error:", sError);
