@@ -466,7 +466,7 @@ const PlayableCard: React.FC<{ game: QueuedGame; dim?: boolean; onLogBet: (draft
 
   const handleLogClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    onLogBet(mapQueuedGameToDraftBet(game));
+    onLogBet(mapQueuedGameToDraftBet(game, wagerAmount));
   };
 
   return (

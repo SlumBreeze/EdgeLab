@@ -84,7 +84,7 @@ function parseLine(text: string | undefined | null): number | null {
 
 // This mapper should be adapted to your EdgeLab QueuedGame shape.
 // Start conservative: only map fields you’re confident exist.
-export function mapQueuedGameToDraftBet(q: any): DraftBet {
+export function mapQueuedGameToDraftBet(q: any, wager?: number): DraftBet {
   // Determine source string for parsing (prefer recLine as it usually has the numbers)
   const rawString = q?.analysis?.recLine || q?.analysis?.recommendation || '';
   
@@ -114,7 +114,7 @@ export function mapQueuedGameToDraftBet(q: any): DraftBet {
 
     sportsbook: q?.analysis?.softBestBook ?? 'Other',
 
-    stake: null,
+    stake: wager ?? null,
     rationale: q?.analysis?.researchSummary ?? q?.analysis?.edgeNarrative ?? '',
     evPct: q?.analysis?.lineValueCents ?? null, // Using lineValueCents as a proxy for EV
     edge: q?.analysis?.sharpImpliedProb ?? null,

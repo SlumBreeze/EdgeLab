@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { PlusCircle, Calculator, DollarSign, Camera, Loader2, Settings2, Calendar } from 'lucide-react';
 import { GoogleGenAI, Type } from "@google/genai";
 import { Sportsbook, BetStatus, BookBalanceDisplay } from '../../types';
+import { DraftBet } from '../../types/draftBet';
 import { calculatePotentialProfit, formatCurrency } from '../../utils/calculations';
 import { SPORTSBOOKS, SPORTS } from '../../constants';
 
@@ -9,9 +10,10 @@ interface BetFormProps {
   onAddBet: (betData: any) => void;
   currentBalance: number; // Total Bankroll
   bookBalances: BookBalanceDisplay[];
+  draftBet?: DraftBet | null;
 }
 
-export const BetForm: React.FC<BetFormProps> = ({ onAddBet, currentBalance, bookBalances }) => {
+export const BetForm: React.FC<BetFormProps> = ({ onAddBet, currentBalance, bookBalances, draftBet }) => {
   // Initialize with local date string instead of ISO/UTC
   const getTodayString = () => {
     const today = new Date();
@@ -39,6 +41,39 @@ export const BetForm: React.FC<BetFormProps> = ({ onAddBet, currentBalance, book
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Pre-fill from DraftBet
+  useEffect(() => {
+    if (draftBet) {
+      if (draftBet.gameDate) setDate(draftBet.gameDate.split('T')[0]);
+      if (draftBet.homeTeam && draftBet.awayTeam) setMatchup(`${draftBet.awayTeam} @ ${draftBet.homeTeam}`);
+      if (draftBet.sport) setSport(draftBet.sport);
+      
+      if (draftBet.sportsbook) {
+        // Attempt to fuzzy match sportsbook string to Enum
+        const found = Object.values(Sportsbook).find(s => 
+          s.toLowerCase().includes(draftBet.sportsbook!.toString().toLowerCase()) ||
+          draftBet.sportsbook!.toString().toLowerCase().includes(s.toLowerCase())
+        );
+        if (found) setSportsbook(found as Sportsbook);
+      }
+      
+      if (draftBet.pickTeam) {
+          const lineStr = draftBet.line ? ` ${draftBet.line > 0 ? '+' : ''}${draftBet.line}` : '';
+          setPick(`${draftBet.pickTeam}${lineStr}`.trim());
+      }
+      
+      if (draftBet.odds) setOdds(draftBet.odds);
+      
+      if (draftBet.stake !== undefined && draftBet.stake !== null) {
+          setWager(draftBet.stake);
+      } else {
+          // If no stake provided in draft, use default calculation or leave empty
+          // const recommended = calculateRecommendedWager();
+          // setWager(recommended);
+      }
+    }
+  }, [draftBet]);
   
   // Robust API Key retrieval
   const getApiKey = () => {
