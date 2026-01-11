@@ -72,10 +72,10 @@ export const BankrollModal: React.FC<BankrollModalProps> = ({
   const inactiveBooks = bookBalances.filter(b => b.deposited === 0 && b.currentBalance === 0);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-base/80 backdrop-blur-md p-4 animate-in fade-in duration-200">
       <div className="bg-ink-paper border border-ink-gray rounded-2xl w-full max-w-2xl p-6 shadow-2xl relative flex flex-col max-h-[90vh]">
         
-        <button onClick={onClose} className="absolute top-4 right-4 text-ink-text/40 hover:text-white transition-colors">
+        <button onClick={onClose} className="absolute top-4 right-4 text-ink-text/40 hover:text-ink-text transition-colors">
           <X size={20} />
         </button>
 
@@ -85,7 +85,7 @@ export const BankrollModal: React.FC<BankrollModalProps> = ({
           </div>
           <h2 className="text-xl font-bold text-ink-text">Manage Bankroll</h2>
           <p className="text-ink-text/60 text-sm mt-1 font-mono">
-             Total: <span className="text-white font-bold">{formatCurrency(totalBankroll)}</span>
+             Total: <span className="text-ink-text font-bold">{formatCurrency(totalBankroll)}</span>
           </p>
         </div>
 
@@ -97,15 +97,15 @@ export const BankrollModal: React.FC<BankrollModalProps> = ({
               
               <div className="flex p-1 bg-ink-base rounded-lg border border-ink-gray mb-4">
                 <button type="button" onClick={() => { setMode('set'); setAmount(bookBalances.find(b => b.sportsbook === editingBook)?.currentBalance.toFixed(2) || ''); }}
-                  className={`flex-1 py-2 rounded-md text-xs font-bold transition-all flex items-center justify-center gap-1 ${mode === 'set' ? 'bg-ink-accent text-white shadow-sm' : 'text-ink-text/60 hover:text-white'}`}>
+                  className={`flex-1 py-2 rounded-md text-xs font-bold transition-all flex items-center justify-center gap-1 ${mode === 'set' ? 'bg-ink-accent text-white shadow-sm' : 'text-ink-text/60 hover:text-ink-text'}`}>
                   <Target size={12} /> Set
                 </button>
                 <button type="button" onClick={() => { setMode('deposit'); setAmount(''); }}
-                  className={`flex-1 py-2 rounded-md text-xs font-bold transition-all flex items-center justify-center gap-1 ${mode === 'deposit' ? 'bg-status-win text-white shadow-sm' : 'text-ink-text/60 hover:text-white'}`}>
+                  className={`flex-1 py-2 rounded-md text-xs font-bold transition-all flex items-center justify-center gap-1 ${mode === 'deposit' ? 'bg-status-win text-white shadow-sm' : 'text-ink-text/60 hover:text-ink-text'}`}>
                   <Plus size={12} /> Deposit
                 </button>
                 <button type="button" onClick={() => { setMode('withdraw'); setAmount(''); }}
-                  className={`flex-1 py-2 rounded-md text-xs font-bold transition-all flex items-center justify-center gap-1 ${mode === 'withdraw' ? 'bg-status-loss text-white shadow-sm' : 'text-ink-text/60 hover:text-white'}`}>
+                  className={`flex-1 py-2 rounded-md text-xs font-bold transition-all flex items-center justify-center gap-1 ${mode === 'withdraw' ? 'bg-status-loss text-white shadow-sm' : 'text-ink-text/60 hover:text-ink-text'}`}>
                   <Minus size={12} /> Withdraw
                 </button>
               </div>
@@ -115,7 +115,7 @@ export const BankrollModal: React.FC<BankrollModalProps> = ({
                   <div className="relative">
                     <span className="absolute left-4 top-1/2 -translate-y-1/2 text-ink-text/40 text-lg">$</span>
                     <input type="number" min="0" step="0.01" autoFocus required value={amount} onChange={(e) => setAmount(e.target.value)}
-                      className="w-full bg-ink-base border border-ink-gray rounded-xl py-3 pl-8 pr-4 text-lg font-bold outline-none focus:border-ink-accent text-white font-mono" placeholder="0.00"
+                      className="w-full bg-ink-base border border-ink-gray rounded-xl py-3 pl-8 pr-4 text-lg font-bold outline-none focus:border-ink-accent text-ink-text font-mono" placeholder="0.00"
                     />
                   </div>
                 </div>
@@ -148,7 +148,7 @@ export const BankrollModal: React.FC<BankrollModalProps> = ({
                       {isPositivePnL ? '+' : ''}{formatCurrency(book.currentBalance - book.deposited)}
                     </p>
                   </div>
-                  <button onClick={() => handleStartEdit(book.sportsbook, 'set')} className="px-3 py-2 rounded-lg bg-ink-paper border border-ink-gray hover:text-white hover:border-ink-accent text-ink-text/60 text-xs font-bold transition-all">Edit</button>
+                  <button onClick={() => handleStartEdit(book.sportsbook, 'set')} className="px-3 py-2 rounded-lg bg-ink-paper border border-ink-gray hover:text-ink-text hover:border-ink-accent text-ink-text/60 text-xs font-bold transition-all">Edit</button>
                 </div>
               </div>
             );

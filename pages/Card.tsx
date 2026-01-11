@@ -1,13 +1,15 @@
 
 import React, { useState } from 'react';
 import { useGameContext } from '../hooks/useGameContext';
-import { HighHitAnalysis, QueuedGame, SportsbookAccount, AutoPickResult } from '../types';
+import { HighHitAnalysis, QueuedGame, SportsbookAccount, AutoPickResult, BookLines } from '../types';
 import { MAX_DAILY_PLAYS } from '../constants';
 import { analyzeCard, CardAnalytics, DiversificationWarning, PLScenario } from '../utils/cardAnalytics';
 import { useToast, createToastHelpers } from '../components/Toast';
 import StickyCardSummary from '../components/StickyCardSummary';
 import { isPremiumEdge } from '../utils/edgeUtils';
 import { mapQueuedGameToDraftBet, DraftBet } from '../types/draftBet';
+import { refreshAnalysisMathOnly } from '../services/geminiService';
+import { fetchOddsForGame, getBookmakerLines, SOFT_BOOK_KEYS } from '../services/oddsService';
 
 type AlternativeBook = { bookName: string; odds: string; line?: string };
 type AvailableBalanceLookup = (bookName: string) => number | null;
@@ -104,8 +106,9 @@ const getFactConfidenceStyle = (confidence?: string) => {
 };
 
 export default function Card({ onLogBet }: { onLogBet: (draft: DraftBet) => void }) {
-  const { queue, getPlayableCount, autoPickBestGames, totalBankroll, unitSizePercent, bankroll } = useGameContext();
+  const { queue, getPlayableCount, autoPickBestGames, totalBankroll, unitSizePercent, bankroll, updateGame, activeBookNames } = useGameContext();
   const [lastPickResult, setLastPickResult] = useState<AutoPickResult | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   
   // Toast
   const { addToast } = useToast();
@@ -140,6 +143,74 @@ export default function Card({ onLogBet }: { onLogBet: (draft: DraftBet) => void
            s.wins === 1 || 
            s.wins === 0;
   });
+
+  const refreshCardOdds = async () => {
+    if (isRefreshing) return;
+    const targets = queue.filter(g => g.analysis);
+    if (targets.length === 0) {
+      toast.showInfo("No analyzed games to refresh.");
+      return;
+    }
+
+    setIsRefreshing(true);
+    let updated = 0;
+    let playableUpdated = 0;
+    let passedUpdated = 0;
+    let failed = 0;
+
+    for (const game of targets) {
+      try {
+        const data = await fetchOddsForGame(game.sport, game.id);
+        if (!data) {
+          failed += 1;
+          continue;
+        }
+
+        const pinnacle = getBookmakerLines(data, 'pinnacle');
+        if (!pinnacle) {
+          failed += 1;
+          continue;
+        }
+
+        const matchedSoftLines: BookLines[] = [];
+        SOFT_BOOK_KEYS.forEach(key => {
+          const lines = getBookmakerLines(data, key);
+          if (!lines) return;
+          const displayName = lines.bookName;
+          const isActiveBook = activeBookNames.some(name =>
+            name.toLowerCase().includes(displayName.toLowerCase()) ||
+            displayName.toLowerCase().includes(name.toLowerCase())
+          );
+          if (isActiveBook) matchedSoftLines.push(lines);
+        });
+
+        if (matchedSoftLines.length === 0) {
+          failed += 1;
+          continue;
+        }
+
+        const refreshedGame = { ...game, sharpLines: pinnacle, softLines: matchedSoftLines };
+        const result = refreshAnalysisMathOnly(refreshedGame);
+
+        updateGame(game.id, { sharpLines: pinnacle, softLines: matchedSoftLines, analysis: result, analysisError: undefined });
+        updated += 1;
+        if (result.decision === 'PLAYABLE') playableUpdated += 1;
+        else passedUpdated += 1;
+      } catch (error) {
+        console.error("Card refresh failed for game:", game.id, error);
+        failed += 1;
+      }
+    }
+
+    if (updated > 0) {
+      const failureNote = failed > 0 ? ` (${failed} failed)` : '';
+      toast.showSuccess(`Odds refreshed: ${updated} updated — ${playableUpdated} playable, ${passedUpdated} passed${failureNote}`);
+    } else {
+      toast.showWarning("No games refreshed. Check your active books or try again later.");
+    }
+
+    setIsRefreshing(false);
+  };
 
   const playableAllocations = (() => {
     const remainingByAccount = new Map<string, number>();
@@ -302,10 +373,26 @@ export default function Card({ onLogBet }: { onLogBet: (draft: DraftBet) => void
     <div className="h-full overflow-y-auto p-4">
       <div className="max-w-lg mx-auto pb-24">
         <header className="mb-6">
-          <h1 className="text-2xl font-bold text-slate-800 mb-1">Daily Card</h1>
-          <p className="text-slate-400 text-sm">
-            {new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
-          </p>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h1 className="text-2xl font-bold text-slate-800 mb-1">Daily Card</h1>
+              <p className="text-slate-400 text-sm">
+                {new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
+              </p>
+            </div>
+            <button
+              onClick={refreshCardOdds}
+              disabled={isRefreshing}
+              className={`px-3 py-2 rounded-lg text-[11px] font-bold uppercase tracking-wide border shadow-sm transition-all ${
+                isRefreshing
+                  ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
+                  : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300 hover:text-slate-900'
+              }`}
+              title="Refresh lines and re-check each pick"
+            >
+              {isRefreshing ? 'Refreshing...' : 'Refresh Odds'}
+            </button>
+          </div>
         </header>
 
         {/* Sticky Summary */}
@@ -374,9 +461,9 @@ export default function Card({ onLogBet }: { onLogBet: (draft: DraftBet) => void
         )}
 
         {analyzedGames.length === 0 ? (
-          <div className="text-center py-20 bg-white rounded-2xl border border-slate-200 shadow-sm">
-            <p className="text-slate-400">No analyses completed yet.</p>
-            <p className="text-slate-300 text-sm mt-2">Add games from Scout → Upload lines → Run analysis</p>
+          <div className="text-center py-20 bg-ink-paper rounded-2xl border border-ink-gray shadow-sm">
+            <p className="text-ink-text/40">No analyses completed yet.</p>
+            <p className="text-ink-text/60 text-sm mt-2">Add games from Scout → Upload lines → Run analysis</p>
           </div>
         ) : (
           <>
@@ -385,13 +472,13 @@ export default function Card({ onLogBet }: { onLogBet: (draft: DraftBet) => void
               <div className="mb-6 space-y-4">
                 
                 {/* P&L Projection */}
-                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                  <div className="px-4 py-3 bg-slate-50 border-b border-slate-100">
+                <div className="bg-ink-paper rounded-2xl border border-ink-gray shadow-sm overflow-hidden">
+                  <div className="px-4 py-3 bg-ink-base border-b border-ink-gray">
                     <div className="flex justify-between items-center">
-                      <h3 className="font-bold text-slate-700 text-sm flex items-center gap-2">
+                      <h3 className="font-bold text-ink-text text-sm flex items-center gap-2">
                         <span>📊</span> Projected Outcomes
                       </h3>
-                      <span className="text-xs text-slate-400">
+                      <span className="text-xs text-ink-text/40">
                         {hasAutoPicked ? `${targetCount} picks` : `${playable.length} playable`}
                       </span>
                     </div>
@@ -399,9 +486,9 @@ export default function Card({ onLogBet }: { onLogBet: (draft: DraftBet) => void
                   
                   <div className="p-4">
                     {/* Total at Risk */}
-                    <div className="flex justify-between items-center mb-4 pb-3 border-b border-slate-100">
-                      <span className="text-xs text-slate-500 uppercase font-bold tracking-wide">Total Wagered</span>
-                      <span className="font-bold text-slate-800 font-mono">${analytics.totalWagered.toFixed(2)}</span>
+                    <div className="flex justify-between items-center mb-4 pb-3 border-b border-ink-gray">
+                      <span className="text-xs text-ink-text/60 uppercase font-bold tracking-wide">Total Wagered</span>
+                      <span className="font-bold text-ink-text font-mono">${analytics.totalWagered.toFixed(2)}</span>
                     </div>
                     
                     {/* Scenario Grid */}
@@ -411,14 +498,14 @@ export default function Card({ onLogBet }: { onLogBet: (draft: DraftBet) => void
                           key={scenario.record}
                           className={`p-3 rounded-xl text-center ${
                             scenario.netPL > 0 
-                              ? 'bg-emerald-50 border border-emerald-100' 
+                              ? 'bg-status-win/10 border border-status-win/20' 
                               : scenario.isBreakEven
-                                ? 'bg-amber-50 border border-amber-100'
-                                : 'bg-red-50 border border-red-100'
+                                ? 'bg-amber-500/10 border border-amber-500/20'
+                                : 'bg-status-loss/10 border border-status-loss/20'
                           }`}
                         >
-                          <div className="text-xs text-slate-500 font-medium mb-1">{scenario.record}</div>
-                          <div className={`font-bold font-mono ${scenario.color}`}>
+                          <div className="text-xs text-ink-text/60 font-medium mb-1">{scenario.record}</div>
+                          <div className={`font-bold font-mono ${scenario.netPL > 0 ? 'text-status-win' : scenario.isBreakEven ? 'text-amber-500' : 'text-status-loss'}`}>
                             {scenario.netPL >= 0 ? '+' : ''}{scenario.netPL.toFixed(2)}
                           </div>
                         </div>
@@ -426,14 +513,14 @@ export default function Card({ onLogBet }: { onLogBet: (draft: DraftBet) => void
                     </div>
                     
                     {/* Quick Summary */}
-                    <div className="mt-4 pt-3 border-t border-slate-100 flex justify-between text-xs">
+                    <div className="mt-4 pt-3 border-t border-ink-gray flex justify-between text-xs">
                       <div>
-                        <span className="text-slate-400">Best case: </span>
-                        <span className="font-bold text-emerald-600">+${analytics.maxProfit.toFixed(2)}</span>
+                        <span className="text-ink-text/40">Best case: </span>
+                        <span className="font-bold text-status-win">+${analytics.maxProfit.toFixed(2)}</span>
                       </div>
                       <div>
-                        <span className="text-slate-400">Worst case: </span>
-                        <span className="font-bold text-red-600">${analytics.maxLoss.toFixed(2)}</span>
+                        <span className="text-ink-text/40">Worst case: </span>
+                        <span className="font-bold text-status-loss">${analytics.maxLoss.toFixed(2)}</span>
                       </div>
                     </div>
                   </div>
@@ -441,9 +528,9 @@ export default function Card({ onLogBet }: { onLogBet: (draft: DraftBet) => void
                 
                 {/* Diversification Warnings */}
                 {analytics.diversificationWarnings.length > 0 && (
-                  <div className="bg-amber-50 rounded-2xl border border-amber-200 overflow-hidden">
-                    <div className="px-4 py-3 bg-amber-100/50 border-b border-amber-200">
-                      <h3 className="font-bold text-amber-800 text-sm flex items-center gap-2">
+                  <div className="bg-amber-900/20 rounded-2xl border border-amber-700/30 overflow-hidden">
+                    <div className="px-4 py-3 bg-amber-900/30 border-b border-amber-700/30">
+                      <h3 className="font-bold text-amber-500 text-sm flex items-center gap-2">
                         <span>⚠️</span> Concentration Alerts
                       </h3>
                     </div>
@@ -452,13 +539,13 @@ export default function Card({ onLogBet }: { onLogBet: (draft: DraftBet) => void
                       {analytics.diversificationWarnings.map((warning, idx) => (
                         <div key={idx} className="flex items-start gap-3">
                           <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${
-                            warning.severity === 'WARNING' ? 'bg-red-500' :
-                            warning.severity === 'CAUTION' ? 'bg-amber-500' : 'bg-slate-400'
+                            warning.severity === 'WARNING' ? 'bg-status-loss' :
+                            warning.severity === 'CAUTION' ? 'bg-amber-500' : 'bg-ink-gray'
                           }`} />
                           <div>
-                            <div className="font-bold text-amber-900 text-sm">{warning.title}</div>
-                            <div className="text-amber-700 text-xs mt-0.5">{warning.message}</div>
-                            <div className="text-amber-600/70 text-[10px] mt-1 font-mono">{warning.breakdown}</div>
+                            <div className="font-bold text-amber-500 text-sm">{warning.title}</div>
+                            <div className="text-amber-400/80 text-xs mt-0.5">{warning.message}</div>
+                            <div className="text-amber-500/50 text-[10px] mt-1 font-mono">{warning.breakdown}</div>
                           </div>
                         </div>
                       ))}
@@ -472,26 +559,26 @@ export default function Card({ onLogBet }: { onLogBet: (draft: DraftBet) => void
             <div className="grid grid-cols-2 gap-3 mb-6">
               <div className={`p-4 rounded-2xl border shadow-sm ${
                 overLimit 
-                  ? 'bg-coral-50 border-coral-200' 
-                  : 'bg-gradient-to-br from-teal-50 to-emerald-50 border-teal-200'
+                  ? 'bg-status-loss/10 border-status-loss/30' 
+                  : 'bg-teal-900/20 border-teal-700/30'
               }`}>
-                <div className={`text-3xl font-bold ${overLimit ? 'text-coral-500' : 'text-teal-500'}`}>
+                <div className={`text-3xl font-bold ${overLimit ? 'text-status-loss' : 'text-teal-500'}`}>
                   {playableCount}
                 </div>
-                <div className="text-[10px] uppercase text-slate-500 font-bold tracking-wider mt-1">
+                <div className="text-[10px] uppercase text-ink-text/40 font-bold tracking-wider mt-1">
                   Playable / {MAX_DAILY_PLAYS} Max
                 </div>
               </div>
-              <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-sm">
-                <div className="text-3xl font-bold text-slate-400">{passed.length}</div>
-                <div className="text-[10px] uppercase text-slate-400 font-bold tracking-wider mt-1">Passed</div>
+              <div className="bg-ink-paper border border-ink-gray p-4 rounded-2xl shadow-sm">
+                <div className="text-3xl font-bold text-ink-text/40">{passed.length}</div>
+                <div className="text-[10px] uppercase text-ink-text/40 font-bold tracking-wider mt-1">Passed</div>
               </div>
             </div>
 
             {/* Playable Games */}
             {playable.length > 0 && (
               <section className="mb-6">
-                <h2 className="text-teal-600 font-bold text-sm uppercase tracking-wider mb-3 flex items-center">
+                <h2 className="text-teal-500 font-bold text-sm uppercase tracking-wider mb-3 flex items-center">
                   <span className="mr-2">✅</span> Playable (Your Decision)
                 </h2>
                 <div className="space-y-3">
@@ -511,7 +598,7 @@ export default function Card({ onLogBet }: { onLogBet: (draft: DraftBet) => void
             {/* Passed Games */}
             {passed.length > 0 && (
               <section>
-                <h2 className="text-slate-400 font-bold text-sm uppercase tracking-wider mb-3 flex items-center">
+                <h2 className="text-ink-text/40 font-bold text-sm uppercase tracking-wider mb-3 flex items-center">
                   <span className="mr-2">⛔</span> Passed (Veto Triggered)
                 </h2>
                 <div className="space-y-3">
@@ -524,13 +611,13 @@ export default function Card({ onLogBet }: { onLogBet: (draft: DraftBet) => void
 
             <button 
               onClick={copyToClipboard}
-              className="w-full mt-8 bg-gradient-to-r from-slate-700 to-slate-800 hover:from-slate-800 hover:to-slate-900 text-white font-bold py-4 rounded-2xl shadow-lg transition-all hover:shadow-xl"
+              className="w-full mt-8 bg-ink-paper hover:bg-ink-base border border-ink-gray text-ink-text font-bold py-4 rounded-2xl shadow-lg transition-all"
             >
               📋 Copy Daily Card
             </button>
 
             {/* Philosophy Reminder */}
-            <div className="mt-6 text-center text-slate-400 text-xs">
+            <div className="mt-6 text-center text-ink-text/40 text-xs">
               <p>EdgeLab v3 — Discipline Edition</p>
               <p className="mt-1 italic">"Passing is profitable."</p>
             </div>

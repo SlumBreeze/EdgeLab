@@ -14,25 +14,25 @@ const HeaderActions: React.FC<{ onOpenBankroll: () => void }> = ({ onOpenBankrol
   const { syncStatus } = useGameContext();
   
   // Dynamic styles for the glowing cloud effect
-  let containerStyles = "bg-white/90 border-2 transition-all duration-700 shadow-sm";
-  let iconColor = "text-slate-300";
+  let containerStyles = "bg-ink-paper border-2 transition-all duration-700 shadow-sm";
+  let iconColor = "text-ink-gray";
   
   if (syncStatus === 'saving') {
     // Pulsing Blue Cloud
-    containerStyles = "bg-white border-blue-400 shadow-[0_0_15px_rgba(96,165,250,0.6)]";
-    iconColor = "text-blue-500 animate-pulse";
+    containerStyles = "bg-ink-paper border-ink-accent shadow-[0_0_15px_rgba(56,189,248,0.4)]";
+    iconColor = "text-ink-accent animate-pulse";
   } else if (syncStatus === 'saved') {
     // Glowing Green Cloud
-    containerStyles = "bg-white border-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.5)]";
-    iconColor = "text-emerald-500";
+    containerStyles = "bg-ink-paper border-status-win shadow-[0_0_20px_rgba(16,185,129,0.3)]";
+    iconColor = "text-status-win";
   } else if (syncStatus === 'error') {
     // Glowing Red Cloud
-    containerStyles = "bg-white border-red-500 shadow-[0_0_20px_rgba(239,68,68,0.5)]";
-    iconColor = "text-red-500";
+    containerStyles = "bg-ink-paper border-status-loss shadow-[0_0_20px_rgba(239,68,68,0.3)]";
+    iconColor = "text-status-loss";
   } else {
     // Idle Slate Cloud
-    containerStyles = "bg-white/80 border-slate-200";
-    iconColor = "text-slate-400";
+    containerStyles = "bg-ink-paper/80 border-ink-gray";
+    iconColor = "text-ink-gray";
   }
 
   return (
@@ -58,7 +58,7 @@ const HeaderActions: React.FC<{ onOpenBankroll: () => void }> = ({ onOpenBankrol
        {/* Wallet Button */}
        <button 
             onClick={onOpenBankroll}
-            className="bg-white/90 backdrop-blur shadow-md border border-slate-200 rounded-full w-10 h-10 flex items-center justify-center hover:scale-105 transition-all text-xl"
+            className="bg-ink-paper backdrop-blur shadow-md border border-ink-gray rounded-full w-10 h-10 flex items-center justify-center hover:scale-105 transition-all text-xl"
         >
             💰
         </button>
@@ -85,7 +85,7 @@ const AppContent: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans">
+    <div className="min-h-screen bg-ink-base text-ink-text flex flex-col font-sans">
       
       <HeaderActions onOpenBankroll={() => setIsBankrollOpen(true)} />
 
@@ -115,12 +115,12 @@ const AppContent: React.FC = () => {
       <BankrollModal isOpen={isBankrollOpen} onClose={() => setIsBankrollOpen(false)} />
 
       {/* Bottom Navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-50 shadow-lg">
+      <nav className="fixed bottom-0 left-0 right-0 bg-ink-paper border-t border-ink-gray z-50 shadow-lg">
         <div className="flex justify-around items-center h-16 max-w-lg mx-auto">
           <button 
             onClick={() => setActiveTab('scout')}
             className={`flex flex-col items-center justify-center w-full h-full transition-colors ${
-              activeTab === 'scout' ? 'text-coral-500' : 'text-slate-400'
+              activeTab === 'scout' ? 'text-ink-accent' : 'text-ink-text opacity-40'
             }`}
           >
             <span className="text-2xl mb-1">🔍</span>
@@ -130,7 +130,7 @@ const AppContent: React.FC = () => {
           <button 
             onClick={() => setActiveTab('queue')}
             className={`flex flex-col items-center justify-center w-full h-full transition-colors ${
-              activeTab === 'queue' ? 'text-coral-500' : 'text-slate-400'
+              activeTab === 'queue' ? 'text-ink-accent' : 'text-ink-text opacity-40'
             }`}
           >
             <span className="text-2xl mb-1">📋</span>
@@ -140,7 +140,7 @@ const AppContent: React.FC = () => {
           <button 
             onClick={() => setActiveTab('card')}
             className={`flex flex-col items-center justify-center w-full h-full transition-colors ${
-              activeTab === 'card' ? 'text-coral-500' : 'text-slate-400'
+              activeTab === 'card' ? 'text-ink-accent' : 'text-ink-text opacity-40'
             }`}
           >
             <span className="text-2xl mb-1">🏆</span>
@@ -150,7 +150,7 @@ const AppContent: React.FC = () => {
           <button 
             onClick={() => setActiveTab('tracker')}
             className={`flex flex-col items-center justify-center w-full h-full transition-colors ${
-              activeTab === 'tracker' ? 'text-coral-500' : 'text-slate-400'
+              activeTab === 'tracker' ? 'text-ink-accent' : 'text-ink-text opacity-40'
             }`}
           >
             <span className="text-2xl mb-1">📊</span>

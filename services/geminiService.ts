@@ -193,6 +193,44 @@ const getReferenceLines = (gameId: string) => {
   }
 };
 
+const parseFloorNumber = (value?: string): number | null => {
+  if (!value || value === 'N/A') return null;
+  const cleaned = value.replace(/^[ou]/i, '');
+  const parsed = parseFloat(cleaned);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const isLineWithinFloor = (
+  market: SideValue['market'],
+  side: SideValue['side'],
+  bestSoftLine: string,
+  lineFloor?: string
+): boolean => {
+  if (!lineFloor) return true;
+  const softVal = parseFloorNumber(bestSoftLine);
+  const floorVal = parseFloorNumber(lineFloor);
+  if (softVal === null || floorVal === null) return true;
+
+  if (market === 'Total') {
+    if (side === 'OVER') return softVal <= floorVal;
+    if (side === 'UNDER') return softVal >= floorVal;
+  }
+
+  if (market === 'Spread') {
+    return softVal >= floorVal;
+  }
+
+  return true;
+};
+
+const isOddsWithinFloor = (bestSoftOdds: string, oddsFloor?: string): boolean => {
+  if (!oddsFloor) return true;
+  const bestVal = normalizeToAmerican(bestSoftOdds);
+  const floorVal = normalizeToAmerican(oddsFloor);
+  if (!bestVal || !floorVal) return true;
+  return bestVal >= floorVal;
+};
+
 // ============================================
 // LINE VALUE CALCULATOR
 // ============================================
@@ -804,6 +842,135 @@ Dominance Ratio: ${finalValidation.dominanceRatio.toFixed(2)}`,
     confidence: finalValidation.adjustedConfidence,
     factConfidence: finalValidation.factConfidence,
     dominanceRatio: finalValidation.dominanceRatio
+  };
+};
+
+export const refreshAnalysisMathOnly = (game: QueuedGame): HighHitAnalysis => {
+  const prior = game.analysis;
+  if (!prior) {
+    return {
+      decision: 'PASS',
+      vetoTriggered: true,
+      vetoReason: 'REFRESH_FAILED: No prior analysis.',
+      researchSummary: 'No prior analysis found to refresh.'
+    };
+  }
+
+  if (prior.decision !== 'PLAYABLE') {
+    return { ...prior };
+  }
+
+  if (!game.sharpLines || game.softLines.length === 0) {
+    return {
+      ...prior,
+      decision: 'PASS',
+      vetoTriggered: true,
+      vetoReason: 'REFRESH_FAILED: Missing sharp/soft lines.'
+    };
+  }
+
+  const noVig = calculateNoVigProb(game.sharpLines.mlOddsA, game.sharpLines.mlOddsB);
+  const sharpImpliedProb = noVig.probA;
+  const allSides = analyzeAllSides(game.sharpLines, game.softLines);
+
+  const selectedSide = allSides.find(s =>
+    s.side === prior.side && s.market === prior.market
+  );
+
+  if (!selectedSide || !selectedSide.hasPositiveValue) {
+    return {
+      ...prior,
+      decision: 'PASS',
+      vetoTriggered: true,
+      vetoReason: 'LINE_MOVED: No longer positive value.',
+      sharpImpliedProb,
+      lineValueCents: 0,
+      lineValuePoints: 0
+    };
+  }
+
+  const lineValueCents = selectedSide.priceValue > 0 ? selectedSide.priceValue : 0;
+
+  const bestOddsVal = parseFloat(selectedSide.bestSoftOdds);
+  if (!isNaN(bestOddsVal) && bestOddsVal < -160) {
+    return {
+      ...prior,
+      decision: 'PASS',
+      vetoTriggered: true,
+      vetoReason: `JUICE_VETO: Recommended odds ${formatOddsForDisplay(bestOddsVal)} are worse than -160 limit.`,
+      sharpImpliedProb,
+      lineValueCents,
+      lineValuePoints: selectedSide.lineValue
+    };
+  }
+
+  let lineFloor: string | undefined;
+  let oddsFloor: string | undefined;
+  let floorReason: string | undefined;
+
+  if (selectedSide.market === 'Spread' || selectedSide.market === 'Total') {
+    lineFloor = selectedSide.market === 'Total'
+      ? `${selectedSide.side === 'OVER' ? 'o' : 'u'}${selectedSide.sharpLine}`
+      : selectedSide.sharpLine;
+
+    const sOdds = normalizeToAmerican(selectedSide.sharpOdds);
+    const threshold = -130;
+    const floorVal = (sOdds < threshold) ? sOdds : threshold;
+    oddsFloor = formatOddsForDisplay(floorVal);
+    floorReason = selectedSide.market === 'Spread'
+      ? 'Matches sharp line - no edge below this'
+      : 'Matches sharp line';
+  } else if (selectedSide.market === 'Moneyline') {
+    lineFloor = undefined;
+    oddsFloor = formatOddsForDisplay(selectedSide.sharpOdds);
+    floorReason = 'Matches sharp price';
+  }
+
+  const isLineOk = isLineWithinFloor(selectedSide.market, selectedSide.side, selectedSide.bestSoftLine, lineFloor);
+  const isOddsOk = isOddsWithinFloor(selectedSide.bestSoftOdds, oddsFloor);
+
+  if (!isLineOk || !isOddsOk) {
+    return {
+      ...prior,
+      decision: 'PASS',
+      vetoTriggered: true,
+      vetoReason: 'LINE_MOVED: Outside floor thresholds.',
+      sharpImpliedProb,
+      lineValueCents,
+      lineValuePoints: selectedSide.lineValue,
+      lineFloor,
+      oddsFloor,
+      floorReason
+    };
+  }
+
+  const teamName = selectedSide.side === 'AWAY' ? game.awayTeam.name :
+                   selectedSide.side === 'HOME' ? game.homeTeam.name :
+                   selectedSide.side;
+
+  const recLine = selectedSide.market === 'Moneyline'
+    ? formatOddsForDisplay(selectedSide.bestSoftOdds)
+    : `${selectedSide.bestSoftLine} (${formatOddsForDisplay(selectedSide.bestSoftOdds)})`;
+
+  return {
+    ...prior,
+    decision: 'PLAYABLE',
+    vetoTriggered: false,
+    vetoReason: undefined,
+    recommendation: `${teamName} ${selectedSide.market}`,
+    recLine,
+    recProbability: selectedSide.side === 'AWAY' ? sharpImpliedProb : 100 - sharpImpliedProb,
+    market: selectedSide.market,
+    side: selectedSide.side,
+    line: selectedSide.bestSoftLine,
+    sharpImpliedProb,
+    softBestOdds: formatOddsForDisplay(selectedSide.bestSoftOdds),
+    softBestBook: selectedSide.bestSoftBook,
+    lineValueCents,
+    lineValuePoints: selectedSide.lineValue,
+    lineFloor,
+    oddsFloor,
+    floorReason
   };
 };
 

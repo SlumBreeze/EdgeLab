@@ -281,7 +281,7 @@ export const BetForm: React.FC<BetFormProps> = ({ onAddBet, currentBalance, book
         onDrop={handleDrop}
       >
         {/* Header */}
-        <div className="px-5 py-4 border-b border-ink-gray flex justify-between items-center bg-ink-base/30">
+        <div className="px-5 py-4 border-b border-ink-gray flex justify-between items-center bg-ink-paper/50">
           <div className="flex items-center gap-2">
             <PlusCircle className="text-ink-accent" size={20} />
             <h2 className="text-lg font-bold text-ink-text">Log Wager</h2>
@@ -319,7 +319,7 @@ export const BetForm: React.FC<BetFormProps> = ({ onAddBet, currentBalance, book
                 </div>
                 <div className="text-right">
                    <p className="text-xl font-bold font-mono text-ink-text">{formatCurrency(recommendedAmount)}</p>
-                   <button onClick={applyRecommendedWager} className="text-xs font-bold text-ink-accent hover:text-white mt-1">
+                   <button onClick={applyRecommendedWager} className="text-xs font-bold text-ink-accent hover:text-ink-text mt-1">
                       Apply
                    </button>
                 </div>
@@ -336,7 +336,7 @@ export const BetForm: React.FC<BetFormProps> = ({ onAddBet, currentBalance, book
                   onChange={(e) => setWagerPct(Number(e.target.value))}
                   className="flex-grow h-1.5 bg-ink-gray rounded-lg appearance-none cursor-pointer accent-ink-accent"
                 />
-                <span className="text-xs font-mono font-bold w-10 text-right">{wagerPct}%</span>
+                <span className="text-xs font-mono font-bold w-10 text-right text-ink-text">{wagerPct}%</span>
              </div>
 
              {showBalanceWarning && (
@@ -440,7 +440,7 @@ export const BetForm: React.FC<BetFormProps> = ({ onAddBet, currentBalance, book
       </div>
 
       {isAnalyzing && (
-        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/80 backdrop-blur-md">
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-ink-base/80 backdrop-blur-md">
            <Loader2 className="animate-spin text-ink-accent mb-4" size={48} />
            <p className="text-white font-bold text-lg animate-pulse font-mono">Decoding Slip...</p>
         </div>

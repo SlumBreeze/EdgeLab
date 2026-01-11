@@ -114,7 +114,7 @@ export function mapQueuedGameToDraftBet(q: any, wager?: number): DraftBet {
 
     sportsbook: q?.analysis?.softBestBook ?? 'Other',
 
-    stake: wager ?? null,
+    stake: typeof wager === 'number' ? Math.round(wager * 100) / 100 : null,
     rationale: q?.analysis?.researchSummary ?? q?.analysis?.edgeNarrative ?? '',
     evPct: q?.analysis?.lineValueCents ?? null, // Using lineValueCents as a proxy for EV
     edge: q?.analysis?.sharpImpliedProb ?? null,

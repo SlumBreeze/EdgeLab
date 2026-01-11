@@ -9,31 +9,32 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
+        darkMode: 'class',
         theme: {
           extend: {
             colors: {
               ink: {
-                base: '#FFFFE3',
-                text: '#4A4A4A',
-                gray: '#CBCBCB',
-                accent: '#6D8196',
-                paper: '#ffffff',
+                base: '#0f172a',   // Slate 900 (App Background)
+                paper: '#1e293b',  // Slate 800 (Card/Surface)
+                text: '#f1f5f9',   // Slate 100 (Primary Text)
+                gray: '#334155',   // Slate 700 (Borders/Secondary Text)
+                accent: '#38bdf8', // Sky 400 (FanDuel-ish Blue Accent)
               },
               status: {
-                win: '#059669',
-                loss: '#e11d48',
+                win: '#10b981',    // Emerald 500
+                loss: '#ef4444',   // Red 500
               },
               coral: {
-                50: '#fff5f5',
-                100: '#ffe0e0',
-                200: '#ffc7c7',
-                300: '#ffa3a3',
-                400: '#ff7a7a',
-                500: '#ff6b6b',
-                600: '#ee5a5a',
-                700: '#d94848',
-                800: '#b33a3a',
-                900: '#8f2e2e',
+                50: '#fff1f2',
+                100: '#ffe4e6',
+                200: '#fecdd3',
+                300: '#fda4af',
+                400: '#fb7185',
+                500: '#f43f5e', // Rose instead of Coral for dark mode visibility? Keeping Coral for now but mapping to Rose/Red
+                600: '#e11d48',
+                700: '#be123c',
+                800: '#9f1239',
+                900: '#881337',
               },
               teal: {
                 50: '#f0fdfa',
@@ -54,23 +55,23 @@
     </script>
     <style>
       body {
-        background-color: #f8fafc; /* slate-50 */
-        color: #1e293b; /* slate-800 */
+        background-color: #0f172a; /* ink.base */
+        color: #f1f5f9; /* ink.text */
       }
-      /* Custom scrollbar for light theme */
+      /* Custom scrollbar for dark theme */
       ::-webkit-scrollbar {
         width: 8px;
         height: 8px;
       }
       ::-webkit-scrollbar-track {
-        background: #f1f5f9; 
+        background: #0f172a; 
       }
       ::-webkit-scrollbar-thumb {
-        background: #cbd5e1; 
+        background: #334155; 
         border-radius: 4px;
       }
       ::-webkit-scrollbar-thumb:hover {
-        background: #94a3b8; 
+        background: #475569; 
       }
     </style>
   <script type="importmap">
