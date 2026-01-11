@@ -587,7 +587,7 @@ Return JSON only.
 `;
 
   const ai = getAiClient();
-  let aiResult: StoicAiResult;
+  let analysis: StoicAiResult;
   try {
     const response = await generateWithRetry(ai, {
       model: 'gemini-3-pro-preview',
@@ -600,7 +600,7 @@ Return JSON only.
         temperature: 0.1
       }
     });
-    aiResult = cleanAndParseJson(response.text, {
+    analysis = cleanAndParseJson(response.text, {
       recommendation: 'PASS',
       confidence: 0,
       reasoning: 'No actionable edge.',
@@ -625,10 +625,10 @@ Return JSON only.
     };
   }
 
-  const normalizedRec = normalizeRecommendation(aiResult.recommendation);
-  const normalizedWagerType = normalizeWagerType(aiResult.wagerType);
-  const confidenceScore = clampConfidence(aiResult.confidence);
-  const reasoning = trimToTwoSentences(aiResult.reasoning || '');
+  const normalizedRec = normalizeRecommendation(analysis.recommendation);
+  const normalizedWagerType = normalizeWagerType(analysis.wagerType);
+  const confidenceScore = clampConfidence(analysis.confidence);
+  const reasoning = trimToTwoSentences(analysis.reasoning || '');
 
   const finalRecommendation = best.edge <= 0 || normalizedWagerType !== best.market
     ? 'PASS'
@@ -668,7 +668,7 @@ Return JSON only.
     trueProbability: best.trueProbability,
     impliedProbability: best.impliedProbability,
     edge: best.edge,
-    wagerType: best.market
+    wagerType: normalizedWagerType || best.market
   };
 };
 
