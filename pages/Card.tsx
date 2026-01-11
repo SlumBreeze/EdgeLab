@@ -7,6 +7,7 @@ import { analyzeCard, CardAnalytics, DiversificationWarning, PLScenario } from '
 import { useToast, createToastHelpers } from '../components/Toast';
 import StickyCardSummary from '../components/StickyCardSummary';
 import { isPremiumEdge } from '../utils/edgeUtils';
+import { mapQueuedGameToDraftBet, DraftBet } from '../types/draftBet';
 
 // Helper: Find alternative book with funds
 const getAlternativeBook = (
@@ -81,7 +82,7 @@ const getFactConfidenceStyle = (confidence?: string) => {
   return 'bg-slate-100 text-slate-500 border-slate-200';
 };
 
-export default function Card() {
+export default function Card({ onLogBet }: { onLogBet: (draft: DraftBet) => void }) {
   const { queue, getPlayableCount, autoPickBestGames, totalBankroll, unitSizePercent } = useGameContext();
   const [lastPickResult, setLastPickResult] = useState<AutoPickResult | null>(null);
   
@@ -385,7 +386,7 @@ export default function Card() {
                        return slotA - slotB;
                     })
                     .map(g => (
-                      <PlayableCard key={g.id} game={g} dim={hasAutoPicked && !g.cardSlot} />
+                      <PlayableCard key={g.id} game={g} dim={hasAutoPicked && !g.cardSlot} onLogBet={onLogBet} />
                   ))}
                 </div>
               </section>
@@ -424,7 +425,7 @@ export default function Card() {
   );
 }
 
-const PlayableCard: React.FC<{ game: QueuedGame; dim?: boolean }> = ({ game, dim }) => {
+const PlayableCard: React.FC<{ game: QueuedGame; dim?: boolean; onLogBet: (draft: DraftBet) => void }> = ({ game, dim, onLogBet }) => {
   const { totalBankroll, unitSizePercent, bankroll } = useGameContext();
   
   if (!game.analysis) return null; // Defensive check
@@ -463,6 +464,11 @@ const PlayableCard: React.FC<{ game: QueuedGame; dim?: boolean }> = ({ game, dim
   // UPDATED: Use shared utility
   const isPremium = isPremiumEdge(linePoints, juiceCents, a.confidence, game.sport, a.market);
 
+  const handleLogClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onLogBet(mapQueuedGameToDraftBet(game));
+  };
+
   return (
     <div className={`p-4 rounded-2xl shadow-lg relative transition-all ${
       dim ? 'opacity-40 grayscale-[50%]' : ''
@@ -476,28 +482,6 @@ const PlayableCard: React.FC<{ game: QueuedGame; dim?: boolean }> = ({ game, dim
         : 'bg-gradient-to-br from-teal-500 to-emerald-500 text-white'
     } ${hasFactConfidence && !isFactConfidenceHigh ? 'opacity-80' : ''}`}>
       {/* SLOT BADGE */}
-      {slot && (
-        <div className="absolute -top-3 -right-2 bg-amber-400 text-amber-900 border-2 border-white shadow-md font-black italic px-3 py-1 rounded-full text-xs z-10 flex items-center gap-1">
-          {isPremium && <span>⭐</span>}
-          SLOT #{slot}
-        </div>
-      )}
-
-      {/* Add caution banner at top if exists */}
-      {a.caution && (
-        <div className={`mb-3 p-2 rounded-lg text-xs font-medium ${
-          hasCaution ? 'bg-amber-600/20 text-amber-900' : ''
-        }`}>
-          {a.caution}
-        </div>
-      )}
-
-      {hasFactConfidence && (
-        <div className={`mb-3 px-2 py-1 rounded-lg text-[10px] font-bold uppercase border ${getFactConfidenceStyle(a.factConfidence)}`}>
-          Fact Confidence: {a.factConfidence}
-        </div>
-      )}
-
       <div className="flex justify-between items-start mb-2">
         <span className={`text-xs font-bold uppercase ${hasCaution ? 'text-slate-700' : 'text-white/70'}`}>{game.sport}</span>
         <div className="flex items-center gap-2">
@@ -522,8 +506,20 @@ const PlayableCard: React.FC<{ game: QueuedGame; dim?: boolean }> = ({ game, dim
       {/* THE PICK - BIG AND BOLD */}
       {a.recommendation && (
         <div className="mb-4">
-          <div className="text-2xl font-bold leading-tight">
-            {a.recommendation} <span className={hasCaution ? 'text-slate-900' : 'text-white/90'}>{a.recLine}</span>
+          <div className="flex justify-between items-start">
+            <div className="text-2xl font-bold leading-tight">
+                {a.recommendation} <span className={hasCaution ? 'text-slate-900' : 'text-white/90'}>{a.recLine}</span>
+            </div>
+            <button 
+                onClick={handleLogClick}
+                className={`ml-4 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-tighter border-2 transition-all active:scale-95 ${
+                    hasCaution 
+                    ? 'bg-slate-900 text-amber-400 border-slate-900 hover:bg-slate-800' 
+                    : 'bg-white text-emerald-600 border-white hover:bg-emerald-50'
+                }`}
+            >
+                Log Bet 📊
+            </button>
           </div>
           
           <div className="flex items-center gap-2 mt-1">

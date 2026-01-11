@@ -1,46 +1,78 @@
-
 import React, { createContext, useContext, useState, useEffect, useRef, useMemo } from 'react';
-import { QueuedGame, AnalysisState, Game, BookLines, DailyPlayTracker, SportsbookAccount, ScanResult, ReferenceLineData, AutoPickResult } from '../types';
-import { MAX_DAILY_PLAYS } from '../constants';
+import { QueuedGame, AnalysisState, Game, BookLines, DailyPlayTracker, SportsbookAccount, ScanResult, ReferenceLineData, AutoPickResult, BookBalanceDisplay } from '../types';
+import { MAX_DAILY_PLAYS, SPORTSBOOK_THEME } from '../constants';
 import { supabase, isSupabaseConfigured } from '../services/supabaseClient';
 import { isPremiumEdge, isStandardEdge } from '../utils/edgeUtils';
+import { useBankroll } from './useBankroll';
 
 const GameContext = createContext<AnalysisState | undefined>(undefined);
 
 const getTodayKey = () => new Date().toLocaleDateString('en-CA');
 
-const INITIAL_BOOKS: SportsbookAccount[] = [
-  { name: 'DraftKings', balance: 0, color: 'bg-green-500' },
-  { name: 'FanDuel', balance: 0, color: 'bg-blue-500' },
-  { name: 'theScore Bet', balance: 0, color: 'bg-indigo-900' },
-  { name: 'Fliff', balance: 0, color: 'bg-teal-500' },
-  { name: 'BetOnline', balance: 0, color: 'bg-red-700' },
-  { name: 'Bovada', balance: 0, color: 'bg-red-600' },
-  { name: 'Other', balance: 0, color: 'bg-slate-700' },
-];
-
 export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const today = getTodayKey();
-  // UPDATED: Initialize sync based on whether keys exist
   const [isSyncEnabled, setIsSyncEnabled] = useState(isSupabaseConfigured);
   const [syncStatus, setSyncStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
-  // User ID for Database Persistence
+  // NEW: Integrate useBankroll hook
+  const { 
+    bookBalances, 
+    totalBankroll: hookTotalBankroll, 
+    updateBookDeposit,
+    addBet,
+    updateBetStatus,
+    updateBet,
+    deleteBet,
+    refresh: refreshBankroll,
+    loading: bankrollLoading,
+    error: bankrollError,
+    bets,
+    bankrollState
+  } = useBankroll();
+
+  // Mapping Layer: Convert BookBalanceDisplay[] to SportsbookAccount[]
+  const mappedBankroll: SportsbookAccount[] = useMemo(() => {
+    return bookBalances.map((b: BookBalanceDisplay) => {
+      const theme = SPORTSBOOK_THEME[b.sportsbook] || SPORTSBOOK_THEME['Other'];
+      return {
+        name: b.sportsbook,
+        balance: b.currentBalance,
+        color: theme.bg // Using bg color for UI visualization
+      };
+    });
+  }, [bookBalances]);
+
+  // Compatibility Layer: updateBankroll wrapper
+  const updateBankrollCompat = async (bookName: string, balance: number) => {
+    // In legacy, we set balance directly. In new system, we update deposit.
+    // New Balance = Deposited + Profit
+    // We want to set New Balance. So we need to calculate implied New Deposit.
+    // New Deposit = New Balance - Profit
+    // Profit = Current Balance - Deposited
+    
+    const account = bookBalances.find(b => b.sportsbook === bookName);
+    if (account) {
+        const currentProfit = account.currentBalance - account.deposited;
+        const newDeposit = balance - currentProfit;
+        await updateBookDeposit(bookName, newDeposit);
+    } else {
+        // If not found (rare), assume 0 profit
+        await updateBookDeposit(bookName, balance);
+    }
+  };
+
+  // User ID for Database Persistence (Legacy Auth)
   const [userId, setUserIdState] = useState(() => {
     try {
-      // 1. Check URL for quick-login
       if (typeof window !== 'undefined') {
         const params = new URLSearchParams(window.location.search);
         const urlId = params.get('uid');
         if (urlId && urlId.length > 5) {
            localStorage.setItem('edgelab_user_id', urlId);
-           // Clear param from URL cleanly
            window.history.replaceState({}, document.title, window.location.pathname);
            return urlId;
         }
       }
-
-      // 2. Check LocalStorage
       let id = localStorage.getItem('edgelab_user_id');
       if (!id) {
         id = crypto.randomUUID();
@@ -62,7 +94,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // State
   const [queue, setQueue] = useState<QueuedGame[]>([]);
   const [dailyPlays, setDailyPlays] = useState<DailyPlayTracker>({ date: today, playCount: 0, gameIds: [] });
-  const [bankroll, setBankroll] = useState<SportsbookAccount[]>(INITIAL_BOOKS);
+  // Removed local bankroll state
   const [unitSizePercent, setUnitSizePercent] = useState<number>(2.0);
   const [scanResults, setScanResults] = useState<Record<string, ScanResult>>({});
   const [referenceLines, setReferenceLines] = useState<Record<string, ReferenceLineData>>({});
@@ -79,12 +111,12 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Derived: Active Books (balance > 0)
   const activeBookNames = useMemo(() => {
-    return bankroll
+    return mappedBankroll
       .filter(account => account.balance > 0)
       .map(account => account.name);
-  }, [bankroll]);
+  }, [mappedBankroll]);
 
-  // 1. Initial Load from Supabase & LocalStorage
+  // 1. Initial Load from Supabase & LocalStorage (Legacy Slate only)
   useEffect(() => {
     const initData = async () => {
       setSyncStatus('saving'); 
@@ -92,18 +124,13 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const lastDate = localStorage.getItem('edgelab_last_date');
         const savedQueue = localStorage.getItem('edgelab_queue_v2');
         const savedPlays = localStorage.getItem('edgelab_daily_plays');
-        const savedBankroll = localStorage.getItem('edgelab_bankroll');
+        // Removed savedBankroll load
         const savedUnit = localStorage.getItem('edgelab_unit_pct');
         const savedScans = localStorage.getItem(`edgelab_scan_results_${today}`);
         const savedRefs = localStorage.getItem(`edgelab_reference_lines_${today}`);
 
         if (savedUnit) setUnitSizePercent(parseFloat(savedUnit));
         
-        if (savedBankroll && !bankroll.some(b => b.balance > 0)) {
-          const parsed = JSON.parse(savedBankroll);
-          if (parsed && parsed.length > 0) setBankroll(parsed);
-        }
-
         if (lastDate === today) {
           if (savedQueue) setQueue(JSON.parse(savedQueue));
           if (savedPlays) setDailyPlays(JSON.parse(savedPlays));
@@ -128,23 +155,6 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       try {
-        console.log("[Supabase] Fetching data for user:", userId);
-        
-        const { data: bData, error: bError } = await supabase
-          .from('bankrolls')
-          .select('data')
-          .eq('user_id', userId)
-          .single();
-          
-        if (bError && bError.code !== 'PGRST116') { // PGRST116 is "Row not found", which is fine
-           console.error("[Supabase] Bankroll fetch error:", bError);
-        }
-
-        if (bData?.data) {
-          setBankroll(bData.data);
-          localStorage.setItem('edgelab_bankroll', JSON.stringify(bData.data));
-        }
-
         const { data: sData, error: sError } = await supabase
           .from('daily_slates')
           .select('queue, daily_plays, scan_results, reference_lines')
@@ -154,7 +164,6 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         if (sError && sError.code !== 'PGRST116') {
              console.error("[Supabase] Slate fetch error:", sError);
-             throw sError;
         }
 
         if (sData) {
@@ -177,40 +186,10 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     initData();
   }, [userId, today]);
 
-  // 2. Persist Bankroll (Instant Local, Debounced Cloud)
+  // 2. Persist Slate (Instant Local, Debounced Cloud)
   useEffect(() => {
-    localStorage.setItem('edgelab_bankroll', JSON.stringify(bankroll));
     localStorage.setItem('edgelab_unit_pct', unitSizePercent.toString());
 
-    if (!isSyncEnabled) {
-      setSyncStatus('idle');
-      return;
-    }
-
-    setSyncStatus('saving');
-    const timer = setTimeout(async () => {
-      if (!userId) {
-        setSyncStatus('idle');
-        return;
-      }
-      
-      const { error } = await supabase
-        .from('bankrolls')
-        .upsert({ user_id: userId, data: bankroll });
-      
-      if (error) {
-         console.error("[Supabase] Bankroll save error:", error);
-         setSyncStatus('error');
-         if (error.message.includes("Invalid API key") || error.message.includes("configuration")) setIsSyncEnabled(false);
-      } else {
-         setSyncStatus('saved');
-      }
-    }, 2500);
-    return () => clearTimeout(timer);
-  }, [bankroll, unitSizePercent, userId, isSyncEnabled]);
-
-  // 3. Persist Daily Slate (Instant Local, Debounced Cloud)
-  useEffect(() => {
     localStorage.setItem('edgelab_last_date', today);
     localStorage.setItem('edgelab_queue_v2', JSON.stringify(queue));
     localStorage.setItem('edgelab_daily_plays', JSON.stringify(dailyPlays));
@@ -248,7 +227,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }, 3000);
     return () => clearTimeout(timer);
-  }, [queue, dailyPlays, scanResults, referenceLines, userId, today, isSyncEnabled]);
+  }, [queue, dailyPlays, scanResults, referenceLines, userId, today, isSyncEnabled, unitSizePercent]);
 
   // Actions
   const addToQueue = (game: Game) => {
@@ -377,10 +356,6 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return { picked: pickedCount, skipped: skippedCount, reasons: skipReasons };
   };
 
-  const updateBankroll = (bookName: string, balance: number) => {
-    setBankroll(prev => prev.map(b => b.name === bookName ? { ...b, balance } : b));
-  };
-
   const setScanResult = (gameId: string, result: ScanResult) => {
     setScanResults(prev => ({ ...prev, [gameId]: result }));
   };
@@ -399,7 +374,20 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       queue, addToQueue, removeFromQueue, updateGame, addSoftLines, updateSoftLineBook, setSharpLines,
       dailyPlays, getPlayableCount: () => queue.filter(g => g.analysis?.decision === 'PLAYABLE').length,
       canAddMorePlays: () => queue.filter(g => g.analysis?.decision === 'PLAYABLE').length < MAX_DAILY_PLAYS,
-      markAsPlayed, autoPickBestGames, bankroll, updateBankroll, totalBankroll: bankroll.reduce((s, b) => s + b.balance, 0),
+      markAsPlayed, autoPickBestGames, 
+      bankroll: mappedBankroll, 
+      updateBankroll: updateBankrollCompat, 
+      totalBankroll: hookTotalBankroll,
+      bookBalances,
+      updateBookDeposit,
+      bets,
+      bankrollState,
+      bankrollLoading,
+      addBet,
+      updateBetStatus,
+      updateBet,
+      deleteBet,
+      refreshBankroll,
       unitSizePercent, setUnitSizePercent, scanResults, setScanResult, referenceLines, setReferenceLine,
       allSportsData, loadSlates, syncStatus,
       userId, setUserId: setUserIdManual,

@@ -4,7 +4,11 @@ import { ToastProvider } from './components/Toast';
 import Scout from './pages/Scout';
 import Queue from './pages/Queue';
 import Card from './pages/Card';
+import Tracker from './pages/Tracker';
+import TrackerNewBet from './pages/TrackerNewBet';
 import { BankrollModal } from './components/BankrollModal';
+import { DraftBet } from './types/draftBet';
+import { Bet } from './types';
 
 const HeaderActions: React.FC<{ onOpenBankroll: () => void }> = ({ onOpenBankroll }) => {
   const { syncStatus } = useGameContext();
@@ -63,8 +67,22 @@ const HeaderActions: React.FC<{ onOpenBankroll: () => void }> = ({ onOpenBankrol
 };
 
 const AppContent: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'scout' | 'queue' | 'card'>('scout');
+  const { addBet } = useGameContext();
+  const [activeTab, setActiveTab] = useState<'scout' | 'queue' | 'card' | 'tracker' | 'tracker-new'>('scout');
   const [isBankrollOpen, setIsBankrollOpen] = useState(false);
+  const [draftBet, setDraftBet] = useState<DraftBet | null>(null);
+
+  const handleLogBet = (draft: DraftBet) => {
+    setDraftBet(draft);
+    setActiveTab('tracker-new');
+  };
+
+  const handleBetAdded = async (bet: Bet) => {
+    // Persist to Supabase via unified hook
+    await addBet(bet);
+    setActiveTab('tracker');
+    setDraftBet(null);
+  };
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans">
@@ -80,7 +98,17 @@ const AppContent: React.FC = () => {
           <Queue />
         </div>
         <div className={activeTab === 'card' ? 'block h-full' : 'hidden h-full'}>
-          <Card />
+          <Card onLogBet={handleLogBet} />
+        </div>
+        <div className={activeTab === 'tracker' ? 'block h-full' : 'hidden h-full'}>
+          <Tracker />
+        </div>
+        <div className={activeTab === 'tracker-new' ? 'block h-full' : 'hidden h-full'}>
+          <TrackerNewBet 
+            draftBet={draftBet} 
+            onBack={() => setActiveTab('card')} 
+            onBetAdded={handleBetAdded}
+          />
         </div>
       </main>
 
@@ -117,6 +145,16 @@ const AppContent: React.FC = () => {
           >
             <span className="text-2xl mb-1">🏆</span>
             <span className="text-xs font-medium">Card</span>
+          </button>
+
+          <button 
+            onClick={() => setActiveTab('tracker')}
+            className={`flex flex-col items-center justify-center w-full h-full transition-colors ${
+              activeTab === 'tracker' ? 'text-coral-500' : 'text-slate-400'
+            }`}
+          >
+            <span className="text-2xl mb-1">📊</span>
+            <span className="text-xs font-medium">Tracker</span>
           </button>
         </div>
       </nav>

@@ -9,16 +9,16 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "react": "^19.2.1",
     "react-dom": "^19.2.1",
     "@google/genai": "^1.31.0",
-    "@supabase/supabase-js": "^2.45.4",
-    "react": "^19.2.1",
-    "@vitejs/plugin-react": "^5.1.1",
-    "vite": "^7.2.6"
+    "@supabase/supabase-js": "^2.86.2",
+    "lucide-react": "^0.554.0",
+    "recharts": "^2.15.0"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
-    "@vitejs/plugin-react": "^5.0.0",
+    "@vitejs/plugin-react": "^5.1.1",
     "typescript": "~5.8.2",
     "vite": "^6.2.0"
   }

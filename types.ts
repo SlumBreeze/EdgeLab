@@ -1,5 +1,4 @@
-
-export type Sport = 'NBA' | 'NFL' | 'NHL' | 'CFB';
+export type Sport = 'NBA' | 'NFL' | 'NHL' | 'CFB' | 'Other';
 
 export interface Game {
   id: string;
@@ -157,6 +156,16 @@ export interface AnalysisState {
   totalBankroll: number;
   unitSizePercent: number; // e.g., 1 (1%) or 2 (2%)
   setUnitSizePercent: (pct: number) => void;
+  bookBalances: BookBalanceDisplay[];
+  updateBookDeposit: (sportsbook: string, newDeposit: number) => void;
+  bets: Bet[];
+  bankrollState: BankrollState;
+  bankrollLoading: boolean;
+  addBet: (betData: Bet) => Promise<void>;
+  updateBetStatus: (id: string, status: BetStatus) => Promise<void>;
+  updateBet: (updatedBet: Bet) => Promise<void>;
+  deleteBet: (id: string) => Promise<void>;
+  refreshBankroll: () => Promise<void>;
 
   // Scan & Reference Data
   scanResults: Record<string, ScanResult>;
@@ -177,4 +186,85 @@ export interface AnalysisState {
 
   // v2.6 Active Books (Derived from Bankroll)
   activeBookNames: string[];
+}
+
+// --- ProBet Tracker Types ---
+
+export enum BetStatus {
+  PENDING = 'PENDING',
+  WON = 'WON',
+  LOST = 'LOST',
+  PUSH = 'PUSH',
+}
+
+export enum Sportsbook {
+  DRAFTKINGS = 'DraftKings',
+  FANDUEL = 'FanDuel',
+  BETMGM = 'BetMGM',
+  CAESARS = 'Caesars',
+  BET365 = 'Bet365',
+  POINTSBET = 'PointsBet',
+  THESCOREBET = 'theScore Bet',
+  FLIFF = 'Fliff',
+  FANATICS = 'Fanatics',
+  PRIZEPICKS = 'PrizePicks',
+  UNDERDOG = 'Underdog Fantasy',
+  DRAFTERS = 'Drafters',
+  BETR = 'Betr',
+  OTHER = 'Other',
+}
+
+export interface Bet {
+  id: string;
+  date: string;
+  matchup: string;
+  sport: string;
+  sportsbook: Sportsbook;
+  pick: string;
+  odds: number;
+  wager: number;
+  potentialProfit: number;
+  status: BetStatus;
+  createdAt: number;
+  tags?: string[];
+}
+
+export interface BookDeposit {
+  sportsbook: string;
+  deposited: number;
+}
+
+export interface BookBalanceDisplay {
+  sportsbook: string;
+  deposited: number;
+  currentBalance: number;
+}
+
+export interface BankrollState {
+  startingBalance: number;
+  currentBalance: number;
+  totalWagered: number;
+  totalWon: number;
+  totalLost: number;
+  totalBets: number;
+  wins: number;
+  losses: number;
+  pushes: number;
+  roi: number;
+  flatROI: number;
+}
+
+export interface AdvancedStats {
+  currentStreak: number;
+  last10: BetStatus[];
+  hottestSport: { name: string; profit: number; record: string } | null;
+  coldestSport: { name: string; profit: number; record: string } | null;
+  bookPerformance: { name: string; profit: number; wins: number; losses: number; winRate: number }[];
+  teamPerformance: { name: string; profit: number; wins: number; losses: number }[];
+}
+
+export interface BankrollHistoryPoint {
+  date: string;
+  balance: number;
+  formattedDate: string;
 }
