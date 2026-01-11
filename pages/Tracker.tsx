@@ -263,7 +263,7 @@ const Tracker: React.FC = () => {
                   </div>
                </div>
 
-               <div className="h-[280px] w-full mt-4">
+               <div className="h-[280px] w-full mt-4 min-h-[280px]">
                   <BankrollTrendChart data={bankrollHistory} />
                </div>
                {/* Subtle background glow */}

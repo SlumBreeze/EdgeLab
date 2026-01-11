@@ -237,7 +237,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
           daily_plays: dailyPlays,
           scan_results: scanResults,
           reference_lines: referenceLines
-        });
+        }, { onConflict: 'user_id, date' });
       
       if (error) {
         if (error.code === '42P01' || error.code === 'PGRST205' || error.message.includes('404')) {
