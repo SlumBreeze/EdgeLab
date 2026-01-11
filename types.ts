@@ -61,7 +61,7 @@ export interface QueuedGame extends Game {
   analysisError?: string; // Error message if Quick Analyze failed
 }
 
-export interface HighHitAnalysis {
+export interface AnalysisResult {
   decision: 'PLAYABLE' | 'PASS';
   vetoTriggered: boolean;
   vetoReason?: string;
@@ -111,6 +111,8 @@ export interface HighHitAnalysis {
   edge?: number;
   wagerType?: 'Moneyline' | 'Spread' | 'Total';
 }
+
+export type HighHitAnalysis = AnalysisResult;
 
 export interface DailyPlayTracker {
   date: string; // YYYY-MM-DD

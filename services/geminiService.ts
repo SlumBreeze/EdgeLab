@@ -1,6 +1,6 @@
 
 import { GoogleGenAI, Type, Schema } from "@google/genai";
-import { BookLines, QueuedGame, HighHitAnalysis, Game } from '../types';
+import { BookLines, QueuedGame, HighHitAnalysis, Game, AnalysisResult } from '../types';
 import { EXTRACTION_PROMPT } from '../constants';
 
 const GoogleGenerativeAI = GoogleGenAI;
@@ -405,7 +405,6 @@ export const extractLinesFromScreenshot = async (file: File): Promise<BookLines>
 // ============================================
 
 type GameData = QueuedGame;
-type AnalysisResult = HighHitAnalysis;
 
 type StoicAiResult = {
   recommendation: 'BET' | 'PASS' | 'LEAN';
