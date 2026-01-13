@@ -58,7 +58,7 @@ const formatOdds = (price: number): string => {
 // Helper to access localStorage safely
 const getStorageKey = (sportKey: string) => `edgelab_odds_cache_${sportKey}`;
 
-export const fetchOddsForSport = async (sport: Sport): Promise<any[]> => {
+export const fetchOddsForSport = async (sport: Sport, forceRefresh = false): Promise<any[]> => {
   const sportKey = SPORT_KEYS[sport];
   if (!sportKey) {
     console.warn(`Sport ${sport} not supported by Odds API`);
@@ -68,14 +68,14 @@ export const fetchOddsForSport = async (sport: Sport): Promise<any[]> => {
   const now = Date.now();
   const storageKey = getStorageKey(sportKey);
 
-  // 1. Check In-Memory Cache (Fastest)
-  if (memoryCache[sportKey] && (now - memoryCache[sportKey].timestamp < CACHE_DURATION)) {
+  // 1. Check In-Memory Cache (Fastest) - Skip if forced
+  if (!forceRefresh && memoryCache[sportKey] && (now - memoryCache[sportKey].timestamp < CACHE_DURATION)) {
     console.log(`[OddsService] Using memory cache for ${sport}`);
     return memoryCache[sportKey].data;
   }
 
-  // 2. Check LocalStorage (Persistence)
-  if (typeof window !== 'undefined') {
+  // 2. Check LocalStorage (Persistence) - Skip if forced
+  if (!forceRefresh && typeof window !== 'undefined') {
     try {
       const stored = localStorage.getItem(storageKey);
       if (stored) {
@@ -161,14 +161,14 @@ export const fetchOddsForGame = async (sport: Sport, gameId: string): Promise<an
 };
 
 // New function to batch load all sports
-export const fetchAllSportsOdds = async (): Promise<Record<Sport, any[]>> => {
+export const fetchAllSportsOdds = async (forceRefresh = false): Promise<Record<Sport, any[]>> => {
   const results: Record<string, any[]> = {};
   const sports: Sport[] = ['NBA', 'NFL', 'NHL', 'CFB'];
   
-  console.log('[OddsService] Batch loading all sports...');
+  console.log(`[OddsService] Batch loading all sports (Force: ${forceRefresh})...`);
   
   for (const sport of sports) {
-    results[sport] = await fetchOddsForSport(sport);
+    results[sport] = await fetchOddsForSport(sport, forceRefresh);
   }
   
   console.log('[OddsService] Batch load complete.');

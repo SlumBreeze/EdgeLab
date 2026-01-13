@@ -53,9 +53,9 @@ export default function Scout() {
 
   const handleRefresh = async () => {
     try {
-      const allData = await fetchAllSportsOdds();
+      const allData = await fetchAllSportsOdds(true); // Force refresh to check for movement
       loadSlates(allData);
-      toast.showSuccess("Refreshed slates");
+      toast.showSuccess("Refreshed slates & Checked for movement");
     } catch (e) {
       console.error("Refresh failed:", e);
       toast.showError("Failed to refresh slates");
