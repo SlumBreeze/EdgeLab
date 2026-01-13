@@ -157,7 +157,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         const { data: sData, error: sError } = await supabase
           .from('daily_slates')
-          .select('queue, daily_plays, scan_results, reference_lines')
+          .select('queue, daily_plays, scan_results, reference_lines, all_sports_data')
           .eq('user_id', userId)
           .eq('date', today)
           .single();
@@ -185,6 +185,10 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (sData.daily_plays) setDailyPlays(sData.daily_plays);
           if (sData.scan_results) setScanResults(sData.scan_results);
           if (sData.reference_lines) setReferenceLines(sData.reference_lines);
+          if (sData.all_sports_data) {
+             setAllSportsData(sData.all_sports_data);
+             localStorage.setItem('edgelab_raw_slate', JSON.stringify(sData.all_sports_data));
+          }
           
           localStorage.setItem('edgelab_queue_v2', JSON.stringify(sData.queue));
           localStorage.setItem(`edgelab_scan_results_${today}`, JSON.stringify(sData.scan_results));
@@ -236,7 +240,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
           queue: queue, 
           daily_plays: dailyPlays,
           scan_results: scanResults,
-          reference_lines: referenceLines
+          reference_lines: referenceLines,
+          all_sports_data: allSportsData
         }, { onConflict: 'user_id, date' });
       
       if (error) {
@@ -252,7 +257,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }, 3000);
     return () => clearTimeout(timer);
-  }, [queue, dailyPlays, scanResults, referenceLines, userId, today, isSyncEnabled, unitSizePercent]);
+  }, [queue, dailyPlays, scanResults, referenceLines, allSportsData, userId, today, isSyncEnabled, unitSizePercent]);
 
   // Actions
   const addToQueue = (game: Game) => {
