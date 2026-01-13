@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" alt="EdgeLab Banner" width="100%" />
+  <img src="public/banner.svg" alt="EdgeLab Banner" width="100%" />
 </div>
 
 <div align="center">
