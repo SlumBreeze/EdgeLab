@@ -1,4 +1,5 @@
 import { Bet, GameScore } from '../types';
+import { inferSportFromBet } from './calculations';
 
 // ESPN Endpoints (Unofficial)
 const ENDPOINTS: Record<string, string> = {
@@ -189,25 +190,52 @@ const normalize = (s: string): string => {
   return s.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
 };
 
+const normalizeSport = (sport: string): string => {
+  return (sport || '').trim().toUpperCase();
+};
+
+const getCandidateScores = (bet: Bet, scores: GameScore[]): GameScore[] => {
+  const normalizedSports = new Set(scores.map(s => normalizeSport(s.sport)));
+  const betSport = normalizeSport(bet.sport);
+  const inferredSport = normalizeSport(inferSportFromBet(bet));
+
+  if (betSport && normalizedSports.has(betSport)) {
+    return scores.filter(s => normalizeSport(s.sport) === betSport);
+  }
+
+  if (inferredSport && normalizedSports.has(inferredSport)) {
+    return scores.filter(s => normalizeSport(s.sport) === inferredSport);
+  }
+
+  return scores;
+};
+
 /**
  * Extracts the two team identifiers from a matchup string
  * Handles formats like: "Team A vs Team B", "Team A @ Team B", "Team A - Team B"
  */
 const parseMatchupTeams = (matchup: string): [string, string] | null => {
-  const normalized = normalize(matchup);
-  
-  // Try various separators
-  const separators = [' vs ', ' @ ', ' at ', ' v ', ' versus '];
-  
+  const cleaned = matchup.replace(/\s+/g, ' ').trim();
+
+  // Preserve separators before normalization so "@" and "vs." remain detectable.
+  const separators = [
+    /\s+@+\s+/i,
+    /\s+vs\.?\s+/i,
+    /\s+v\.?\s+/i,
+    /\s+at\s+/i,
+    /\s+versus\s+/i,
+    /\s+-\s+/,
+  ];
+
   for (const sep of separators) {
-    if (normalized.includes(sep)) {
-      const parts = normalized.split(sep);
+    if (sep.test(cleaned)) {
+      const parts = cleaned.split(sep);
       if (parts.length === 2) {
         return [parts[0].trim(), parts[1].trim()];
       }
     }
   }
-  
+
   return null;
 };
 
@@ -285,6 +313,37 @@ const teamMatchesGame = (teamQuery: string, game: GameScore & { homeTeamFullName
   return null;
 };
 
+const matchupContainsBothTeams = (
+  matchup: string,
+  game: GameScore & { homeTeamFullName?: string; awayTeamFullName?: string }
+): boolean => {
+  const normalizedMatchup = normalize(matchup);
+
+  const homeSearchables = [
+    normalize(game.homeTeam),
+    normalize(game.homeTeamName),
+    normalize(game.homeTeamFullName || ''),
+  ].filter(s => s.length >= 3);
+
+  const awaySearchables = [
+    normalize(game.awayTeam),
+    normalize(game.awayTeamName),
+    normalize(game.awayTeamFullName || ''),
+  ].filter(s => s.length >= 3);
+
+  const containsTeam = (searchables: string[]): boolean => {
+    return searchables.some(searchable => {
+      if (!searchable) return false;
+      if (normalizedMatchup.includes(searchable)) return true;
+
+      const tokens = searchable.split(' ').filter(t => t.length >= 3);
+      return tokens.some(t => normalizedMatchup.includes(t));
+    });
+  };
+
+  return containsTeam(homeSearchables) && containsTeam(awaySearchables);
+};
+
 /**
  * Tries to match a Bet to a GameScore.
  * REQUIRES BOTH teams from the matchup to be found in the game for a confident match.
@@ -293,9 +352,8 @@ const teamMatchesGame = (teamQuery: string, game: GameScore & { homeTeamFullName
 export const findMatchingGame = (bet: Bet, scores: GameScore[]): GameScore | undefined => {
   if (!scores || scores.length === 0) return undefined;
 
-  // 1. Filter by sport first - this is critical for college sports with duplicate names
-  const relevantScores = scores.filter(s => s.sport === bet.sport);
-  const candidates = relevantScores.length > 0 ? relevantScores : scores;
+  // 1. Filter by sport first - fall back to inferred sport if needed
+  const candidates = getCandidateScores(bet, scores);
 
   // 2. Try to parse both teams from matchup
   const matchupTeams = parseMatchupTeams(bet.matchup);
@@ -316,7 +374,15 @@ export const findMatchingGame = (bet: Bet, scores: GameScore[]): GameScore | und
     }
   }
 
-  // 3. Fallback: Try matching based on the pick field (single team)
+  // 3. Fallback: Match when matchup text clearly contains both teams
+  for (const game of candidates) {
+    const extendedGame = game as GameScore & { homeTeamFullName?: string; awayTeamFullName?: string };
+    if (matchupContainsBothTeams(bet.matchup, extendedGame)) {
+      return game;
+    }
+  }
+
+  // 4. Fallback: Try matching based on the pick field (single team)
   const pickNormalized = normalize(bet.pick);
   
   for (const game of candidates) {
@@ -343,25 +409,6 @@ export const findMatchingGame = (bet: Bet, scores: GameScore[]): GameScore | und
     if ((homeMatch || awayMatch) && matchupContainsGameTeam) {
       return game;
     }
-  }
-
-  // 4. Last Resort: Relaxed Matchup Match (Single Team Strong Match in Matchup String)
-  // If we haven't matched yet, but we are looking at the right sport, maybe the matchup string
-  // is just "Lakers" or "LAL" without a clear separator, or one team name is misspelled.
-  // If we find a game where the matchup string *strongly* matches one of the teams, use it.
-  const matchupNormalized = normalize(bet.matchup);
-  for (const game of candidates) {
-      const extendedGame = game as GameScore & { homeTeamFullName?: string; awayTeamFullName?: string };
-      
-      // Check if the matchup string matches the Home Team
-      const homeMatch = teamMatchesGame(matchupNormalized, { ...extendedGame, awayTeam: '', awayTeamName: '', awayTeamFullName: '' } as any);
-      
-      // Check if the matchup string matches the Away Team
-      const awayMatch = teamMatchesGame(matchupNormalized, { ...extendedGame, homeTeam: '', homeTeamName: '', homeTeamFullName: '' } as any);
-
-      if (homeMatch || awayMatch) {
-          return game;
-      }
   }
 
   return undefined;
