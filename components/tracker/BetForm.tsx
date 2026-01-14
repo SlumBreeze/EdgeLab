@@ -23,6 +23,17 @@ export const BetForm: React.FC<BetFormProps> = ({ onAddBet, currentBalance, book
     return `${year}-${month}-${day}`;
   };
 
+  const normalizeDateInput = (value?: string | null) => {
+    if (!value) return null;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return null;
+    const year = parsed.getFullYear();
+    const month = String(parsed.getMonth() + 1).padStart(2, '0');
+    const day = String(parsed.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   const [date, setDate] = useState(getTodayString());
   const [matchup, setMatchup] = useState('');
   const [sport, setSport] = useState('NFL');
@@ -45,7 +56,8 @@ export const BetForm: React.FC<BetFormProps> = ({ onAddBet, currentBalance, book
   // Pre-fill from DraftBet
   useEffect(() => {
     if (draftBet) {
-      if (draftBet.gameDate) setDate(draftBet.gameDate.split('T')[0]);
+      const normalizedDate = normalizeDateInput(draftBet.gameDate);
+      if (normalizedDate) setDate(normalizedDate);
       if (draftBet.homeTeam && draftBet.awayTeam) setMatchup(`${draftBet.awayTeam} @ ${draftBet.homeTeam}`);
       if (draftBet.sport) setSport(draftBet.sport);
       
@@ -59,8 +71,19 @@ export const BetForm: React.FC<BetFormProps> = ({ onAddBet, currentBalance, book
       }
       
       if (draftBet.pickTeam) {
-          const lineStr = draftBet.line ? ` ${draftBet.line > 0 ? '+' : ''}${draftBet.line}` : '';
-          setPick(`${draftBet.pickTeam}${lineStr}`.trim());
+        const market = (draftBet.market || '').toLowerCase();
+        const isTotal = market.startsWith('total');
+        const hasLine = draftBet.line !== null && draftBet.line !== undefined && !Number.isNaN(Number(draftBet.line));
+        const lineVal = hasLine ? Number(draftBet.line) : null;
+        let lineStr = '';
+        if (lineVal !== null) {
+          if (isTotal) {
+            lineStr = ` ${lineVal}`;
+          } else {
+            lineStr = ` ${lineVal > 0 ? '+' : ''}${lineVal}`;
+          }
+        }
+        setPick(`${draftBet.pickTeam}${lineStr}`.trim());
       }
       
       if (draftBet.odds) setOdds(draftBet.odds);

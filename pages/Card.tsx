@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useGameContext } from '../hooks/useGameContext';
 import { HighHitAnalysis, QueuedGame, SportsbookAccount, AutoPickResult, BookLines } from '../types';
 import { MAX_DAILY_PLAYS } from '../constants';
@@ -109,6 +109,28 @@ export default function Card({ onLogBet }: { onLogBet: (draft: DraftBet) => void
   const { queue, getPlayableCount, autoPickBestGames, totalBankroll, unitSizePercent, bankroll, updateGame, activeBookNames } = useGameContext();
   const [lastPickResult, setLastPickResult] = useState<AutoPickResult | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [cardBankrollSnapshot, setCardBankrollSnapshot] = useState<number | null>(() => {
+    try {
+      const key = `edgelab_card_bankroll_${new Date().toLocaleDateString('en-CA')}`;
+      const saved = localStorage.getItem(key);
+      if (!saved) return null;
+      const parsed = parseFloat(saved);
+      return Number.isFinite(parsed) ? parsed : null;
+    } catch {
+      return null;
+    }
+  });
+
+  useEffect(() => {
+    if (cardBankrollSnapshot !== null || totalBankroll <= 0) return;
+    try {
+      const key = `edgelab_card_bankroll_${new Date().toLocaleDateString('en-CA')}`;
+      localStorage.setItem(key, totalBankroll.toString());
+    } catch {
+      // Ignore storage errors and still use in-memory snapshot.
+    }
+    setCardBankrollSnapshot(totalBankroll);
+  }, [cardBankrollSnapshot, totalBankroll]);
   
   // Toast
   const { addToast } = useToast();
@@ -128,7 +150,8 @@ export default function Card({ onLogBet }: { onLogBet: (draft: DraftBet) => void
     : playable;
 
   // ANALYTICS COMPUTATION
-  const analytics = analyzeCard(queue, totalBankroll, unitSizePercent, hasAutoPicked);
+  const bankrollForCard = cardBankrollSnapshot ?? totalBankroll;
+  const analytics = analyzeCard(queue, bankrollForCard, unitSizePercent, hasAutoPicked);
   
   // Filter scenarios to show key ones
   const targetCount = hasAutoPicked ? pickCount : playableCount;
@@ -234,7 +257,7 @@ export default function Card({ onLogBet }: { onLogBet: (draft: DraftBet) => void
       remainingByAccount.set(key, Math.max(0, current - amount));
     };
 
-    const oneUnit = (totalBankroll * unitSizePercent) / 100;
+    const oneUnit = (bankrollForCard * unitSizePercent) / 100;
 
     return playableInDisplayOrder.map(game => {
       const analysis = game.analysis!;
@@ -668,7 +691,11 @@ const PlayableCard: React.FC<{ game: QueuedGame; dim?: boolean; onLogBet: (draft
 
   const handleLogClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    const draft = mapQueuedGameToDraftBet(game, wagerAmount);
+    const draft = mapQueuedGameToDraftBet(game, {
+      wager: wagerAmount,
+      recLineOverride: displayRecLine,
+      marketOverride: a.market
+    });
     
     if (funding?.overrideBook) draft.sportsbook = funding.overrideBook;
     if (funding?.overrideOdds !== undefined) draft.odds = funding.overrideOdds;

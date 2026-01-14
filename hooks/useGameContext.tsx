@@ -7,12 +7,14 @@ import { useBankroll } from './useBankroll';
 
 const GameContext = createContext<AnalysisState | undefined>(undefined);
 
+const FIXED_USER_ID = 'edgelab-primary';
 const getTodayKey = () => new Date().toLocaleDateString('en-CA');
 
 export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const today = getTodayKey();
   const [isSyncEnabled, setIsSyncEnabled] = useState(isSupabaseConfigured);
   const [syncStatus, setSyncStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const legacyUserIdRef = useRef<string | null>(null);
 
   // NEW: Integrate useBankroll hook
   const { 
@@ -64,31 +66,22 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // User ID for Database Persistence (Legacy Auth)
   const [userId, setUserIdState] = useState(() => {
     try {
-      if (typeof window !== 'undefined') {
-        const params = new URLSearchParams(window.location.search);
-        const urlId = params.get('uid');
-        if (urlId && urlId.length > 5) {
-           localStorage.setItem('edgelab_user_id', urlId);
-           window.history.replaceState({}, document.title, window.location.pathname);
-           return urlId;
-        }
+      const existingId = localStorage.getItem('edgelab_user_id');
+      if (existingId && existingId !== FIXED_USER_ID) {
+        legacyUserIdRef.current = existingId;
       }
-      let id = localStorage.getItem('edgelab_user_id');
-      if (!id) {
-        id = crypto.randomUUID();
-        localStorage.setItem('edgelab_user_id', id);
-      }
-      return id;
+      localStorage.setItem('edgelab_user_id', FIXED_USER_ID);
+      return FIXED_USER_ID;
     } catch {
-      return 'guest-user';
+      return FIXED_USER_ID;
     }
   });
 
   const setUserIdManual = (newId: string) => {
     if (!newId || newId.length < 5) return;
-    setUserIdState(newId);
-    localStorage.setItem('edgelab_user_id', newId);
-    console.log("[Auth] Switched to User ID:", newId);
+    setUserIdState(FIXED_USER_ID);
+    localStorage.setItem('edgelab_user_id', FIXED_USER_ID);
+    console.log("[Auth] Using fixed User ID:", FIXED_USER_ID);
   };
 
   // State
@@ -180,18 +173,47 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
            }
         }
 
-        if (sData) {
-          if (sData.queue) setQueue(sData.queue);
-          if (sData.daily_plays) setDailyPlays(sData.daily_plays);
-          if (sData.scan_results) setScanResults(sData.scan_results);
-          if (sData.reference_lines) setReferenceLines(sData.reference_lines);
-          if (sData.all_sports_data) {
-             setAllSportsData(sData.all_sports_data);
-             localStorage.setItem('edgelab_raw_slate', JSON.stringify(sData.all_sports_data));
+        let finalData = sData || null;
+
+        if (!finalData && sError && sError.code === 'PGRST116' && legacyUserIdRef.current) {
+          try {
+            const legacyId = legacyUserIdRef.current;
+            const { data: legacyData, error: legacyError } = await supabase
+              .from('daily_slates')
+              .select('queue, daily_plays, scan_results, reference_lines, all_sports_data')
+              .eq('user_id', legacyId)
+              .eq('date', today)
+              .single();
+
+            if (!legacyError && legacyData) {
+              await supabase.from('daily_slates').upsert({
+                user_id: userId,
+                date: today,
+                queue: legacyData.queue,
+                daily_plays: legacyData.daily_plays,
+                scan_results: legacyData.scan_results,
+                reference_lines: legacyData.reference_lines,
+                all_sports_data: legacyData.all_sports_data
+              }, { onConflict: 'user_id, date' });
+              finalData = legacyData;
+            }
+          } finally {
+            legacyUserIdRef.current = null;
+          }
+        }
+
+        if (finalData) {
+          if (finalData.queue) setQueue(finalData.queue);
+          if (finalData.daily_plays) setDailyPlays(finalData.daily_plays);
+          if (finalData.scan_results) setScanResults(finalData.scan_results);
+          if (finalData.reference_lines) setReferenceLines(finalData.reference_lines);
+          if (finalData.all_sports_data) {
+             setAllSportsData(finalData.all_sports_data);
+             localStorage.setItem('edgelab_raw_slate', JSON.stringify(finalData.all_sports_data));
           }
           
-          localStorage.setItem('edgelab_queue_v2', JSON.stringify(sData.queue));
-          localStorage.setItem(`edgelab_scan_results_${today}`, JSON.stringify(sData.scan_results));
+          localStorage.setItem('edgelab_queue_v2', JSON.stringify(finalData.queue));
+          localStorage.setItem(`edgelab_scan_results_${today}`, JSON.stringify(finalData.scan_results));
         }
         
         setSyncStatus('saved');

@@ -84,13 +84,47 @@ function parseLine(text: string | undefined | null): number | null {
 
 // This mapper should be adapted to your EdgeLab QueuedGame shape.
 // Start conservative: only map fields you’re confident exist.
-export function mapQueuedGameToDraftBet(q: any, wager?: number): DraftBet {
+type DraftBetOverrides = {
+  wager?: number;
+  recLineOverride?: string;
+  marketOverride?: string;
+};
+
+const normalizeMarket = (market?: string): string | undefined => {
+  if (!market) return undefined;
+  const clean = market.toLowerCase();
+  if (clean.startsWith('total')) return 'Total';
+  if (clean.startsWith('spread')) return 'Spread';
+  if (clean.startsWith('moneyline') || clean === 'ml') return 'Moneyline';
+  return market;
+};
+
+const parseNumeric = (value: unknown): number | null => {
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  const parsed = parseFloat(String(value));
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+export function mapQueuedGameToDraftBet(q: any, overrides: DraftBetOverrides = {}): DraftBet {
   // Determine source string for parsing (prefer recLine as it usually has the numbers)
-  const rawString = q?.analysis?.recLine || q?.analysis?.pick || '';
+  const rawString = overrides.recLineOverride || q?.analysis?.recLine || q?.analysis?.pick || '';
   
   // Calculate parsed values
   const parsedOdds = parseOdds(rawString);
   const parsedLine = parseLine(rawString);
+
+  const market = normalizeMarket(overrides.marketOverride || q?.analysis?.market || q?.market);
+  const analysisLine = parseNumeric(q?.analysis?.line);
+
+  const resolveLine = () => {
+    if (market === 'Moneyline') return null;
+    if (market === 'Total') {
+      return parsedLine;
+    }
+    if (analysisLine !== null) return analysisLine;
+    return parsedLine;
+  };
 
   return {
     sport: q?.sport ?? q?.league ?? 'Unknown',
@@ -102,19 +136,17 @@ export function mapQueuedGameToDraftBet(q: any, wager?: number): DraftBet {
     awayTeam: q?.awayTeam?.name ?? q?.awayTeam ?? q?.away,
 
     pickTeam: q?.analysis?.side ?? q?.analysis?.pick ?? q?.pick,
-    market: q?.analysis?.market ?? q?.market,
+    market,
     
     // Prefer explicit line field if valid, otherwise use parsed line
-    line: (q?.analysis?.line && !isNaN(parseFloat(q?.analysis?.line))) 
-      ? parseFloat(q?.analysis?.line) 
-      : parsedLine,
+    line: resolveLine(),
       
     // Use robust odds parser
     odds: parsedOdds,
 
     sportsbook: q?.analysis?.softBestBook ?? 'Other',
 
-    stake: typeof wager === 'number' ? Math.round(wager * 100) / 100 : null,
+    stake: typeof overrides.wager === 'number' ? Math.round(overrides.wager * 100) / 100 : null,
     rationale: q?.analysis?.researchSummary ?? q?.analysis?.edgeNarrative ?? '',
     evPct: q?.analysis?.lineValueCents ?? null, // Using lineValueCents as a proxy for EV
     edge: q?.analysis?.sharpImpliedProb ?? null,
