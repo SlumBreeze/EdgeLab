@@ -116,7 +116,22 @@ gcloud run deploy edgelab-v2 \
   --allow-unauthenticated
 ```
 
-**Current Production URL:** [https://edgelab-v2-92046617352.us-central1.run.app](https://edgelab-v2-92046617352.us-central1.run.app)
+**Current Production URL:** [https://edgelab-v2-vm5tbdz7ta-uc.a.run.app](https://edgelab-v2-vm5tbdz7ta-uc.a.run.app)
+
+### Redeploy (same service)
+To redeploy the existing `edgelab-v2` service (not create a new one), run the Cloud Build and then deploy to the same service name:
+
+```bash
+gcloud builds submit --config cloudbuild.yaml \
+  --project gen-lang-client-0947461139 \
+  --substitutions="_GEMINI_API_KEY=your_key,_ODDS_API_KEY=your_key,_SUPABASE_URL=your_url,_SUPABASE_KEY=your_key"
+
+gcloud run deploy edgelab-v2 \
+  --image gcr.io/gen-lang-client-0947461139/edgelab2 \
+  --project gen-lang-client-0947461139 \
+  --region us-central1 \
+  --allow-unauthenticated
+```
 
 ---
 
