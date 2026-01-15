@@ -181,6 +181,9 @@ export default function Scout() {
 
   const sortedGames = [...apiGames].sort((a, b) => getSignalWeight(b.id) - getSignalWeight(a.id));
 
+  // Count how many valid scanned games can be added
+  const scannedCount = apiGames.filter(g => scanResults[g.id] && !isInQueue(g.id)).length;
+
   // If slates are NOT loaded, show the initial state (centered)
   if (!slatesLoaded) {
     return (
