@@ -165,9 +165,9 @@ export default function Scout() {
   };
 
   const handleAddAllScanned = () => {
-    const gamesToAdd = apiGames.filter(g => scanResults[g.id] && !isInQueue(g.id));
+    const gamesToAdd = apiGames.filter(isEligibleScannedGame);
     if (gamesToAdd.length === 0) {
-      toast.showInfo("No scanned games to add.");
+      toast.showInfo("No eligible scanned games to add.");
       return;
     }
 
@@ -198,10 +198,23 @@ export default function Scout() {
     return s === 'RED' ? 3 : s === 'YELLOW' ? 2 : s === 'WHITE' ? 1 : 0;
   };
 
-  const sortedGames = [...apiGames].sort((a, b) => getSignalWeight(b.id) - getSignalWeight(a.id));
+  const isUpcomingGame = (apiGame: any) => {
+    const startTime = new Date(apiGame.commence_time).getTime();
+    return Number.isFinite(startTime) && startTime > Date.now();
+  };
+
+  const isEligibleScannedGame = (apiGame: any) => {
+    const signal = scanResults[apiGame.id]?.signal;
+    if (!signal || (signal !== 'RED' && signal !== 'YELLOW')) return false;
+    if (isInQueue(apiGame.id)) return false;
+    return isUpcomingGame(apiGame);
+  };
+
+  const upcomingGames = apiGames.filter(isUpcomingGame);
+  const sortedGames = [...upcomingGames].sort((a, b) => getSignalWeight(b.id) - getSignalWeight(a.id));
 
   // Count how many valid scanned games can be added
-  const scannedCount = apiGames.filter(g => scanResults[g.id] && !isInQueue(g.id)).length;
+  const scannedCount = apiGames.filter(isEligibleScannedGame).length;
 
   // If slates are NOT loaded, show the initial state (centered)
   if (!slatesLoaded) {
@@ -297,7 +310,7 @@ export default function Scout() {
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-ink-accent mx-auto mb-3"></div>
                 Searching lines...
               </div>
-            ) : apiGames.length === 0 ? (
+            ) : upcomingGames.length === 0 ? (
               <div className="text-center py-10 text-ink-text/60 bg-ink-paper rounded-2xl border border-ink-gray">
                 No {selectedSport} games found for {selectedDate}.
               </div>
