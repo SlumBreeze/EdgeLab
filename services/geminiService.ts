@@ -135,6 +135,7 @@ export const checkPriceVetoes = (game: QueuedGame): { triggered: boolean, reason
     case 'NFL': spreadLimit = 14.0; break;
     case 'NBA': spreadLimit = 16.0; break;
     case 'CFB': spreadLimit = 24.0; break;
+    case 'NCAAB': spreadLimit = 24.0; break;
     case 'NHL': spreadLimit = 4.0; break;
     default: spreadLimit = 10.0;
   }

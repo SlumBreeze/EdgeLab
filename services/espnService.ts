@@ -12,6 +12,7 @@ export const fetchGames = async (sport: Sport, date: string): Promise<Game[]> =>
     case 'NFL': path = 'football/nfl'; break;
     case 'NHL': path = 'hockey/nhl'; break;
     case 'CFB': path = 'football/college-football'; break;
+    case 'NCAAB': path = 'basketball/mens-college-basketball'; break;
     default: path = 'basketball/nba';
   }
 
