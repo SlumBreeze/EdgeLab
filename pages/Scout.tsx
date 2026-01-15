@@ -20,7 +20,8 @@ export default function Scout() {
   
   // Use Context for Data Persistence
   const { 
-    addToQueue, 
+    addToQueue,
+    addAllToQueue,
     queue, 
     scanResults, 
     setScanResult, 
