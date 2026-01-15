@@ -76,6 +76,14 @@ export default function Scout() {
     setApiGames(filtered);
   }, [selectedSport, selectedDate, allSportsData, slatesLoaded]);
 
+  // Auto-fetch if selected sport is missing data (e.g. new sport added like NCAAB)
+  useEffect(() => {
+    if (slatesLoaded && !allSportsData[selectedSport] && !loading) {
+      console.log(`[Scout] Missing data for ${selectedSport}, auto-fetching...`);
+      handleLoadSlates();
+    }
+  }, [selectedSport, slatesLoaded, allSportsData, loading]);
+
   // Synchronize reference lines when new games are loaded
   useEffect(() => {
     if (slatesLoaded) {
