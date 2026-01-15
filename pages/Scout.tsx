@@ -164,6 +164,24 @@ export default function Scout() {
     toast.showInfo(`Added ${game.awayTeam.name} vs ${game.homeTeam.name} to Queue`);
   };
 
+  const handleAddAllScanned = () => {
+    const gamesToAdd = apiGames.filter(g => scanResults[g.id] && !isInQueue(g.id));
+    if (gamesToAdd.length === 0) {
+      toast.showInfo("No scanned games to add.");
+      return;
+    }
+
+    const mappedGames = gamesToAdd.map(game => {
+      const pinnLines = getBookmakerLines(game, 'pinnacle');
+      const base = mapToGameObject(game, pinnLines);
+      const scanData = scanResults[base.id];
+      return scanData ? { ...base, edgeSignal: scanData.signal, edgeDescription: scanData.description } : base;
+    });
+
+    addAllToQueue(mappedGames);
+    toast.showSuccess(`Added ${mappedGames.length} scanned games to Queue`);
+  };
+
   const getMovementAnalysis = (currentA: string, refA: string, homeName: string, awayName: string) => {
     const curr = parseFloat(currentA);
     const ref = parseFloat(refA);

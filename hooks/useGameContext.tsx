@@ -289,6 +289,30 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
   };
 
+  const addAllToQueue = (games: Game[]) => {
+    if (!games.length) return;
+    setQueue(prev => {
+      const existingIds = new Set(prev.map(g => g.id));
+      const newGames = games.filter(g => !existingIds.has(g.id));
+      if (!newGames.length) return prev;
+
+      const next = [...prev];
+      const startIndex = prev.length;
+      const baseTimestamp = Date.now();
+
+      newGames.forEach((game, index) => {
+        next.push({
+          ...game,
+          visibleId: (startIndex + index + 1).toString(),
+          addedAt: baseTimestamp + index,
+          softLines: []
+        });
+      });
+
+      return next;
+    });
+  };
+
   const removeFromQueue = (gameId: string) => {
     setQueue(prev => prev.filter(g => g.id !== gameId));
   };
