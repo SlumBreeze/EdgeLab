@@ -244,6 +244,15 @@ export default function Scout() {
               >
                 {batchScanning ? <span className="flex items-center justify-center gap-2"><span className="animate-spin text-xs">⚡</span> {progressText}</span> : '⚡ Scan All'}
               </button>
+              
+              <button
+                onClick={handleAddAllScanned}
+                disabled={scannedCount === 0}
+                className={`flex-1 px-4 rounded-xl font-bold text-sm shadow-sm transition-all whitespace-nowrap border ${scannedCount > 0 ? 'bg-ink-paper text-ink-accent border-ink-accent hover:bg-ink-accent/10' : 'bg-ink-base text-ink-text/40 border-ink-gray'}`}
+              >
+                + Add Scanned ({scannedCount})
+              </button>
+
               <button
                 onClick={handleRefresh}
                 disabled={loading || batchScanning}

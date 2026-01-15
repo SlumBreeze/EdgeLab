@@ -146,6 +146,7 @@ export interface AutoPickResult {
 export interface AnalysisState {
   queue: QueuedGame[];
   addToQueue: (game: Game) => void;
+  addAllToQueue: (games: Game[]) => void;
   removeFromQueue: (gameId: string) => void;
   updateGame: (gameId: string, updates: Partial<QueuedGame>) => void;
   addSoftLines: (gameId: string, lines: BookLines) => void;

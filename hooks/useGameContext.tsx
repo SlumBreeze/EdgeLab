@@ -423,7 +423,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   return (
     <GameContext.Provider value={{
-      queue, addToQueue, removeFromQueue, updateGame, addSoftLines, updateSoftLineBook, setSharpLines,
+      queue, addToQueue, addAllToQueue, removeFromQueue, updateGame, addSoftLines, updateSoftLineBook, setSharpLines,
       dailyPlays, getPlayableCount: () => queue.filter(g => g.analysis?.decision === 'PLAYABLE').length,
       canAddMorePlays: () => queue.filter(g => g.analysis?.decision === 'PLAYABLE').length < MAX_DAILY_PLAYS,
       markAsPlayed, autoPickBestGames, 
