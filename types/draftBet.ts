@@ -119,9 +119,7 @@ export function mapQueuedGameToDraftBet(q: any, overrides: DraftBetOverrides = {
 
   const resolveLine = () => {
     if (market === 'Moneyline') return null;
-    if (market === 'Total') {
-      return parsedLine;
-    }
+    // For all markets (Spread, Total), prefer explicit line from analysis
     if (analysisLine !== null) return analysisLine;
     return parsedLine;
   };

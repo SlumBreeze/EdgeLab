@@ -552,10 +552,8 @@ export const analyzeGame = async (game: GameData): Promise<AnalysisResult> => {
       ? `${best.side === 'OVER' ? 'o' : 'u'}${best.sharpLine}`
       : best.sharpLine;
 
-    const sOdds = normalizeToAmerican(best.sharpOdds);
-    const threshold = -130;
-    const floorVal = (sOdds < threshold) ? sOdds : threshold;
-    oddsFloor = formatOddsForDisplay(floorVal);
+    // Floor is sharp book's odds - where edge disappears
+    oddsFloor = formatOddsForDisplay(best.sharpOdds);
     floorReason = best.market === 'Spread'
       ? 'Matches sharp line - no edge below this'
       : 'Matches sharp line';
@@ -743,10 +741,8 @@ export const refreshAnalysisMathOnly = (game: QueuedGame): HighHitAnalysis => {
       ? `${selectedSide.side === 'OVER' ? 'o' : 'u'}${selectedSide.sharpLine}`
       : selectedSide.sharpLine;
 
-    const sOdds = normalizeToAmerican(selectedSide.sharpOdds);
-    const threshold = -130;
-    const floorVal = (sOdds < threshold) ? sOdds : threshold;
-    oddsFloor = formatOddsForDisplay(floorVal);
+    // Floor is sharp book's odds - where edge disappears
+    oddsFloor = formatOddsForDisplay(selectedSide.sharpOdds);
     floorReason = selectedSide.market === 'Spread'
       ? 'Matches sharp line - no edge below this'
       : 'Matches sharp line';

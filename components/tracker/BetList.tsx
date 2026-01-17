@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { Trash2, TrendingUp, TrendingDown, MinusCircle, Edit2, Save, X, Check, ChevronDown, ChevronRight, Calendar, Filter, Clock } from 'lucide-react';
+import { Trash2, TrendingUp, TrendingDown, MinusCircle, Edit2, Save, X, Check, ChevronDown, ChevronRight, Calendar, Filter, Clock, MoreVertical } from 'lucide-react';
 import { Bet, BetStatus, Sportsbook, ScoreMap } from '../../types';
 import { formatCurrency, formatDate, calculatePotentialProfit } from '../../utils/calculations';
 import { findMatchingGame } from '../../utils/scores';
@@ -39,6 +39,7 @@ export const BetList: React.FC<BetListProps> = ({ bets, scores, onUpdateStatus, 
   const [editForm, setEditForm] = useState<Partial<Bet>>({});
   const [filterSport, setFilterSport] = useState<string>('All');
   const [filterStatus, setFilterStatus] = useState<string>('All');
+  const [mobileMenuId, setMobileMenuId] = useState<string | null>(null);
   
   const [expandedDates, setExpandedDates] = useState<Set<string>>(() => {
     if (bets.length > 0) {
@@ -94,6 +95,7 @@ export const BetList: React.FC<BetListProps> = ({ bets, scores, onUpdateStatus, 
 
   const handleStartEdit = (bet: Bet) => {
     setDeleteConfirmId(null);
+    setMobileMenuId(null);
     setEditingId(bet.id);
     setEditForm({ ...bet });
   };
@@ -398,39 +400,134 @@ export const BetList: React.FC<BetListProps> = ({ bets, scores, onUpdateStatus, 
                     <div className="space-y-3 pl-2">
                       {group.bets.map(bet => {
                           const theme = SPORTSBOOK_THEME[bet.sportsbook] || SPORTSBOOK_THEME[Sportsbook.OTHER];
+                          const isEditing = editingId === bet.id;
+                          const isDeleting = deleteConfirmId === bet.id;
+                          const isMenuOpen = mobileMenuId === bet.id;
+
                           return (
                             <div key={bet.id} className="bg-ink-paper rounded-xl border border-ink-gray p-4 shadow-sm relative overflow-hidden">
                               <div className="absolute left-0 top-0 bottom-0 w-1" style={{ backgroundColor: theme.bg }}></div>
                               <div className="pl-3">
-                                  <div className="flex justify-between items-start mb-2">
-                                    <div>
-                                        <p className="text-[10px] font-bold text-ink-text/40 uppercase mb-1">{bet.sport} • {bet.sportsbook}</p>
-                                        <h4 className="font-bold text-ink-text text-sm">{bet.matchup}</h4>
-                                        <p className="text-xs text-ink-text/60 mt-0.5">{bet.pick}</p>
-                                        <div className="mt-2">
-                                          {renderScore(bet)}
+                                  {isEditing ? (
+                                    /* Mobile Edit Mode */
+                                    <div className="space-y-3">
+                                      <div className="flex justify-between items-center">
+                                        <span className="text-xs font-bold text-ink-accent uppercase">Editing Bet</span>
+                                        <div className="flex gap-1">
+                                          <button onClick={handleSaveEdit} className="p-1.5 rounded bg-ink-accent/20 text-ink-accent"><Save size={14} /></button>
+                                          <button onClick={() => setEditingId(null)} className="p-1.5 rounded bg-ink-gray/50 text-ink-text/60"><X size={14} /></button>
                                         </div>
+                                      </div>
+                                      <input
+                                        value={editForm.matchup || ''}
+                                        onChange={(e) => setEditForm({...editForm, matchup: e.target.value})}
+                                        placeholder="Matchup"
+                                        className="w-full bg-ink-base border border-ink-gray rounded-lg px-3 py-2 text-ink-text text-sm"
+                                      />
+                                      <input
+                                        value={editForm.pick || ''}
+                                        onChange={(e) => setEditForm({...editForm, pick: e.target.value})}
+                                        placeholder="Pick"
+                                        className="w-full bg-ink-base border border-ink-gray rounded-lg px-3 py-2 text-ink-text text-sm"
+                                      />
+                                      <div className="grid grid-cols-2 gap-2">
+                                        <div>
+                                          <label className="text-[10px] text-ink-text/40 uppercase font-bold">Odds</label>
+                                          <input
+                                            type="text"
+                                            inputMode="numeric"
+                                            value={editForm.odds || ''}
+                                            onChange={(e) => setEditForm({...editForm, odds: Number(e.target.value)})}
+                                            className="w-full bg-ink-base border border-ink-gray rounded-lg px-3 py-2 text-ink-text text-sm font-mono"
+                                          />
+                                        </div>
+                                        <div>
+                                          <label className="text-[10px] text-ink-text/40 uppercase font-bold">Wager</label>
+                                          <input
+                                            type="number"
+                                            value={editForm.wager || ''}
+                                            onChange={(e) => setEditForm({...editForm, wager: Number(e.target.value)})}
+                                            className="w-full bg-ink-base border border-ink-gray rounded-lg px-3 py-2 text-ink-text text-sm font-mono"
+                                          />
+                                        </div>
+                                      </div>
+                                      <select
+                                        value={editForm.sportsbook || ''}
+                                        onChange={(e) => setEditForm({...editForm, sportsbook: e.target.value as Sportsbook})}
+                                        className="w-full bg-ink-base border border-ink-gray rounded-lg px-3 py-2 text-ink-text text-sm"
+                                      >
+                                        {SPORTSBOOKS.map(sb => <option key={sb} value={sb}>{sb}</option>)}
+                                      </select>
                                     </div>
-                                    <span className="font-mono font-bold text-ink-text bg-ink-base px-2 py-1 rounded text-xs">
-                                        {bet.odds > 0 ? `+${bet.odds}` : bet.odds}
-                                    </span>
-                                  </div>
-                                  <div className="flex justify-between items-center mt-3 pt-3 border-t border-ink-gray/30">
-                                      <div className="flex gap-2">
-                                          {bet.status === BetStatus.PENDING ? (
-                                              <>
-                                                <button onClick={() => onUpdateStatus(bet.id, BetStatus.WON)} className="p-1.5 rounded bg-ink-base text-status-win border border-ink-gray/50"><TrendingUp size={16} /></button>
-                                                <button onClick={() => onUpdateStatus(bet.id, BetStatus.LOST)} className="p-1.5 rounded bg-ink-base text-status-loss border border-ink-gray/50"><TrendingDown size={16} /></button>
-                                              </>
+                                  ) : (
+                                    /* Mobile View Mode */
+                                    <>
+                                      <div className="flex justify-between items-start mb-2">
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-[10px] font-bold text-ink-text/40 uppercase mb-1">{bet.sport} • {bet.sportsbook}</p>
+                                            <h4 className="font-bold text-ink-text text-sm">{bet.matchup}</h4>
+                                            <p className="text-xs text-ink-text/60 mt-0.5">{bet.pick}</p>
+                                            <div className="mt-2">
+                                              {renderScore(bet)}
+                                            </div>
+                                        </div>
+                                        <div className="flex items-start gap-1 ml-2">
+                                          <span className="font-mono font-bold text-ink-text bg-ink-base px-2 py-1 rounded text-xs">
+                                              {bet.odds > 0 ? `+${bet.odds}` : bet.odds}
+                                          </span>
+                                          <button
+                                            onClick={() => setMobileMenuId(isMenuOpen ? null : bet.id)}
+                                            className="p-1 rounded text-ink-text/40 hover:text-ink-text"
+                                          >
+                                            <MoreVertical size={16} />
+                                          </button>
+                                        </div>
+                                      </div>
+
+                                      {/* Mobile Menu */}
+                                      {isMenuOpen && (
+                                        <div className="flex gap-2 mb-3 pb-3 border-b border-ink-gray/30">
+                                          {isDeleting ? (
+                                            <>
+                                              <span className="text-xs text-status-loss font-medium flex-1">Delete this bet?</span>
+                                              <button onClick={() => { onDelete(bet.id); setMobileMenuId(null); }} className="px-2 py-1 rounded bg-status-loss/20 text-status-loss text-xs font-bold">Yes</button>
+                                              <button onClick={() => setDeleteConfirmId(null)} className="px-2 py-1 rounded bg-ink-gray/50 text-ink-text/60 text-xs font-bold">No</button>
+                                            </>
                                           ) : (
-                                              <span className={`text-xs font-bold uppercase ${bet.status === BetStatus.WON ? 'text-status-win' : bet.status === BetStatus.LOST ? 'text-status-loss' : 'text-ink-text/40'}`}>{bet.status}</span>
+                                            <>
+                                              <button onClick={() => handleStartEdit(bet)} className="flex-1 py-1.5 rounded bg-ink-base border border-ink-gray text-ink-text text-xs font-medium flex items-center justify-center gap-1">
+                                                <Edit2 size={12} /> Edit
+                                              </button>
+                                              <button onClick={() => setDeleteConfirmId(bet.id)} className="flex-1 py-1.5 rounded bg-ink-base border border-ink-gray text-status-loss text-xs font-medium flex items-center justify-center gap-1">
+                                                <Trash2 size={12} /> Delete
+                                              </button>
+                                            </>
                                           )}
+                                        </div>
+                                      )}
+
+                                      <div className="flex justify-between items-center mt-3 pt-3 border-t border-ink-gray/30">
+                                          <div className="flex gap-2">
+                                              {bet.status === BetStatus.PENDING ? (
+                                                  <>
+                                                    <button onClick={() => onUpdateStatus(bet.id, BetStatus.WON)} className="p-1.5 rounded bg-ink-base text-status-win border border-ink-gray/50"><TrendingUp size={16} /></button>
+                                                    <button onClick={() => onUpdateStatus(bet.id, BetStatus.LOST)} className="p-1.5 rounded bg-ink-base text-status-loss border border-ink-gray/50"><TrendingDown size={16} /></button>
+                                                    <button onClick={() => onUpdateStatus(bet.id, BetStatus.PUSH)} className="p-1.5 rounded bg-ink-base text-ink-text/60 border border-ink-gray/50"><MinusCircle size={16} /></button>
+                                                  </>
+                                              ) : (
+                                                  <div className="flex items-center gap-2">
+                                                    <span className={`text-xs font-bold uppercase ${bet.status === BetStatus.WON ? 'text-status-win' : bet.status === BetStatus.LOST ? 'text-status-loss' : 'text-ink-text/40'}`}>{bet.status}</span>
+                                                    <button onClick={() => onUpdateStatus(bet.id, BetStatus.PENDING)} className="text-[10px] text-ink-text/20 hover:text-ink-text">Undo</button>
+                                                  </div>
+                                              )}
+                                          </div>
+                                          <div className="text-right">
+                                              <p className="text-xs text-ink-text/40 uppercase font-bold">Wager</p>
+                                              <p className="font-mono font-bold text-ink-text">{formatCurrency(bet.wager)}</p>
+                                          </div>
                                       </div>
-                                      <div className="text-right">
-                                          <p className="text-xs text-ink-text/40 uppercase font-bold">Wager</p>
-                                          <p className="font-mono font-bold text-ink-text">{formatCurrency(bet.wager)}</p>
-                                      </div>
-                                  </div>
+                                    </>
+                                  )}
                               </div>
                             </div>
                           );

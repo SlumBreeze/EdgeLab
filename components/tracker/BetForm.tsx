@@ -427,8 +427,10 @@ export const BetForm: React.FC<BetFormProps> = ({ onAddBet, currentBalance, book
           <div className="grid grid-cols-2 gap-4">
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-text/40 font-bold text-[10px] uppercase">ODDS</span>
-              <input 
-                type="number" 
+              <input
+                type="text"
+                inputMode="numeric"
+                pattern="-?[0-9]*"
                 placeholder="-110"
                 value={odds}
                 onChange={(e) => setOdds(e.target.value)}
