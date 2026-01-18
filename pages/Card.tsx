@@ -10,6 +10,7 @@ import { isPremiumEdge } from '../utils/edgeUtils';
 import { mapQueuedGameToDraftBet, DraftBet } from '../types/draftBet';
 import { refreshAnalysisMathOnly } from '../services/geminiService';
 import { fetchOddsForGame, getBookmakerLines, SOFT_BOOK_KEYS } from '../services/oddsService';
+import { TIME_WINDOW_FILTERS, TimeWindowFilter, getTimeWindowLabel, isInTimeWindow } from '../utils/timeWindow';
 
 type AlternativeBook = { bookName: string; odds: string; line?: string };
 type AvailableBalanceLookup = (bookName: string) => number | null;
@@ -106,9 +107,10 @@ const getFactConfidenceStyle = (confidence?: string) => {
 };
 
 export default function Card({ onLogBet }: { onLogBet: (draft: DraftBet) => void }) {
-  const { queue, getPlayableCount, autoPickBestGames, totalBankroll, unitSizePercent, bankroll, updateGame, activeBookNames } = useGameContext();
+  const { queue, autoPickBestGames, totalBankroll, unitSizePercent, bankroll, updateGame, activeBookNames } = useGameContext();
   const [lastPickResult, setLastPickResult] = useState<AutoPickResult | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [selectedWindow, setSelectedWindow] = useState<TimeWindowFilter>('ALL');
   const [cardBankrollSnapshot, setCardBankrollSnapshot] = useState<number | null>(() => {
     try {
       const key = `edgelab_card_bankroll_${new Date().toLocaleDateString('en-CA')}`;
@@ -136,25 +138,33 @@ export default function Card({ onLogBet }: { onLogBet: (draft: DraftBet) => void
   const { addToast } = useToast();
   const toast = createToastHelpers(addToast);
   
-  const analyzedGames = queue.filter(g => g.analysis);
+  const windowQueue = selectedWindow === 'ALL'
+    ? queue
+    : queue.filter(g => isInTimeWindow(g.date, selectedWindow));
+
+  const analyzedGames = windowQueue.filter(g => g.analysis);
   const playable = analyzedGames.filter(g => g.analysis?.decision === 'PLAYABLE');
   const passed = analyzedGames.filter(g => g.analysis?.decision === 'PASS');
   
-  const playableCount = getPlayableCount();
+  const playableCount = playable.length;
   const overLimit = playableCount > MAX_DAILY_PLAYS;
   
-  const hasAutoPicked = queue.some(g => g.cardSlot !== undefined);
-  const pickCount = queue.filter(g => g.cardSlot !== undefined).length;
+  const hasAutoPicked = windowQueue.some(g => g.cardSlot !== undefined);
+  const pickCount = windowQueue.filter(g => g.cardSlot !== undefined).length;
   const playableInDisplayOrder = hasAutoPicked
     ? [...playable].sort((a, b) => (a.cardSlot || 999) - (b.cardSlot || 999))
     : playable;
 
   // ANALYTICS COMPUTATION
   const bankrollForCard = cardBankrollSnapshot ?? totalBankroll;
-  const analytics = analyzeCard(queue, bankrollForCard, unitSizePercent, hasAutoPicked);
+  const analytics = analyzeCard(windowQueue, bankrollForCard, unitSizePercent, hasAutoPicked);
   
   // Filter scenarios to show key ones
   const targetCount = hasAutoPicked ? pickCount : playableCount;
+  const windowCounts = TIME_WINDOW_FILTERS.map(window => ({
+    ...window,
+    count: queue.filter(g => g.analysis && isInTimeWindow(g.date, window.key)).length
+  }));
 
   const keyScenarios = analytics.plScenarios.filter(s => {
     if (targetCount <= 3) return true;
@@ -169,9 +179,9 @@ export default function Card({ onLogBet }: { onLogBet: (draft: DraftBet) => void
 
   const refreshCardOdds = async () => {
     if (isRefreshing) return;
-    const targets = queue.filter(g => g.analysis);
+    const targets = windowQueue.filter(g => g.analysis);
     if (targets.length === 0) {
-      toast.showInfo("No analyzed games to refresh.");
+      toast.showInfo("No analyzed games to refresh in this window.");
       return;
     }
 
@@ -331,15 +341,16 @@ export default function Card({ onLogBet }: { onLogBet: (draft: DraftBet) => void
   })();
 
   const handleSmartPick = () => {
-    const result = autoPickBestGames();
+    const result = autoPickBestGames(selectedWindow);
     setLastPickResult(result);
+    const windowLabel = selectedWindow === 'ALL' ? 'All' : getTimeWindowLabel(selectedWindow);
     
     if (result.picked === 0) {
-      toast.showWarning("No picks met quality thresholds");
+      toast.showWarning(`No ${windowLabel} picks met quality thresholds`);
     } else if (result.skipped > 0) {
-      toast.showSuccess(`Smart Card: ${result.picked} quality picks (${result.skipped} skipped)`);
+      toast.showSuccess(`Smart Card (${windowLabel}): ${result.picked} quality picks (${result.skipped} skipped)`);
     } else {
-      toast.showSuccess(`Smart Card: ${result.picked} picks`);
+      toast.showSuccess(`Smart Card (${windowLabel}): ${result.picked} picks`);
     }
   };
 
@@ -417,6 +428,31 @@ export default function Card({ onLogBet }: { onLogBet: (draft: DraftBet) => void
               {isRefreshing ? 'Refreshing...' : 'Refresh Odds'}
             </button>
           </div>
+          <div className="mt-3 flex overflow-x-auto space-x-2 pb-2 no-scrollbar">
+            {windowCounts.map(window => (
+              <button
+                key={window.key}
+                onClick={() => setSelectedWindow(window.key)}
+                className={`flex items-center gap-2 px-3 py-2 rounded-full whitespace-nowrap transition-all shadow-sm border ${
+                  selectedWindow === window.key
+                    ? 'bg-ink-accent text-white font-bold border-ink-accent shadow-sm'
+                    : 'bg-ink-paper text-ink-text/70 hover:text-ink-text border-ink-gray'
+                }`}
+              >
+                <span className="text-xs">{window.label}</span>
+                <span className={`text-[10px] px-2 py-0.5 rounded-full ${
+                  selectedWindow === window.key ? 'bg-white/20 text-white' : 'bg-ink-base text-ink-text/60 border border-ink-gray'
+                }`}>
+                  {window.count}
+                </span>
+              </button>
+            ))}
+          </div>
+          {selectedWindow !== 'ALL' && (
+            <div className="text-[10px] text-ink-text/50">
+              Showing {getTimeWindowLabel(selectedWindow)} window
+            </div>
+          )}
         </header>
 
         {/* Sticky Summary */}
@@ -433,7 +469,9 @@ export default function Card({ onLogBet }: { onLogBet: (draft: DraftBet) => void
           <div className="mb-6 bg-ink-paper p-4 rounded-xl border border-ink-gray shadow-sm">
               <div className="flex justify-between items-center mb-3">
                   <div>
-                    <span className="font-bold text-ink-text text-sm">Smart Pick</span>
+                    <span className="font-bold text-ink-text text-sm">
+                      Smart Pick{selectedWindow !== 'ALL' ? ` — ${getTimeWindowLabel(selectedWindow)} Window` : ''}
+                    </span>
                     <p className="text-[10px] text-ink-text/50 mt-0.5">
                       Only picks with real mathematical edge
                     </p>

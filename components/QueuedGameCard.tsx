@@ -6,6 +6,7 @@ import { COMMON_BOOKS } from '../constants';
 import { fetchOddsForGame, getBookmakerLines, SOFT_BOOK_KEYS } from '../services/oddsService';
 import { useGameContext } from '../hooks/useGameContext';
 import { CompactSoftLines } from './CompactSoftLines';
+import { formatEtTime, getTimeWindow, getTimeWindowLabel } from '../utils/timeWindow';
 
 interface Props {
   game: QueuedGame;
@@ -44,6 +45,8 @@ const QueuedGameCard: React.FC<Props> = ({
   const [editingLineIndex, setEditingLineIndex] = useState<number | null>(null);
   const [fetchingOdds, setFetchingOdds] = useState(false);
   const [apiSoftBooks, setApiSoftBooks] = useState<BookLines[]>([]);
+  const timeLabel = formatEtTime(game.date);
+  const windowLabel = getTimeWindowLabel(getTimeWindow(game.date));
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, type: 'SHARP' | 'SOFT') => {
     if (e.target.files?.[0]) {
@@ -239,6 +242,10 @@ const QueuedGameCard: React.FC<Props> = ({
             {game.sport}
           </span>
           <span className="text-ink-text/40 text-xs">#{game.visibleId}</span>
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-ink-paper text-ink-text/60 border border-ink-gray">
+            {windowLabel}
+          </span>
+          <span className="text-[10px] text-ink-text/40">{timeLabel}</span>
         </div>
         <button onClick={onRemove} className="text-ink-text/40 hover:text-status-loss transition-colors">
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

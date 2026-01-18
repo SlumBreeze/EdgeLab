@@ -1,9 +1,10 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useMemo } from 'react';
-import { QueuedGame, AnalysisState, Game, BookLines, DailyPlayTracker, SportsbookAccount, ScanResult, ReferenceLineData, AutoPickResult, BookBalanceDisplay } from '../types';
+import { QueuedGame, AnalysisState, Game, BookLines, DailyPlayTracker, SportsbookAccount, ScanResult, ReferenceLineData, AutoPickResult, BookBalanceDisplay, TimeWindowFilter } from '../types';
 import { MAX_DAILY_PLAYS, SPORTSBOOK_THEME } from '../constants';
 import { supabase, isSupabaseConfigured } from '../services/supabaseClient';
 import { isPremiumEdge, isStandardEdge } from '../utils/edgeUtils';
 import { useBankroll } from './useBankroll';
+import { isInTimeWindow } from '../utils/timeWindow';
 
 const GameContext = createContext<AnalysisState | undefined>(undefined);
 
@@ -347,16 +348,21 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   // UPDATED: Smart auto-pick based on quality thresholds, not arbitrary limits
-  const autoPickBestGames = (): AutoPickResult => {
+  const autoPickBestGames = (window: TimeWindowFilter = 'ALL'): AutoPickResult => {
     let pickedCount = 0;
     let skippedCount = 0;
     const skipReasons: string[] = [];
     
     setQueue(prev => {
-      const reset = prev.map(g => ({ ...g, cardSlot: undefined }));
+      const reset = prev.map(g => (
+        isInTimeWindow(g.date, window)
+          ? { ...g, cardSlot: undefined }
+          : g
+      ));
       
       // STEP 1: Filter to PLAYABLE with basic requirements
       const playable = reset.filter(g => {
+        if (!isInTimeWindow(g.date, window)) return false;
         if (g.analysis?.decision !== 'PLAYABLE') return false;
         if (!g.analysis.softBestOdds) return false;
         
@@ -425,7 +431,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       return reset.map(g => ({ 
         ...g, 
-        cardSlot: finalPicks.includes(g.id) ? finalPicks.indexOf(g.id) + 1 : undefined 
+        cardSlot: finalPicks.includes(g.id) ? finalPicks.indexOf(g.id) + 1 : g.cardSlot 
       }));
     });
     

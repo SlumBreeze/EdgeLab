@@ -1,4 +1,6 @@
 export type Sport = 'NBA' | 'NFL' | 'NHL' | 'CFB' | 'NCAAB' | 'Other';
+export type TimeWindow = 'EARLY' | 'AFTERNOON' | 'EVENING';
+export type TimeWindowFilter = 'ALL' | TimeWindow;
 
 export interface Game {
   id: string;
@@ -160,7 +162,7 @@ export interface AnalysisState {
   markAsPlayed: (gameId: string) => void;
   
   // UPDATED: Smart auto-pick returns stats about what was picked
-  autoPickBestGames: () => AutoPickResult;
+  autoPickBestGames: (window?: TimeWindowFilter) => AutoPickResult;
 
   // v2.2 Bankroll
   bankroll: SportsbookAccount[];

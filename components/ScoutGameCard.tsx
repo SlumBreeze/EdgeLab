@@ -1,5 +1,6 @@
 import React from 'react';
 import { Game, BookLines } from '../types';
+import { formatEtTime, getTimeWindow, getTimeWindowLabel } from '../utils/timeWindow';
 
 interface ScoutGameCardProps {
   game: any;                    // Raw API game object
@@ -31,12 +32,19 @@ const ScoutGameCard: React.FC<ScoutGameCardProps> = ({
   mapToGameObject
 }) => {
   const gameObj = mapToGameObject(game, pinnLines);
+  const timeLabel = formatEtTime(game.commence_time);
+  const windowLabel = getTimeWindowLabel(getTimeWindow(game.commence_time));
 
   return (
     <div className="bg-ink-paper border border-ink-gray rounded-xl p-3 shadow-sm transition-shadow relative overflow-hidden">
       {scan && <div className={`absolute top-0 left-0 bottom-0 w-1.5 ${scan.signal === 'RED' ? 'bg-status-loss' : scan.signal === 'YELLOW' ? 'bg-amber-400' : 'bg-ink-gray'}`} />}
       <div className="flex justify-between items-center mb-2 pl-2">
-        <div className="text-[10px] font-bold text-ink-text/40 uppercase tracking-wider">{new Date(game.commence_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+        <div className="flex items-center gap-2">
+          <div className="text-[10px] font-bold text-ink-text/40 uppercase tracking-wider">{timeLabel}</div>
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-ink-base text-ink-text/60 border border-ink-gray">
+            {windowLabel}
+          </span>
+        </div>
         <button onClick={() => onAddToQueue(game, pinnLines)} disabled={inQueue} className={`px-2 py-1 rounded text-[10px] font-bold transition-colors border ${inQueue ? 'bg-ink-base text-ink-text/40 border-ink-gray' : 'bg-ink-accent/10 text-ink-accent border-ink-accent/30 hover:bg-ink-accent/20'}`}>{inQueue ? '✓ Queue' : '+ Add'}</button>
       </div>
       <div className="mb-2 pl-2">

@@ -7,10 +7,12 @@ import { fetchOddsForGame, getBookmakerLines, SOFT_BOOK_KEYS } from '../services
 import { BookLines } from '../types';
 import { ANALYSIS_QUEUE_DELAY_MS } from '../constants';
 import { useToast, createToastHelpers } from '../components/Toast';
+import { TIME_WINDOW_FILTERS, TimeWindowFilter, getTimeWindowLabel, isInTimeWindow } from '../utils/timeWindow';
 
 export default function Queue() {
   const { queue, removeFromQueue, updateGame, addSoftLines, updateSoftLineBook, setSharpLines, activeBookNames } = useGameContext();
   const [analyzingIds, setAnalyzingIds] = useState<Set<string>>(new Set());
+  const [selectedWindow, setSelectedWindow] = useState<TimeWindowFilter>('ALL');
   
   // Toast
   const { addToast } = useToast();
@@ -155,7 +157,36 @@ export default function Queue() {
     toast.showSuccess(`Queued ${ids.length} games for analysis.`);
   };
 
-  const pendingCount = queue.filter(g => !g.analysis && !g.analysisError && !analysisQueue.includes(g.id) && activeAnalysisId !== g.id).length;
+  const filteredQueue = selectedWindow === 'ALL'
+    ? queue
+    : queue.filter(g => isInTimeWindow(g.date, selectedWindow));
+
+  const windowCounts = TIME_WINDOW_FILTERS.map(window => ({
+    ...window,
+    count: queue.filter(g => isInTimeWindow(g.date, window.key)).length
+  }));
+
+  const pendingCountAll = queue.filter(g => !g.analysis && !g.analysisError && !analysisQueue.includes(g.id) && activeAnalysisId !== g.id).length;
+  const pendingCountWindow = filteredQueue.filter(g => !g.analysis && !g.analysisError && !analysisQueue.includes(g.id) && activeAnalysisId !== g.id).length;
+
+  const handleAnalyzeWindow = () => {
+    if (selectedWindow === 'ALL') return;
+    const gamesToAnalyze = filteredQueue.filter(g =>
+      !g.analysis &&
+      !g.analysisError &&
+      !analysisQueue.includes(g.id) &&
+      activeAnalysisId !== g.id
+    );
+
+    if (gamesToAnalyze.length === 0) {
+      toast.showInfo("No eligible games to analyze in this window.");
+      return;
+    }
+
+    const ids = gamesToAnalyze.map(g => g.id);
+    setAnalysisQueue(prev => [...prev, ...ids]);
+    toast.showSuccess(`Queued ${ids.length} ${getTimeWindowLabel(selectedWindow)} games for analysis.`);
+  };
 
   const handleRemoveFromQueue = (gameId: string) => {
     setAnalysisQueue(prev => prev.filter(id => id !== gameId));
@@ -241,16 +272,56 @@ export default function Queue() {
             </span>
           </div>
           
-          {pendingCount > 0 && (
-            <button 
-                onClick={handleAnalyzeAll}
-                className="w-full py-3 bg-ink-accent hover:bg-sky-500 text-white rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-2"
-            >
-                <span className="animate-pulse">⚡</span> 
-                {analysisQueue.length > 0 ? `Queued (${analysisQueue.length}) — Add ${pendingCount} More` : `Analyze Remaining (${pendingCount})`}
-            </button>
+          {pendingCountAll > 0 && (
+            <div className="flex flex-col gap-2">
+              <button 
+                  onClick={handleAnalyzeAll}
+                  className="w-full py-3 bg-ink-accent hover:bg-sky-500 text-white rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-2"
+              >
+                  <span className="animate-pulse">⚡</span> 
+                  {analysisQueue.length > 0 ? `Queued (${analysisQueue.length}) — Add ${pendingCountAll} More` : `Analyze Remaining (${pendingCountAll})`}
+              </button>
+              {selectedWindow !== 'ALL' && pendingCountWindow > 0 && (
+                <button
+                  onClick={handleAnalyzeWindow}
+                  className="w-full py-2 bg-ink-paper text-ink-accent border border-ink-accent hover:bg-ink-accent/10 rounded-xl font-bold text-sm shadow-sm transition-all"
+                >
+                  Analyze {getTimeWindowLabel(selectedWindow)} Window ({pendingCountWindow})
+                </button>
+              )}
+            </div>
           )}
         </header>
+
+        {queue.length > 0 && (
+          <div className="mb-3">
+            <div className="flex overflow-x-auto space-x-2 pb-2 no-scrollbar">
+              {windowCounts.map(window => (
+                <button
+                  key={window.key}
+                  onClick={() => setSelectedWindow(window.key)}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-full whitespace-nowrap transition-all shadow-sm border ${
+                    selectedWindow === window.key
+                      ? 'bg-ink-accent text-white font-bold border-ink-accent shadow-sm'
+                      : 'bg-ink-paper text-ink-text/70 hover:text-ink-text border-ink-gray'
+                  }`}
+                >
+                  <span className="text-xs">{window.label}</span>
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full ${
+                    selectedWindow === window.key ? 'bg-white/20 text-white' : 'bg-ink-base text-ink-text/60 border border-ink-gray'
+                  }`}>
+                    {window.count}
+                  </span>
+                </button>
+              ))}
+            </div>
+            {selectedWindow !== 'ALL' && (
+              <div className="text-[10px] text-ink-text/50">
+                Showing {getTimeWindowLabel(selectedWindow)} window — {filteredQueue.length} of {queue.length}
+              </div>
+            )}
+          </div>
+        )}
         
         {/* Swipe Hint */}
         {queue.length > 0 && (
@@ -267,7 +338,7 @@ export default function Queue() {
           </div>
         ) : (
           <div className="space-y-6">
-            {queue.map(game => (
+            {filteredQueue.map(game => (
               <SwipeableCard
                 key={game.id}
                 onSwipeLeft={() => handleManualRemove(game.id)}

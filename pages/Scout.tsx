@@ -7,12 +7,14 @@ import { quickScanGame } from '../services/geminiService';
 import { useGameContext } from '../hooks/useGameContext';
 import { useToast, createToastHelpers } from '../components/Toast';
 import ScoutGameCard from '../components/ScoutGameCard';
+import { TIME_WINDOW_FILTERS, TimeWindowFilter, getTimeWindowLabel, isInTimeWindow } from '../utils/timeWindow';
 
 export default function Scout() {
   const [selectedSport, setSelectedSport] = useState<Sport>('NBA');
   // Fixed: Use local date string to match user's day, not UTC (which is tomorrow in evenings)
   const [selectedDate, setSelectedDate] = useState(() => new Date().toLocaleDateString('en-CA'));
   const [loading, setLoading] = useState(false);
+  const [selectedWindow, setSelectedWindow] = useState<TimeWindowFilter>('ALL');
   
   // Toast Context
   const { addToast } = useToast();
@@ -211,10 +213,36 @@ export default function Scout() {
   };
 
   const upcomingGames = apiGames.filter(isUpcomingGame);
-  const sortedGames = [...upcomingGames].sort((a, b) => getSignalWeight(b.id) - getSignalWeight(a.id));
+  const filteredGames = upcomingGames.filter(g => isInTimeWindow(g.commence_time, selectedWindow));
+  const sortedGames = [...filteredGames].sort((a, b) => getSignalWeight(b.id) - getSignalWeight(a.id));
+  const windowCounts = TIME_WINDOW_FILTERS.map(window => ({
+    ...window,
+    count: upcomingGames.filter(g => isInTimeWindow(g.commence_time, window.key)).length
+  }));
 
   // Count how many valid scanned games can be added
-  const scannedCount = apiGames.filter(isEligibleScannedGame).length;
+  const scannedCount = filteredGames.filter(isEligibleScannedGame).length;
+  const windowAddCount = filteredGames.filter(g => !isInQueue(g.id)).length;
+
+  const handleAddWindow = () => {
+    if (selectedWindow === 'ALL') return;
+    const gamesToAdd = filteredGames.filter(g => !isInQueue(g.id));
+    if (gamesToAdd.length === 0) {
+      toast.showInfo("No games to add for this window.");
+      return;
+    }
+
+    const mappedGames = gamesToAdd.map(game => {
+      const pinnLines = getBookmakerLines(game, 'pinnacle');
+      const base = mapToGameObject(game, pinnLines);
+      const scanData = scanResults[base.id];
+      return scanData ? { ...base, edgeSignal: scanData.signal, edgeDescription: scanData.description } : base;
+    });
+
+    addAllToQueue(mappedGames);
+    const label = getTimeWindowLabel(selectedWindow);
+    toast.showSuccess(`Added ${mappedGames.length} ${label} games to Queue`);
+  };
 
   // If slates are NOT loaded, show the initial state (centered)
   if (!slatesLoaded) {
@@ -299,6 +327,45 @@ export default function Scout() {
             </>
           )}
         </div>
+
+        {apiGames.length > 0 && (
+          <>
+            <div className="flex overflow-x-auto space-x-2 pb-2 no-scrollbar mb-2">
+              {windowCounts.map(window => (
+                <button
+                  key={window.key}
+                  onClick={() => setSelectedWindow(window.key)}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-full whitespace-nowrap transition-all shadow-sm border ${
+                    selectedWindow === window.key
+                      ? 'bg-ink-accent text-white font-bold border-ink-accent shadow-sm'
+                      : 'bg-ink-paper text-ink-text/70 hover:text-ink-text border-ink-gray'
+                  }`}
+                >
+                  <span className="text-xs">{window.label}</span>
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full ${
+                    selectedWindow === window.key ? 'bg-white/20 text-white' : 'bg-ink-base text-ink-text/60 border border-ink-gray'
+                  }`}>
+                    {window.count}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            {selectedWindow !== 'ALL' && (
+              <button
+                onClick={handleAddWindow}
+                disabled={windowAddCount === 0}
+                className={`w-full mb-2 py-2 rounded-xl font-bold text-xs shadow-sm transition-all border ${
+                  windowAddCount > 0
+                    ? 'bg-ink-paper text-ink-accent border-ink-accent hover:bg-ink-accent/10'
+                    : 'bg-ink-base text-ink-text/40 border-ink-gray'
+                }`}
+              >
+                + Add {getTimeWindowLabel(selectedWindow)} Window ({windowAddCount})
+              </button>
+            )}
+          </>
+        )}
       </div>
 
       {/* Scrollable List */}
@@ -310,7 +377,7 @@ export default function Scout() {
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-ink-accent mx-auto mb-3"></div>
                 Searching lines...
               </div>
-            ) : upcomingGames.length === 0 ? (
+            ) : filteredGames.length === 0 ? (
               <div className="text-center py-10 text-ink-text/60 bg-ink-paper rounded-2xl border border-ink-gray">
                 No {selectedSport} games found for {selectedDate}.
               </div>
