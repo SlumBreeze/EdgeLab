@@ -291,6 +291,39 @@ export const formatDate = (dateStr: string) => {
   });
 };
 
+const parseMatchupTeams = (matchup?: string) => {
+  if (!matchup) return { away: undefined, home: undefined };
+  const match = matchup.match(/^\s*(.*?)\s*(?:@|vs\.?|v\.?|at)\s*(.*?)\s*$/i);
+  if (!match) return { away: undefined, home: undefined };
+  return { away: match[1].trim(), home: match[2].trim() };
+};
+
+export const formatBetPickDisplay = (pick: string, matchup?: string): string => {
+  if (!pick) return pick;
+  const rawPick = pick.trim();
+
+  const totalMatch = rawPick.match(/^(over|under)\b\s*(.*)$/i);
+  if (totalMatch) {
+    const side = totalMatch[1].toLowerCase();
+    const rest = totalMatch[2].trim();
+    const label = side === 'over' ? 'Over' : 'Under';
+    return rest ? `${label} ${rest}` : label;
+  }
+
+  const { home, away } = parseMatchupTeams(matchup);
+  const sideMatch = rawPick.match(/^(home|away)\b(.*)$/i);
+  if (sideMatch) {
+    const side = sideMatch[1].toLowerCase();
+    const team = side === 'home' ? home : away;
+    if (team) {
+      const rest = sideMatch[2] || '';
+      return `${team}${rest}`.trim();
+    }
+  }
+
+  return rawPick;
+};
+
 export const inferSportFromBet = (bet: Partial<Bet>): string => {
    const text = `${bet.matchup || ''} ${bet.pick || ''}`.toLowerCase();
    

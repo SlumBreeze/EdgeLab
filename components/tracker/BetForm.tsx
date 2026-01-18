@@ -3,7 +3,7 @@ import { PlusCircle, Calculator, DollarSign, Camera, Loader2, Settings2, Calenda
 import { GoogleGenAI, Type } from "@google/genai";
 import { Sportsbook, BetStatus, BookBalanceDisplay } from '../../types';
 import { DraftBet } from '../../types/draftBet';
-import { calculatePotentialProfit, formatCurrency } from '../../utils/calculations';
+import { calculatePotentialProfit, formatCurrency, formatBetPickDisplay } from '../../utils/calculations';
 import { SPORTSBOOKS, SPORTS } from '../../constants';
 
 interface BetFormProps {
@@ -58,7 +58,10 @@ export const BetForm: React.FC<BetFormProps> = ({ onAddBet, currentBalance, book
     if (draftBet) {
       const normalizedDate = normalizeDateInput(draftBet.gameDate);
       if (normalizedDate) setDate(normalizedDate);
-      if (draftBet.homeTeam && draftBet.awayTeam) setMatchup(`${draftBet.awayTeam} @ ${draftBet.homeTeam}`);
+      const matchupText = draftBet.homeTeam && draftBet.awayTeam
+        ? `${draftBet.awayTeam} @ ${draftBet.homeTeam}`
+        : '';
+      if (matchupText) setMatchup(matchupText);
       if (draftBet.sport) setSport(draftBet.sport);
       
       if (draftBet.sportsbook) {
@@ -83,7 +86,8 @@ export const BetForm: React.FC<BetFormProps> = ({ onAddBet, currentBalance, book
             lineStr = ` ${lineVal > 0 ? '+' : ''}${lineVal}`;
           }
         }
-        setPick(`${draftBet.pickTeam}${lineStr}`.trim());
+        const rawPick = `${draftBet.pickTeam}${lineStr}`.trim();
+        setPick(formatBetPickDisplay(rawPick, matchupText || undefined));
       }
       
       if (draftBet.odds) setOdds(draftBet.odds);

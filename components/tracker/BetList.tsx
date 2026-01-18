@@ -2,7 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import { Trash2, TrendingUp, TrendingDown, MinusCircle, Edit2, Save, X, Check, ChevronDown, ChevronRight, Calendar, Filter, Clock, MoreVertical } from 'lucide-react';
 import { Bet, BetStatus, Sportsbook, ScoreMap } from '../../types';
-import { formatCurrency, formatDate, calculatePotentialProfit } from '../../utils/calculations';
+import { formatCurrency, formatDate, calculatePotentialProfit, formatBetPickDisplay } from '../../utils/calculations';
 import { findMatchingGame } from '../../utils/scores';
 import { SPORTSBOOKS, SPORTSBOOK_THEME, SPORTS } from '../../constants';
 
@@ -255,6 +255,7 @@ export const BetList: React.FC<BetListProps> = ({ bets, scores, onUpdateStatus, 
                     {isExpanded && group.bets.map((bet) => {
                       const isEditing = editingId === bet.id;
                       const isDeleting = deleteConfirmId === bet.id;
+                      const displayPick = formatBetPickDisplay(bet.pick, bet.matchup);
                       
                       return (
                         <tr 
@@ -291,14 +292,14 @@ export const BetList: React.FC<BetListProps> = ({ bets, scores, onUpdateStatus, 
                             </>
                           ) : (
                             <>
-                              <td className="px-4 py-3 align-top pl-8 border-l-4 border-l-transparent hover:border-l-ink-accent">
+                              <td className="px-4 py-2 align-top pl-8 border-l-4 border-l-transparent hover:border-l-ink-accent">
                                 <div className="flex flex-col items-start">
                                   <span className="text-ink-text font-bold text-sm">{bet.matchup}</span>
-                                  <span className="text-ink-text/60 text-xs mt-0.5">{bet.pick}</span>
+                                  <span className="text-ink-text/60 text-[11px] mt-0.5">{displayPick}</span>
                                   {bet.tags && bet.tags.length > 0 && (
-                                    <div className="flex gap-1 mt-1.5">
+                                    <div className="flex gap-1 mt-1">
                                       {bet.tags.map(tag => (
-                                        <span key={tag} className={`px-1.5 py-0.5 rounded text-[10px] font-bold border ${getTagColor(tag)}`}>
+                                        <span key={tag} className={`px-1.5 py-0.5 rounded text-[9px] font-bold border ${getTagColor(tag)}`}>
                                           {tag}
                                         </span>
                                       ))}
@@ -310,46 +311,46 @@ export const BetList: React.FC<BetListProps> = ({ bets, scores, onUpdateStatus, 
                                   </div>
                                 </div>
                               </td>
-                              <td className="px-4 py-3 align-top hidden lg:table-cell vertical-middle">
+                              <td className="px-4 py-2 align-top hidden lg:table-cell vertical-middle">
                                   {renderScore(bet)}
                               </td>
-                              <td className="px-4 py-3 align-top hidden sm:table-cell">
+                              <td className="px-4 py-2 align-top hidden sm:table-cell">
                                 <span className="text-[11px] font-bold" style={{ color: getBookTextColor(bet.sportsbook) }}>
                                   {bet.sportsbook}
                                 </span>
                               </td>
-                              <td className="px-4 py-3 text-right text-sm font-mono font-bold text-ink-text align-top">
+                              <td className="px-4 py-2 text-right text-[12px] font-mono font-bold text-ink-text align-top">
                                 {bet.odds > 0 ? `+${bet.odds}` : bet.odds}
                               </td>
-                              <td className="px-4 py-3 text-right align-top">
+                              <td className="px-4 py-2 text-right align-top">
                                 <div className="flex flex-col items-end">
-                                  <span className="text-ink-text font-medium text-sm font-mono">{formatCurrency(bet.wager)}</span>
+                                  <span className="text-ink-text font-medium text-[12px] font-mono">{formatCurrency(bet.wager)}</span>
                                   <span className="text-status-win text-[10px] font-mono">To Win: {formatCurrency(bet.potentialProfit)}</span>
                                 </div>
                               </td>
-                              <td className="px-4 py-3 text-center align-top">
-                                <div className="flex flex-wrap justify-center gap-1">
+                              <td className="px-4 py-2 text-center align-top">
+                                <div className="flex flex-nowrap justify-center gap-1">
                                   {bet.status === BetStatus.PENDING ? (
                                     <>
-                                      <button onClick={() => onUpdateStatus(bet.id, BetStatus.WON)} className="p-1.5 rounded bg-ink-base border border-ink-gray text-ink-text/40 hover:text-status-win hover:border-status-win"><TrendingUp size={16} /></button>
-                                      <button onClick={() => onUpdateStatus(bet.id, BetStatus.LOST)} className="p-1.5 rounded bg-ink-base border border-ink-gray text-ink-text/40 hover:text-status-loss hover:border-status-loss"><TrendingDown size={16} /></button>
-                                      <button onClick={() => onUpdateStatus(bet.id, BetStatus.PUSH)} className="p-1.5 rounded bg-ink-base border border-ink-gray text-ink-text/40 hover:text-white"><MinusCircle size={16} /></button>
+                                      <button onClick={() => onUpdateStatus(bet.id, BetStatus.WON)} className="p-1 rounded bg-ink-base border border-ink-gray text-ink-text/40 hover:text-status-win hover:border-status-win"><TrendingUp size={14} /></button>
+                                      <button onClick={() => onUpdateStatus(bet.id, BetStatus.LOST)} className="p-1 rounded bg-ink-base border border-ink-gray text-ink-text/40 hover:text-status-loss hover:border-status-loss"><TrendingDown size={14} /></button>
+                                      <button onClick={() => onUpdateStatus(bet.id, BetStatus.PUSH)} className="p-1 rounded bg-ink-base border border-ink-gray text-ink-text/40 hover:text-white"><MinusCircle size={14} /></button>
                                     </>
                                   ) : (
                                     <div className="flex items-center gap-2">
-                                        <span className={`inline-flex px-2 py-0.5 rounded text-[10px] font-bold border uppercase tracking-wider ${
+                                        <span className={`inline-flex px-1.5 py-0.5 rounded text-[9px] font-bold border uppercase tracking-wider ${
                                           bet.status === BetStatus.WON ? 'bg-status-win/10 text-status-win border-status-win/20' :
                                           bet.status === BetStatus.LOST ? 'bg-status-loss/10 text-status-loss border-status-loss/20' :
                                           'bg-ink-gray/20 text-ink-text/60 border-ink-gray'
                                         }`}>
                                           {bet.status}
                                         </span>
-                                        <button onClick={() => onUpdateStatus(bet.id, BetStatus.PENDING)} className="text-[10px] text-ink-text/20 hover:text-ink-text">Undo</button>
+                                        <button onClick={() => onUpdateStatus(bet.id, BetStatus.PENDING)} className="text-[9px] text-ink-text/20 hover:text-ink-text">Undo</button>
                                     </div>
                                   )}
                                 </div>
                               </td>
-                              <td className="px-4 py-3 text-right align-top">
+                              <td className="px-4 py-2 text-right align-top">
                                 {isDeleting ? (
                                   <div className="flex justify-end gap-1.5 items-center">
                                     <button onClick={() => onDelete(bet.id)} className="p-1 rounded bg-status-loss/20 text-status-loss"><Check size={12} /></button>
@@ -403,9 +404,10 @@ export const BetList: React.FC<BetListProps> = ({ bets, scores, onUpdateStatus, 
                           const isEditing = editingId === bet.id;
                           const isDeleting = deleteConfirmId === bet.id;
                           const isMenuOpen = mobileMenuId === bet.id;
+                          const displayPick = formatBetPickDisplay(bet.pick, bet.matchup);
 
                           return (
-                            <div key={bet.id} className="bg-ink-paper rounded-xl border border-ink-gray p-4 shadow-sm relative overflow-hidden">
+                            <div key={bet.id} className="bg-ink-paper rounded-xl border border-ink-gray p-3 shadow-sm relative overflow-hidden">
                               <div className="absolute left-0 top-0 bottom-0 w-1" style={{ backgroundColor: theme.bg }}></div>
                               <div className="pl-3">
                                   {isEditing ? (
@@ -466,7 +468,7 @@ export const BetList: React.FC<BetListProps> = ({ bets, scores, onUpdateStatus, 
                                         <div className="flex-1 min-w-0">
                                             <p className="text-[10px] font-bold text-ink-text/40 uppercase mb-1">{bet.sport} • {bet.sportsbook}</p>
                                             <h4 className="font-bold text-ink-text text-sm">{bet.matchup}</h4>
-                                            <p className="text-xs text-ink-text/60 mt-0.5">{bet.pick}</p>
+                                            <p className="text-[11px] text-ink-text/60 mt-0.5">{displayPick}</p>
                                             <div className="mt-2">
                                               {renderScore(bet)}
                                             </div>
@@ -510,9 +512,9 @@ export const BetList: React.FC<BetListProps> = ({ bets, scores, onUpdateStatus, 
                                           <div className="flex gap-2">
                                               {bet.status === BetStatus.PENDING ? (
                                                   <>
-                                                    <button onClick={() => onUpdateStatus(bet.id, BetStatus.WON)} className="p-1.5 rounded bg-ink-base text-status-win border border-ink-gray/50"><TrendingUp size={16} /></button>
-                                                    <button onClick={() => onUpdateStatus(bet.id, BetStatus.LOST)} className="p-1.5 rounded bg-ink-base text-status-loss border border-ink-gray/50"><TrendingDown size={16} /></button>
-                                                    <button onClick={() => onUpdateStatus(bet.id, BetStatus.PUSH)} className="p-1.5 rounded bg-ink-base text-ink-text/60 border border-ink-gray/50"><MinusCircle size={16} /></button>
+                                                    <button onClick={() => onUpdateStatus(bet.id, BetStatus.WON)} className="p-1 rounded bg-ink-base text-status-win border border-ink-gray/50"><TrendingUp size={14} /></button>
+                                                    <button onClick={() => onUpdateStatus(bet.id, BetStatus.LOST)} className="p-1 rounded bg-ink-base text-status-loss border border-ink-gray/50"><TrendingDown size={14} /></button>
+                                                    <button onClick={() => onUpdateStatus(bet.id, BetStatus.PUSH)} className="p-1 rounded bg-ink-base text-ink-text/60 border border-ink-gray/50"><MinusCircle size={14} /></button>
                                                   </>
                                               ) : (
                                                   <div className="flex items-center gap-2">

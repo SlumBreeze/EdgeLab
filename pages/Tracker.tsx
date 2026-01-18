@@ -29,6 +29,7 @@ import {
   calculateBankrollHistory, 
   calculateBookBalances, 
   formatCurrency, 
+  formatBetPickDisplay,
   inferSportFromBet 
 } from '../utils/calculations';
 import { fetchDailyScores } from '../utils/scores';
@@ -278,9 +279,9 @@ const Tracker: React.FC = () => {
                </div>
                <div className="flex-1 overflow-y-auto p-0 scrollbar-hide">       
                   {bets.slice(0, 10).map((bet, i) => (
-                    <div key={bet.id} className="p-3 border-b border-ink-gray/50 hover:bg-ink-base/50 transition-colors flex justify-between items-center group"> 
+                   <div key={bet.id} className="p-3 border-b border-ink-gray/50 hover:bg-ink-base/50 transition-colors flex justify-between items-center group"> 
                        <div className="min-w-0">
-                          <p className="text-xs font-bold text-ink-text truncate">{bet.pick}</p>
+                          <p className="text-xs font-bold text-ink-text truncate">{formatBetPickDisplay(bet.pick, bet.matchup)}</p>
                           <p className="text-[10px] text-ink-text/40 truncate">{bet.matchup}</p>
                        </div>
                        <div className="text-right pl-2">
