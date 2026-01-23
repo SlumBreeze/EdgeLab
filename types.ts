@@ -1,4 +1,4 @@
-export type Sport = 'NBA' | 'NFL' | 'NHL' | 'CFB' | 'NCAAB' | 'Other';
+export type Sport = 'NBA' | 'NFL' | 'NHL' | 'Other';
 export type TimeWindow = 'EARLY' | 'AFTERNOON' | 'EVENING';
 export type TimeWindowFilter = 'ALL' | TimeWindow;
 
