@@ -10,7 +10,7 @@
 
 [![Status](https://img.shields.io/badge/status-active-success.svg)]()
 [![Stack](https://img.shields.io/badge/stack-React_19-blue.svg)]()
-[![AI](https://img.shields.io/badge/AI-Gemini_Pro-orange.svg)]()
+[![AI](https://img.shields.io/badge/AI-Gemini_3-orange.svg)]()
 [![Deployment](https://img.shields.io/badge/deploy-Cloud_Run-4285F4.svg)]()
 
 </div>
@@ -47,7 +47,7 @@ Unlike basic odds screens, EdgeLab implements a rigorous "veto system" where Gem
 
 - **Frontend:** React 19, TypeScript, Vite
 - **Styling:** Tailwind CSS (Dark Mode / FanDuel-inspired)
-- **AI:** Google Gemini 1.5 Pro & Flash
+- **AI:** Google Gemini 3 Flash & Pro (Preview) + Smart Fallback
 - **Data:** The Odds API (Real-time Odds), Supabase (Persistence & Sync)
 - **Charts:** Recharts
 - **Icons:** Lucide React
@@ -126,7 +126,7 @@ gcloud run deploy edgelab-v2 \
   --allow-unauthenticated
 ```
 
-**Current Production URL:** [https://edgelab-v2-vm5tbdz7ta-uc.a.run.app](https://edgelab-v2-vm5tbdz7ta-uc.a.run.app)
+**Current Production URL:** [https://edgelab-v2-92046617352.us-central1.run.app](https://edgelab-v2-92046617352.us-central1.run.app)
 
 ### Redeploy
 
