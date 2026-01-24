@@ -616,6 +616,14 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({
     setScanResults((prev) => ({ ...prev, [gameId]: result }));
   };
 
+  const clearScanResults = (gameIds: string[]) => {
+    setScanResults((prev) => {
+      const next = { ...prev };
+      gameIds.forEach((id) => delete next[id]);
+      return next;
+    });
+  };
+
   const setReferenceLine = (gameId: string, data: ReferenceLineData) => {
     setReferenceLines((prev) => ({ ...prev, [gameId]: data }));
   };
@@ -661,6 +669,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({
         setUnitSizePercent,
         scanResults,
         setScanResult,
+        clearScanResults,
         referenceLines,
         setReferenceLine,
         allSportsData,

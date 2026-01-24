@@ -38,6 +38,7 @@ export default function Scout() {
     queue,
     scanResults,
     setScanResult,
+    clearScanResults,
     referenceLines,
     setReferenceLine,
     allSportsData,
@@ -186,6 +187,32 @@ export default function Scout() {
     } finally {
       setBatchScanning(false);
       setProgressText("");
+    }
+  };
+
+  const handleResetScans = () => {
+    const gamesToReset = apiGames.filter((g) =>
+      isInTimeWindow(g.commence_time, selectedWindow),
+    );
+    if (gamesToReset.length === 0) return;
+
+    // Only reset if actually scanned
+    const idsToReset = gamesToReset
+      .filter((g) => scanResults[g.id])
+      .map((g) => g.id);
+
+    if (idsToReset.length === 0) {
+      toast.showInfo("No scans to reset in this window.");
+      return;
+    }
+
+    if (
+      window.confirm(
+        `Reset ${idsToReset.length} scans for ${getTimeWindowLabel(selectedWindow)}?`,
+      )
+    ) {
+      clearScanResults(idsToReset);
+      toast.showSuccess(`Reset ${idsToReset.length} scans.`);
     }
   };
 
@@ -414,6 +441,17 @@ export default function Scout() {
                 🔄
               </button>
             </>
+          )}
+
+          {apiGames.length > 0 && selectedWindow !== "ALL" && (
+            <button
+              onClick={handleResetScans}
+              disabled={batchScanning}
+              className="px-3 bg-ink-base text-ink-text/40 hover:text-red-400 border border-ink-gray rounded-xl font-bold shadow-sm transition-all"
+              title="Reset Scans"
+            >
+              🗑️
+            </button>
           )}
         </div>
 

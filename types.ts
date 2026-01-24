@@ -1,6 +1,6 @@
-export type Sport = 'NBA' | 'NFL' | 'NHL' | 'Other';
-export type TimeWindow = 'EARLY' | 'AFTERNOON' | 'EVENING';
-export type TimeWindowFilter = 'ALL' | TimeWindow;
+export type Sport = "NBA" | "NFL" | "NHL" | "Other";
+export type TimeWindow = "EARLY" | "AFTERNOON" | "EVENING";
+export type TimeWindowFilter = "ALL" | TimeWindow;
 
 export interface Game {
   id: string;
@@ -31,8 +31,8 @@ export interface BookLines {
   mlOddsB: string;
 }
 
-export type FactSourceType = 'NBA_INJURY_REPORT' | 'BOX_SCORE' | 'ODDS_API';
-export type FactConfidence = 'HIGH' | 'MEDIUM';
+export type FactSourceType = "NBA_INJURY_REPORT" | "BOX_SCORE" | "ODDS_API";
+export type FactConfidence = "HIGH" | "MEDIUM";
 
 export interface Fact {
   claim: string;
@@ -41,19 +41,19 @@ export interface Fact {
   source_ref?: string;
 }
 
-export type InjuryStatus = 'OUT' | 'QUESTIONABLE' | 'PROBABLE';
+export type InjuryStatus = "OUT" | "QUESTIONABLE" | "PROBABLE";
 
 export interface InjuryFact {
   team: string;
   player: string;
   status: InjuryStatus;
-  source: 'NBA_INJURY_REPORT';
+  source: "NBA_INJURY_REPORT";
 }
 
 export interface QueuedGame extends Game {
   visibleId: string;
   addedAt: number;
-  edgeSignal?: 'RED' | 'YELLOW' | 'WHITE';
+  edgeSignal?: "RED" | "YELLOW" | "WHITE";
   edgeDescription?: string;
   sharpLines?: BookLines;
   softLines: BookLines[];
@@ -64,17 +64,17 @@ export interface QueuedGame extends Game {
 }
 
 export interface AnalysisResult {
-  decision: 'PLAYABLE' | 'PASS';
+  decision: "PLAYABLE" | "PASS";
   vetoTriggered: boolean;
   vetoReason?: string;
   caution?: string; // New field for yellow card warnings (e.g., bad ML juice)
-  
+
   // Math-derived recommendation
-  recommendation?: 'BET' | 'PASS' | 'LEAN';
-  pick?: string;  // "Buffalo Sabres Moneyline"
-  recLine?: string;         // "+145" or "-6.5 (-108)"
-  recProbability?: number;  // Fair prob for this specific bet
-  
+  recommendation?: "BET" | "PASS" | "LEAN";
+  pick?: string; // "Buffalo Sabres Moneyline"
+  recLine?: string; // "+145" or "-6.5 (-108)"
+  recProbability?: number; // Fair prob for this specific bet
+
   // Line shopping data (calculated in TypeScript, not by AI)
   sharpImpliedProb?: number;
   softBestOdds?: string;
@@ -88,8 +88,8 @@ export interface AnalysisResult {
   floorReason?: string;
 
   // Pro Analysis Fields
-  publicNarrative?: string;  // The "story" the public is betting on
-  gameScript?: string;       // Expected game flow (pace, style)
+  publicNarrative?: string; // The "story" the public is betting on
+  gameScript?: string; // Expected game flow (pace, style)
 
   // AI-provided context (narrative only, no numbers)
   market?: string;
@@ -97,12 +97,12 @@ export interface AnalysisResult {
   line?: string;
   researchSummary: string; // What the AI found (injuries, rest, etc.)
   edgeNarrative?: string; // Plain English description of any situational edge. Do NOT assign percentages.
-  confidence?: 'HIGH' | 'MEDIUM' | 'LOW';
-  dataQuality?: 'STRONG' | 'PARTIAL' | 'WEAK';
+  confidence?: "HIGH" | "MEDIUM" | "LOW";
+  dataQuality?: "STRONG" | "PARTIAL" | "WEAK";
   factsUsed?: Fact[];
   narrativeAnalysis?: string;
   injuries?: InjuryFact[];
-  factConfidence?: 'HIGH' | 'MEDIUM' | 'LOW';
+  factConfidence?: "HIGH" | "MEDIUM" | "LOW";
   dominanceRatio?: number;
 
   // Stoic Handicapper fields
@@ -111,7 +111,7 @@ export interface AnalysisResult {
   trueProbability?: number;
   impliedProbability?: number;
   edge?: number;
-  wagerType?: 'Moneyline' | 'Spread' | 'Total';
+  wagerType?: "Moneyline" | "Spread" | "Total";
 }
 
 export type HighHitAnalysis = AnalysisResult;
@@ -129,7 +129,7 @@ export interface SportsbookAccount {
 }
 
 export interface ScanResult {
-  signal: 'RED' | 'YELLOW' | 'WHITE';
+  signal: "RED" | "YELLOW" | "WHITE";
   description: string;
 }
 
@@ -152,15 +152,19 @@ export interface AnalysisState {
   removeFromQueue: (gameId: string) => void;
   updateGame: (gameId: string, updates: Partial<QueuedGame>) => void;
   addSoftLines: (gameId: string, lines: BookLines) => void;
-  updateSoftLineBook: (gameId: string, index: number, newBookName: string) => void;
+  updateSoftLineBook: (
+    gameId: string,
+    index: number,
+    newBookName: string,
+  ) => void;
   setSharpLines: (gameId: string, lines: BookLines) => void;
-  
+
   // v2.1 New State
   dailyPlays: DailyPlayTracker;
   getPlayableCount: () => number;
   canAddMorePlays: () => boolean;
   markAsPlayed: (gameId: string) => void;
-  
+
   // UPDATED: Smart auto-pick returns stats about what was picked
   autoPickBestGames: (window?: TimeWindowFilter) => AutoPickResult;
 
@@ -184,6 +188,7 @@ export interface AnalysisState {
   // Scan & Reference Data
   scanResults: Record<string, ScanResult>;
   setScanResult: (gameId: string, result: ScanResult) => void;
+  clearScanResults: (gameIds: string[]) => void;
   referenceLines: Record<string, ReferenceLineData>;
   setReferenceLine: (gameId: string, data: ReferenceLineData) => void;
 
@@ -192,8 +197,8 @@ export interface AnalysisState {
   loadSlates: (data: Record<string, any[]>) => void;
 
   // v2.4 Sync Status
-  syncStatus: 'idle' | 'saving' | 'saved' | 'error';
-  
+  syncStatus: "idle" | "saving" | "saved" | "error";
+
   // v2.5 User Identity
   userId: string;
   setUserId: (id: string) => void;
@@ -205,29 +210,29 @@ export interface AnalysisState {
 // --- ProBet Tracker Types ---
 
 export enum BetStatus {
-  PENDING = 'PENDING',
-  WON = 'WON',
-  LOST = 'LOST',
-  PUSH = 'PUSH',
+  PENDING = "PENDING",
+  WON = "WON",
+  LOST = "LOST",
+  PUSH = "PUSH",
 }
 
 export enum Sportsbook {
-  DRAFTKINGS = 'DraftKings',
-  FANDUEL = 'FanDuel',
-  BETMGM = 'BetMGM',
-  CAESARS = 'Caesars',
-  BET365 = 'Bet365',
-  POINTSBET = 'PointsBet',
-  THESCOREBET = 'theScore Bet',
-  FLIFF = 'Fliff',
-  FANATICS = 'Fanatics',
-  PRIZEPICKS = 'PrizePicks',
-  UNDERDOG = 'Underdog Fantasy',
-  DRAFTERS = 'Drafters',
-  BETR = 'Betr',
-  BOVADA = 'Bovada',
-  BETONLINE = 'BetOnline',
-  OTHER = 'Other',
+  DRAFTKINGS = "DraftKings",
+  FANDUEL = "FanDuel",
+  BETMGM = "BetMGM",
+  CAESARS = "Caesars",
+  BET365 = "Bet365",
+  POINTSBET = "PointsBet",
+  THESCOREBET = "theScore Bet",
+  FLIFF = "Fliff",
+  FANATICS = "Fanatics",
+  PRIZEPICKS = "PrizePicks",
+  UNDERDOG = "Underdog Fantasy",
+  DRAFTERS = "Drafters",
+  BETR = "Betr",
+  BOVADA = "Bovada",
+  BETONLINE = "BetOnline",
+  OTHER = "Other",
 }
 
 export interface Bet {
@@ -275,8 +280,19 @@ export interface AdvancedStats {
   last10: BetStatus[];
   hottestSport: { name: string; profit: number; record: string } | null;
   coldestSport: { name: string; profit: number; record: string } | null;
-  bookPerformance: { name: string; profit: number; wins: number; losses: number; winRate: number }[];
-  teamPerformance: { name: string; profit: number; wins: number; losses: number }[];
+  bookPerformance: {
+    name: string;
+    profit: number;
+    wins: number;
+    losses: number;
+    winRate: number;
+  }[];
+  teamPerformance: {
+    name: string;
+    profit: number;
+    wins: number;
+    losses: number;
+  }[];
 }
 
 export interface BankrollHistoryPoint {
@@ -289,7 +305,7 @@ export interface GameScore {
   id: string;
   date: string; // YYYY-MM-DD
   sport: string; // e.g. "NFL", "NBA"
-  status: 'SCHEDULED' | 'IN_PROGRESS' | 'FINAL' | 'POSTPONED';
+  status: "SCHEDULED" | "IN_PROGRESS" | "FINAL" | "POSTPONED";
   clock: string; // e.g. "Q4 2:30" or "Final"
   period: number;
   homeTeam: string; // Abbreviation e.g. "LAL"
@@ -298,7 +314,7 @@ export interface GameScore {
   awayTeam: string; // Abbreviation e.g. "BOS"
   awayTeamName: string; // Mascot e.g. "Celtics"
   awayScore: number;
-  winner?: 'home' | 'away';
+  winner?: "home" | "away";
 }
 
 export type ScoreMap = Record<string, GameScore[]>; // Key is YYYY-MM-DD
