@@ -465,19 +465,23 @@ export const extractLinesFromScreenshot = async (
   const ai = getAiClient();
   const base64 = await fileToBase64(file);
 
-  const response = await generateWithFallback(ai, ["gemini-2.0-flash-exp"], {
-    contents: {
-      parts: [
-        { text: EXTRACTION_PROMPT },
-        { inlineData: { data: base64, mimeType: file.type } },
-      ],
+  const response = await generateWithFallback(
+    ai,
+    ["gemini-3-flash-preview", "gemini-2.0-flash-exp"],
+    {
+      contents: {
+        parts: [
+          { text: EXTRACTION_PROMPT },
+          { inlineData: { data: base64, mimeType: file.type } },
+        ],
+      },
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: bookLinesSchema,
+        temperature: 0.1,
+      },
     },
-    config: {
-      responseMimeType: "application/json",
-      responseSchema: bookLinesSchema,
-      temperature: 0.1,
-    },
-  });
+  );
 
   const fallback: BookLines = {
     bookName: "Unknown",
