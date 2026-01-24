@@ -24,16 +24,19 @@ Unlike basic odds screens, EdgeLab implements a rigorous "veto system" where Gem
 ## ✨ Key Features
 
 ### 🧠 Intelligent Analysis
+
 - **Stoic Handicapper:** AI agent that enforces strict discipline, rejecting plays with weak edges (<3%) or low confidence.
 - **Line Shopping:** Real-time comparison of "Sharp" (Pinnacle) vs. "Soft" bookmakers to find pricing inefficiencies.
 - **Narrative Audits:** Cross-references betting angles against injury reports and news to prevent "trap" bets.
 
 ### 💰 Professional Bankroll Management
+
 - **Smart Staking:** Automatically calculates unit sizes (1-5%) based on Kelly Criterion principles and edge strength.
 - **Dynamic Allocation:** Tracks available funds across multiple sportsbooks and recommends the best funded book for each line.
 - **P&L Visualization:** Interactive charts and dashboards to track ROI, win rates, and profit trends over time.
 
 ### ⚡ Workflow Efficiency
+
 - **The Queue:** A Kanban-style workflow for managing potential plays from discovery to execution.
 - **Scout:** Rapidly scan entire slates for line movements and injury alerts.
 - **Card:** A daily "Battle Plan" generated from your approved queue, ready for execution.
@@ -42,42 +45,47 @@ Unlike basic odds screens, EdgeLab implements a rigorous "veto system" where Gem
 
 ## 🛠 Tech Stack
 
-*   **Frontend:** React 19, TypeScript, Vite
-*   **Styling:** Tailwind CSS (Dark Mode / FanDuel-inspired)
-*   **AI:** Google Gemini 1.5 Pro & Flash
-*   **Data:** The Odds API (Real-time Odds), Supabase (Persistence & Sync)
-*   **Charts:** Recharts
-*   **Icons:** Lucide React
+- **Frontend:** React 19, TypeScript, Vite
+- **Styling:** Tailwind CSS (Dark Mode / FanDuel-inspired)
+- **AI:** Google Gemini 1.5 Pro & Flash
+- **Data:** The Odds API (Real-time Odds), Supabase (Persistence & Sync)
+- **Charts:** Recharts
+- **Icons:** Lucide React
 
 ---
 
 ## 🚀 Local Development
 
 ### Prerequisites
-*   Node.js 20+
-*   npm
-*   Supabase Project (for database)
+
+- Node.js 20+
+- npm
+- Supabase Project (for database)
 
 ### Installation
 
 1.  **Clone the repository:**
+
     ```bash
     git clone https://github.com/SlumBreeze/EdgeLab.git
     cd edgelab
     ```
 
 2.  **Install dependencies:**
+
     ```bash
     npm install
     ```
 
 3.  **Configure Environment:**
     Create a `.env` file in the root directory:
+
     ```bash
     cp .env.example .env
     ```
-    
+
     Populate it with your keys:
+
     ```env
     VITE_GEMINI_API_KEY=your_gemini_key
     VITE_ODDS_API_KEY=your_odds_api_key
@@ -97,6 +105,7 @@ Unlike basic odds screens, EdgeLab implements a rigorous "veto system" where Gem
 This project is optimized for **Google Cloud Run** using a Dockerized build process.
 
 ### 1. Build Container
+
 The build process bakes your environment variables into the static frontend assets. You must provide your keys as substitutions.
 
 ```bash
@@ -106,6 +115,7 @@ gcloud builds submit --config cloudbuild.yaml \
 ```
 
 ### 2. Deploy Service
+
 Deploy the built container to a Cloud Run service (e.g., `edgelab-v2`).
 
 ```bash
@@ -118,8 +128,15 @@ gcloud run deploy edgelab-v2 \
 
 **Current Production URL:** [https://edgelab-v2-vm5tbdz7ta-uc.a.run.app](https://edgelab-v2-vm5tbdz7ta-uc.a.run.app)
 
-### Redeploy (same service)
-To redeploy the existing `edgelab-v2` service (not create a new one), run the Cloud Build and then deploy to the same service name:
+### Redeploy
+
+The easiest way to redeploy is using the automated script:
+
+```bash
+npm run deploy
+```
+
+Alternatively, you can run the manual commands:
 
 ```bash
 gcloud builds submit --config cloudbuild.yaml \
