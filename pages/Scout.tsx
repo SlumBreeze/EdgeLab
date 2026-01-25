@@ -378,7 +378,7 @@ export default function Scout() {
   return (
     <div className="h-full flex flex-col">
       {/* Fixed Header Section */}
-      <div className="shrink-0 p-4 pb-2 max-w-lg mx-auto w-full">
+      <div className="shrink-0 p-4 pb-2 max-w-7xl mx-auto w-full">
         <h1 className="text-2xl font-bold text-ink-text mb-4">EdgeLab Scout</h1>
 
         {/* Sport Selector */}
@@ -502,7 +502,7 @@ export default function Scout() {
 
       {/* Scrollable List */}
       <div className="flex-1 overflow-y-auto min-h-0 relative">
-        <div className="p-4 pt-2 max-w-lg mx-auto space-y-3 pb-24">
+        <div className="p-4 pt-2 max-w-7xl mx-auto pb-24">
           {loading ? (
             <div className="text-center py-10 text-ink-text/60">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-ink-accent mx-auto mb-3"></div>
@@ -513,39 +513,41 @@ export default function Scout() {
               No {selectedSport} games found for {selectedDate}.
             </div>
           ) : (
-            sortedGames.map((game) => {
-              const pinnLines = getBookmakerLines(game, "pinnacle");
-              const ref = referenceLines[game.id];
-              const movement =
-                pinnLines && ref
-                  ? getMovementAnalysis(
-                      pinnLines.spreadLineA,
-                      ref.spreadLineA,
-                      game.home_team,
-                      game.away_team,
-                    )
-                  : null;
-              const scan = scanResults[game.id];
-              const isScanning = scanningIds.has(game.id);
-              const inQueue = isInQueue(game.id);
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {sortedGames.map((game) => {
+                const pinnLines = getBookmakerLines(game, "pinnacle");
+                const ref = referenceLines[game.id];
+                const movement =
+                  pinnLines && ref
+                    ? getMovementAnalysis(
+                        pinnLines.spreadLineA,
+                        ref.spreadLineA,
+                        game.home_team,
+                        game.away_team,
+                      )
+                    : null;
+                const scan = scanResults[game.id];
+                const isScanning = scanningIds.has(game.id);
+                const inQueue = isInQueue(game.id);
 
-              return (
-                <ScoutGameCard
-                  key={game.id}
-                  game={game}
-                  pinnLines={pinnLines}
-                  referenceLines={ref}
-                  scanResult={scan}
-                  isScanning={isScanning}
-                  isBatchScanning={batchScanning}
-                  inQueue={inQueue}
-                  movement={movement}
-                  onQuickScan={handleQuickScan}
-                  onAddToQueue={handleAddToQueue}
-                  mapToGameObject={mapToGameObject}
-                />
-              );
-            })
+                return (
+                  <ScoutGameCard
+                    key={game.id}
+                    game={game}
+                    pinnLines={pinnLines}
+                    referenceLines={ref}
+                    scanResult={scan}
+                    isScanning={isScanning}
+                    isBatchScanning={batchScanning}
+                    inQueue={inQueue}
+                    movement={movement}
+                    onQuickScan={handleQuickScan}
+                    onAddToQueue={handleAddToQueue}
+                    mapToGameObject={mapToGameObject}
+                  />
+                );
+              })}
+            </div>
           )}
         </div>
       </div>

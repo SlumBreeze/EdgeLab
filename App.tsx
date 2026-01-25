@@ -90,7 +90,7 @@ const AppContent: React.FC = () => {
   const handleBetAdded = async (bet: Bet) => {
     // Persist to Supabase via unified hook
     await addBet(bet);
-    setActiveTab("tracker");
+    setActiveTab("card"); // Return to Card page after logging bet
     setDraftBet(null);
   };
 
