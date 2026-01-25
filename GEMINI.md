@@ -13,7 +13,7 @@ The application functions as an "operating system" for handicappers, enforcing d
 - **State Management:** React Context + Hooks
 - **AI/LLM:** Google Gemini 3 Flash & Pro (Preview) + Fallback to 2.0/1.5
 - **Data Source:** The Odds API (Real-time odds), ESPN (via internal service)
-- **Persistence:** Supabase (PostgreSQL)
+- **Persistence:** Supabase (PostgreSQL) + Row Level Security (RLS)
 - **Deployment:** Google Cloud Run (Dockerized)
 
 ## 📂 Architecture & Directory Structure
@@ -22,18 +22,20 @@ The application functions as an "operating system" for handicappers, enforcing d
 EdgeLab/
 ├── components/          # Reusable UI components
 │   ├── tracker/         # Analytics & Bankroll components
+│   ├── AuthContext.tsx  # Authentication Provider (Google OAuth)
 │   └── ...              # Core UI (Cards, Modals, Toasts)
 ├── pages/               # Main application views
 │   ├── Scout.tsx        # Rapid scanning of slates & line movements
 │   ├── Queue.tsx        # Deep analysis & AI Veto workflow
 │   ├── Card.tsx         # Daily "Battle Plan" (approved bets)
-│   └── Tracker.tsx      # Bankroll management & history
+│   ├── Tracker.tsx      # Bankroll management & history
+│   └── TrackerNewBet.tsx# Manual/Scanned bet entry
 ├── services/            # External API integrations
 │   ├── geminiService.ts # AI logic (Prompt engineering, Veto system)
 │   ├── oddsService.ts   # Market data fetching & normalization
 │   └── supabaseClient.ts# Database connection
 ├── hooks/               # Custom React Hooks
-│   ├── useBankroll.ts   # State logic for funds/bet tracking
+│   ├── useBankroll.ts   # State logic for funds/bet tracking (Auth-aware)
 │   └── useGameContext.tsx # Global game data state
 ├── utils/               # Core business logic
 │   ├── calculations.ts  # Kelly Criterion & EV math
@@ -56,15 +58,18 @@ A multi-stage validation process for every potential bet:
 
 The app compares odds from **Pinnacle** (The "Sharp" book, representing market truth) against **Soft** books (DraftKings, FanDuel, etc.) to calculate the true mathematical edge.
 
-### 3. Bankroll Management
+### 3. Bankroll Management & Tracking
 
-Implements **Kelly Criterion** principles to automatically calculate unit sizes (1-5%) based on the strength of the edge and the user's current bankroll.
+- **Kelly Criterion:** Automatically calculates unit sizes (1-5%) based on the strength of the edge.
+- **Bet Logging:** Users can log bets manually or via **Image Recognition** (scanning slip screenshots).
+- **Performance:** Tracks ROI, Closing Line Value (CLV), and historical performance.
 
-### 4. Reliability & Sync
+### 4. Authentication & Data Security (Critical)
 
-- **Smart Fallback:** AI calls attempt Gemini 3 models first, automatically degrading to 2.0/1.5 if overloaded (503).
-- **Split Sync:** Heavy data (Slates) syncs separately from light data (Queue/Bets) to prevent network timeouts.
-- **Scan Reset:** Users can clear stuck scan results for specific time windows.
+- **Auth Provider:** Google OAuth via Supabase.
+- **Row Level Security (RLS):** Enabled on all tables (`bets`, `book_balances`, `daily_slates`).
+- **Development Rule:** All database writes (INSERT/UPDATE) **MUST** include the `user_id` field.
+- **Access Pattern:** Use the `useAuth()` hook to retrieve the current user's ID before performing any DB operations in hooks or services.
 
 ## 💻 Development & Commands
 
@@ -87,16 +92,6 @@ npm run dev
 
 # Build for Production
 npm run build
-
-# Preview Production Build
-npm run preview
-```
-
-### Docker / Cloud Build
-
-```bash
-# Submit build to Google Cloud
-gcloud builds submit --config cloudbuild.yaml
 ```
 
 ## 📝 Conventions & Standards
@@ -104,6 +99,7 @@ gcloud builds submit --config cloudbuild.yaml
 - **TypeScript:** Strict mode enabled. Define interfaces in `types/` or co-located if specific.
 - **Components:** Functional components with named exports.
 - **Async Logic:** All external calls (AI, Odds, DB) must be handled in `services/` and wrapped in `try/catch`.
+- **Database Operations:** Always handle RLS errors gracefully. If `user_id` is missing, the operation will fail silently or throw a policy violation.
 - **Styling:** Use Tailwind utility classes. Avoid inline styles.
 - **AI Prompts:** Located in `services/geminiService.ts`. When modifying prompts, ensure the JSON output structure remains consistent.
 

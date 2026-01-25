@@ -26,6 +26,7 @@ Unlike basic odds screens, EdgeLab implements a rigorous "veto system" where Gem
 ### 🧠 Intelligent Analysis
 
 - **Stoic Handicapper:** AI agent that enforces strict discipline, rejecting plays with weak edges (<3%) or low confidence.
+- **Bet Slip Scanning:** Upload screenshots of your betting slips; Gemini 3 Flash extracts the data (Odds, Pick, Wager) automatically.
 - **Line Shopping:** Real-time comparison of "Sharp" (Pinnacle) vs. "Soft" bookmakers to find pricing inefficiencies.
 - **Narrative Audits:** Cross-references betting angles against injury reports and news to prevent "trap" bets.
 
