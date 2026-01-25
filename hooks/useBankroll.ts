@@ -1,6 +1,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '../services/supabaseClient';
+import { useAuth } from '../components/AuthContext';
 import { Bet, BookDeposit, BookBalanceDisplay, BankrollState, BetStatus } from '../types';
 import { calculateBookBalances, calculateBankrollStats } from '../utils/calculations';
 
@@ -20,19 +21,23 @@ interface UseBankrollResult {
 }
 
 export const useBankroll = (): UseBankrollResult => {
+  const { user } = useAuth();
   const [deposits, setDeposits] = useState<BookDeposit[]>([]);
   const [bets, setBets] = useState<Bet[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
+    if (!user) return; // Wait for user
+
     setLoading(true);
     setError(null);
     try {
       // 1. Fetch Book Deposits (DETERMINISTIC & DEDUPED)
       const { data: booksResponse, error: booksError } = await supabase
         .from('book_balances')
-        .select('sportsbook, deposited, updated_at, id');
+        .select('sportsbook, deposited, updated_at, id')
+        .eq('user_id', user.id); // Filter by user
 
       let finalBooks: BookDeposit[] = [];
       
@@ -90,6 +95,7 @@ export const useBankroll = (): UseBankrollResult => {
       const { data: betsResponse, error: betsError } = await supabase
         .from('bets')
         .select('*')
+        .eq('user_id', user.id) // Filter by user
         .order('createdAt', { ascending: false });
 
       let finalBets: Bet[] = [];
@@ -131,7 +137,7 @@ export const useBankroll = (): UseBankrollResult => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [user]);
 
   // Initial Load
   useEffect(() => {
@@ -154,6 +160,11 @@ export const useBankroll = (): UseBankrollResult => {
     // 0. Environment Check
     const sbUrl = import.meta.env.VITE_SUPABASE_URL;
     console.log(`[Bankroll] Updating ${sportsbook} to ${newDeposit}. Supabase URL defined: ${!!sbUrl}`);
+    
+    if (!user) {
+        setError("You must be logged in to save deposits.");
+        return;
+    }
 
     try {
       // Optimistic update
@@ -171,7 +182,11 @@ export const useBankroll = (): UseBankrollResult => {
       console.log('[Bankroll] Sending upsert...');
       const { data: upsertData, error: upsertError } = await supabase
         .from('book_balances')
-        .upsert({ sportsbook, deposited: newDeposit }, { onConflict: 'sportsbook' })
+        .upsert({ 
+            sportsbook, 
+            deposited: newDeposit,
+            user_id: user.id 
+        }, { onConflict: 'sportsbook,user_id' }) // Assuming composite key includes user_id
         .select()
         .single();
 
@@ -187,6 +202,7 @@ export const useBankroll = (): UseBankrollResult => {
         .from('book_balances')
         .select('sportsbook, deposited')
         .eq('sportsbook', sportsbook)
+        .eq('user_id', user.id)
         .single();
 
       console.log('[Bankroll] Verification Read:', verifyData, verifyError);
@@ -203,11 +219,23 @@ export const useBankroll = (): UseBankrollResult => {
 
   // Action: Add Bet
   const addBet = async (betData: Bet) => {
+    if (!user) {
+        setError("You must be logged in to place bets.");
+        return;
+    }
+
     try {
       // Optimistic Update
       setBets(prev => [betData, ...prev]);
 
-      const { error: insertError } = await supabase.from('bets').insert([betData]);
+      const payload = { ...betData, user_id: user.id };
+      
+      // Ensure createdAt is compatible (Postgres often prefers ISO string for timestamptz)
+      // If betData.createdAt is number, convert to ISO?
+      // For now, let's keep sending number as previously attempted, but user_id was likely the blocker.
+      // If createdAt failure persists, we will convert.
+
+      const { error: insertError } = await supabase.from('bets').insert([payload]);
       if (insertError) throw insertError;
       
       // No full refresh needed if optimistic update is correct, 

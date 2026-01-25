@@ -248,6 +248,7 @@ export interface Bet {
   status: BetStatus;
   createdAt: number;
   tags?: string[];
+  user_id?: string;
 }
 
 export interface BookDeposit {
