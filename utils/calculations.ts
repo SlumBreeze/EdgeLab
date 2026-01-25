@@ -321,6 +321,24 @@ export const formatBetPickDisplay = (pick: string, matchup?: string): string => 
     }
   }
 
+  if (home && away && /\b(moneyline|ml)\b/i.test(rawPick)) {
+    const rawLower = rawPick.toLowerCase();
+    const homeLower = home.toLowerCase();
+    const awayLower = away.toLowerCase();
+    const mlMatch = rawLower.match(/\b(moneyline|ml)\b/);
+    const mlIndex = mlMatch?.index ?? -1;
+    if (mlIndex >= 0) {
+      const homeIndex = rawLower.lastIndexOf(homeLower, mlIndex);
+      const awayIndex = rawLower.lastIndexOf(awayLower, mlIndex);
+      const chosenTeam =
+        homeIndex > awayIndex ? home : awayIndex > -1 ? away : homeIndex > -1 ? home : null;
+      if (chosenTeam) {
+        const label = /\bml\b/i.test(rawPick) && !/\bmoneyline\b/i.test(rawPick) ? "ML" : "Moneyline";
+        return `${chosenTeam} ${label}`.trim();
+      }
+    }
+  }
+
   return rawPick;
 };
 

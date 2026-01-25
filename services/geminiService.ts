@@ -313,6 +313,7 @@ interface SideValue {
   lineValue: number;
   priceValue: number;
   hasPositiveValue: boolean;
+  booksWithEdge: number;
 }
 
 const analyzeAllSides = (
@@ -335,6 +336,7 @@ const analyzeAllSides = (
     let bestOdds = "";
     let bestLineValue = 0;
     let bestPriceValue = 0;
+    let booksWithEdge = 0;
 
     softLines.forEach((soft) => {
       const softLine = getSoftLine(soft);
@@ -350,6 +352,15 @@ const analyzeAllSides = (
       const priceValue = calculateJuiceDiff(sharpOdds, softOdds);
 
       if (Math.abs(priceValue) > 50) return;
+
+      const hasEdge =
+        market === "Spread"
+          ? lineValue > 0 || (lineValue === 0 && priceValue > 0)
+          : priceValue > 0;
+
+      if (hasEdge) {
+        booksWithEdge++;
+      }
 
       // Prioritize points over juice for spreads
       const totalValue =
@@ -382,6 +393,7 @@ const analyzeAllSides = (
         lineValue: bestLineValue,
         priceValue: bestPriceValue,
         hasPositiveValue,
+        booksWithEdge,
       });
     }
   };
@@ -647,6 +659,22 @@ export const analyzeGame = async (game: GameData): Promise<AnalysisResult> => {
     };
   }
 
+  if (best.booksWithEdge < 2) {
+    return {
+      decision: "PASS",
+      vetoTriggered: true,
+      vetoReason: "MARKET_MATURITY: Only one book shows this edge. Potential stale line.",
+      recommendation: "PASS",
+      reasoning: "Consensus not met (Single book edge).",
+      researchSummary: "Consensus not met (Single book edge).",
+      confidenceScore: 0,
+      trueProbability: best.trueProbability,
+      impliedProbability: best.impliedProbability,
+      edge: best.edge,
+      wagerType: best.market,
+    };
+  }
+
   const refLines = getReferenceLines(game.id);
   const lineMovement =
     refLines && best.market === "Spread"
@@ -842,6 +870,18 @@ export const refreshAnalysisMathOnly = (game: QueuedGame): HighHitAnalysis => {
       decision: "PASS",
       vetoTriggered: true,
       vetoReason: "LINE_MOVED: No longer positive value.",
+      sharpImpliedProb,
+      lineValueCents: 0,
+      lineValuePoints: 0,
+    };
+  }
+
+  if (selectedSide.booksWithEdge < 2) {
+    return {
+      ...prior,
+      decision: "PASS",
+      vetoTriggered: true,
+      vetoReason: "MARKET_MATURITY: Consensus lost. Potential stale line.",
       sharpImpliedProb,
       lineValueCents: 0,
       lineValuePoints: 0,
