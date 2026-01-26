@@ -283,7 +283,7 @@ export const BetList: React.FC<BetListProps> = ({
               <thead>
                 <tr className="bg-ink-base border-b border-ink-gray text-xs uppercase text-ink-text/40 font-semibold tracking-wider">
                   <th className="px-5 py-3 w-1/3 md:w-auto">Matchup / Pick</th>
-                  <th className="px-4 py-3 hidden xl:table-cell w-32">Score</th>
+                  <th className="px-4 py-3 hidden lg:table-cell w-32">Score</th>
                   <th className="px-4 py-3 hidden sm:table-cell w-28">
                     Sportsbook
                   </th>
@@ -482,7 +482,7 @@ export const BetList: React.FC<BetListProps> = ({
                                     </div>
                                   </div>
                                 </td>
-                                <td className="px-4 py-2 align-top hidden xl:table-cell vertical-middle">
+                                <td className="px-4 py-2 align-top hidden lg:table-cell vertical-middle">
                                   {renderScore(bet)}
                                 </td>
                                 <td className="px-4 py-2 align-top hidden sm:table-cell">
