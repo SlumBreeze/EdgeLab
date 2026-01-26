@@ -23,7 +23,7 @@ NON-NEGOTIABLE RULES:
 STRATEGIES:
 - Fade the Public: If >80% of public bets are on one side and the line moves the opposite way, call it "Reverse Line Movement."
 - Market Overreaction: Detect recency bias (e.g., a blowout last game) and avoid overreacting.
-- Discipline: If edge <= 0%, recommendation must be PASS.
+- Discipline: If edge < 1.5%, recommendation must be PASS. Between 1.5% and 2.5% is LEAN. Only > 2.5% is BET.
 
 OUTPUT:
 Return strict JSON with:
@@ -643,14 +643,14 @@ export const analyzeGame = async (game: GameData): Promise<AnalysisResult> => {
   });
 
   const best = candidates.sort((a, b) => b.edge - a.edge)[0];
-  if (!best || best.edge <= 0) {
+  if (!best || best.edge < 1.5) {
     return {
       decision: "PASS",
       vetoTriggered: true,
-      vetoReason: "NO_EDGE: No positive EV.",
+      vetoReason: "NO_EDGE: Edge < 1.5%.",
       recommendation: "PASS",
-      reasoning: "Edge <= 0%.",
-      researchSummary: "Edge <= 0%.",
+      reasoning: "Edge < 1.5%.",
+      researchSummary: "Edge < 1.5%.",
       confidenceScore: 0,
       trueProbability: best?.trueProbability ?? 0,
       impliedProbability: best?.impliedProbability ?? 0,
@@ -785,10 +785,22 @@ Return JSON only.
   const confidenceScore = clampConfidence(analysis.confidence);
   const reasoning = trimToTwoSentences(analysis.reasoning || "");
 
+  // Strict Discipline:
+  // Edge < 1.5% -> PASS (Filtered above, but safety check)
+  // Edge 1.5% - 2.5% -> LEAN
+  // Edge >= 2.5% -> BET (if AI agrees)
+
+  let calculatedRec = "PASS";
+  if (best.edge >= 2.5) {
+    calculatedRec = normalizedRec; // Trust AI if edge is strong
+  } else if (best.edge >= 1.5) {
+    calculatedRec = "LEAN"; // Force LEAN for marginal edges
+  }
+
   const finalRecommendation =
-    best.edge <= 0 || normalizedWagerType !== best.market
+    best.edge < 1.5 || normalizedWagerType !== best.market
       ? "PASS"
-      : normalizedRec;
+      : calculatedRec;
 
   const decision = finalRecommendation === "BET" ? "PLAYABLE" : "PASS";
 
@@ -864,16 +876,25 @@ export const refreshAnalysisMathOnly = (game: QueuedGame): HighHitAnalysis => {
 
   let sharpImpliedProb = prior.sharpImpliedProb ?? 50;
 
-  if (!selectedSide || !selectedSide.hasPositiveValue) {
-    return {
-      ...prior,
-      decision: "PASS",
-      vetoTriggered: true,
-      vetoReason: "LINE_MOVED: No longer positive value.",
-      sharpImpliedProb,
-      lineValueCents: 0,
-      lineValuePoints: 0,
-    };
+  if (!selectedSide || !selectedSide.hasPositiveValue || selectedSide.lineValue < 0) {
+    // If edge is negative or very small (< 1.5 logic applies implicitly via lineValue check below? No, need explicit check)
+    // Actually, calculateLineDiff returns points. We need percent edge.
+    // Re-calculate edge here to be safe.
+    const trueProb = getTrueProbability(selectedSide.market, selectedSide.side, game.sharpLines);
+    const impliedProb = americanToImpliedProb(selectedSide.bestSoftOdds);
+    const currentEdge = trueProb - impliedProb;
+
+    if (currentEdge < 1.5) {
+      return {
+        ...prior,
+        decision: "PASS",
+        vetoTriggered: true,
+        vetoReason: "LINE_MOVED: Edge dropped below 1.5%.",
+        sharpImpliedProb,
+        lineValueCents: 0,
+        lineValuePoints: 0,
+      };
+    }
   }
 
   if (selectedSide.booksWithEdge < 2) {
