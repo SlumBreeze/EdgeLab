@@ -44,7 +44,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({
   const {
     bookBalances,
     totalBankroll: hookTotalBankroll,
-    updateBookDeposit,
+    updateBookBalance,
     addBet,
     updateBetStatus,
     updateBet,
@@ -71,19 +71,20 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({
   // Compatibility Layer: updateBankroll wrapper
   const updateBankrollCompat = async (bookName: string, balance: number) => {
     // In legacy, we set balance directly. In new system, we update deposit.
-    // New Balance = Deposited + Profit
-    // We want to set New Balance. So we need to calculate implied New Deposit.
-    // New Deposit = New Balance - Profit
-    // Profit = Current Balance - Deposited
+    // New Balance = Deposited - Withdrawn + Profit
+    // We want to set New Balance.
+    // Delta = NewBalance - CurrentBalance
+    // NewDeposited = Deposited + Delta
 
     const account = bookBalances.find((b) => b.sportsbook === bookName);
     if (account) {
-      const currentProfit = account.currentBalance - account.deposited;
-      const newDeposit = balance - currentProfit;
-      await updateBookDeposit(bookName, newDeposit);
+      const delta = balance - account.currentBalance;
+      const newDeposit = account.deposited + delta;
+      // We only update deposit, leaving withdrawals as is for this legacy compat
+      await updateBookBalance(bookName, { deposited: newDeposit });
     } else {
-      // If not found (rare), assume 0 profit
-      await updateBookDeposit(bookName, balance);
+      // If not found, assume 0 profit/withdrawn
+      await updateBookBalance(bookName, { deposited: balance });
     }
   };
 
@@ -656,7 +657,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({
         updateBankroll: updateBankrollCompat,
         totalBankroll: hookTotalBankroll,
         bookBalances,
-        updateBookDeposit,
+        updateBookBalance,
         bets,
         bankrollState,
         bankrollLoading,

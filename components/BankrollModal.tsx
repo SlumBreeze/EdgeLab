@@ -18,11 +18,7 @@ export const BankrollModal: React.FC<Props> = ({ isOpen, onClose }) => {
   const { 
     bookBalances, 
     totalBankroll, 
-    updateBookDeposit,
-    unitSizePercent,
-    setUnitSizePercent,
-    userId,
-    setUserId
+    updateBookBalance
   } = useGameContext();
 
   // NOTE: TrackerBankrollModal currently only handles book balances.
@@ -35,7 +31,7 @@ export const BankrollModal: React.FC<Props> = ({ isOpen, onClose }) => {
       onClose={onClose}
       bookBalances={bookBalances}
       totalBankroll={totalBankroll}
-      onUpdateBookDeposit={updateBookDeposit}
+      onUpdateBookBalance={updateBookBalance}
     />
   );
 };

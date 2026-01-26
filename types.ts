@@ -175,7 +175,10 @@ export interface AnalysisState {
   unitSizePercent: number; // e.g., 1 (1%) or 2 (2%)
   setUnitSizePercent: (pct: number) => void;
   bookBalances: BookBalanceDisplay[];
-  updateBookDeposit: (sportsbook: string, newDeposit: number) => void;
+  updateBookBalance: (
+    sportsbook: string,
+    updates: { deposited?: number; withdrawn?: number },
+  ) => void;
   bets: Bet[];
   bankrollState: BankrollState;
   bankrollLoading: boolean;
@@ -254,11 +257,13 @@ export interface Bet {
 export interface BookDeposit {
   sportsbook: string;
   deposited: number;
+  withdrawn: number;
 }
 
 export interface BookBalanceDisplay {
   sportsbook: string;
   deposited: number;
+  withdrawn: number;
   currentBalance: number;
 }
 

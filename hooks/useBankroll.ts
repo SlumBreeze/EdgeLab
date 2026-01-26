@@ -1,9 +1,18 @@
-
-import { useState, useEffect, useMemo, useCallback } from 'react';
-import { supabase } from '../services/supabaseClient';
-import { useAuth } from '../components/AuthContext';
-import { Bet, BookDeposit, BookBalanceDisplay, BankrollState, BetStatus } from '../types';
-import { calculateBookBalances, calculateBankrollStats } from '../utils/calculations';
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { supabase } from "../services/supabaseClient";
+import { useAuth } from "../components/AuthContext";
+import {
+  Bet,
+  BookDeposit,
+  BookBalanceDisplay,
+  BankrollState,
+  BetStatus,
+} from "../types";
+import {
+  calculateBookBalances,
+  calculateBankrollStats,
+} from "../utils/calculations";
+import { SPORTSBOOKS } from "../constants";
 
 interface UseBankrollResult {
   bets: Bet[];
@@ -13,7 +22,10 @@ interface UseBankrollResult {
   loading: boolean;
   error: string | null;
   refresh: () => Promise<void>;
-  updateBookDeposit: (sportsbook: string, newDeposit: number) => Promise<void>;
+  updateBookBalance: (
+    sportsbook: string,
+    updates: { deposited?: number; withdrawn?: number },
+  ) => Promise<void>;
   addBet: (betData: Bet) => Promise<void>;
   updateBetStatus: (id: string, status: BetStatus) => Promise<void>;
   updateBet: (updatedBet: Bet) => Promise<void>;
@@ -27,6 +39,20 @@ export const useBankroll = (): UseBankrollResult => {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
+  const normalizeSportsbook = (value?: string) => {
+    if (!value) return value || "";
+    const raw = value.trim();
+    if (!raw) return raw;
+    const lower = raw.toLowerCase();
+    const exact = SPORTSBOOKS.find((sb) => sb.toLowerCase() === lower);
+    if (exact) return exact;
+    const fuzzy = SPORTSBOOKS.find(
+      (sb) =>
+        sb.toLowerCase().includes(lower) || lower.includes(sb.toLowerCase()),
+    );
+    return fuzzy || raw;
+  };
+
   const fetchData = useCallback(async () => {
     if (!user) return; // Wait for user
 
@@ -35,73 +61,86 @@ export const useBankroll = (): UseBankrollResult => {
     try {
       // 1. Fetch Book Deposits (DETERMINISTIC & DEDUPED)
       const { data: booksResponse, error: booksError } = await supabase
-        .from('book_balances')
-        .select('sportsbook, deposited, updated_at, id')
-        .eq('user_id', user.id); // Filter by user
+        .from("book_balances")
+        .select("sportsbook, deposited, withdrawn, updated_at, id")
+        .eq("user_id", user.id); // Filter by user
 
       let finalBooks: BookDeposit[] = [];
-      
+
       if (booksError) {
-        console.error('Error fetching book balances:', booksError);
+        console.error("Error fetching book balances:", booksError);
         setError(`Bankroll: ${booksError.message}`);
         finalBooks = [];
       } else {
         const rawBooks = booksResponse || [];
-        
+
         // Debug Logging
         const totalRows = rawBooks.length;
-        const bookCounts = rawBooks.reduce((acc: Record<string, number>, b: any) => {
-           acc[b.sportsbook] = (acc[b.sportsbook] || 0) + 1;
-           return acc;
-        }, {});
-        const duplicateCount = Object.values(bookCounts).filter(c => c > 1).length;
-        console.log(`[Bankroll] Loaded ${totalRows} balance rows. Duplicates found: ${duplicateCount}`, bookCounts);
+        const bookCounts = rawBooks.reduce(
+          (acc: Record<string, number>, b: any) => {
+            acc[b.sportsbook] = (acc[b.sportsbook] || 0) + 1;
+            return acc;
+          },
+          {},
+        );
+        const duplicateCount = Object.values(bookCounts).filter(
+          (c) => c > 1,
+        ).length;
+        console.log(
+          `[Bankroll] Loaded ${totalRows} balance rows. Duplicates found: ${duplicateCount}`,
+          bookCounts,
+        );
 
         // Deduplication Logic
         const bookMap = new Map<string, any>();
-        
+
         rawBooks.forEach((row: any) => {
-            const existing = bookMap.get(row.sportsbook);
-            if (!existing) {
-                bookMap.set(row.sportsbook, row);
-                return;
-            }
+          const existing = bookMap.get(row.sportsbook);
+          if (!existing) {
+            bookMap.set(row.sportsbook, row);
+            return;
+          }
 
-            // Conflict Resolution: Latest updated_at > Highest ID > Current (Last encountered)
-            let isNewer = false;
-            
-            if (row.updated_at && existing.updated_at) {
-                isNewer = new Date(row.updated_at) > new Date(existing.updated_at);
-            } else if (row.id && existing.id) {
-                // Fallback to ID if updated_at is missing
-                 isNewer = row.id > existing.id;
-            } else {
-                // Fallback to "last one wins" if no metadata
-                isNewer = true;
-            }
+          // Conflict Resolution: Latest updated_at > Highest ID > Current (Last encountered)
+          let isNewer = false;
 
-            if (isNewer) {
-                bookMap.set(row.sportsbook, row);
-            }
+          if (row.updated_at && existing.updated_at) {
+            isNewer = new Date(row.updated_at) > new Date(existing.updated_at);
+          } else if (row.id && existing.id) {
+            // Fallback to ID if updated_at is missing
+            isNewer = row.id > existing.id;
+          } else {
+            // Fallback to "last one wins" if no metadata
+            isNewer = true;
+          }
+
+          if (isNewer) {
+            bookMap.set(row.sportsbook, row);
+          }
         });
 
-        finalBooks = Array.from(bookMap.values()).map(b => ({
-            sportsbook: b.sportsbook,
-            deposited: b.deposited
+        finalBooks = Array.from(bookMap.values()).map((b) => ({
+          sportsbook: normalizeSportsbook(b.sportsbook),
+          deposited: Number(b.deposited) || 0,
+          withdrawn: Number(b.withdrawn) || 0,
         }));
       }
 
       // 2. Fetch Bets
       const { data: betsResponse, error: betsError } = await supabase
-        .from('bets')
-        .select('*')
-        .eq('user_id', user.id) // Filter by user
-        .order('createdAt', { ascending: false });
+        .from("bets")
+        .select("*")
+        .eq("user_id", user.id) // Filter by user
+        .order("createdAt", { ascending: false });
 
       let finalBets: Bet[] = [];
       if (betsError) {
-        console.error('Error fetching bets:', betsError);
-        setError(prev => prev ? `${prev} | Bets: ${betsError.message}` : `Bets: ${betsError.message}`);
+        console.error("Error fetching bets:", betsError);
+        setError((prev) =>
+          prev
+            ? `${prev} | Bets: ${betsError.message}`
+            : `Bets: ${betsError.message}`,
+        );
         finalBets = [];
       } else {
         // 3. Normalize fields
@@ -109,20 +148,21 @@ export const useBankroll = (): UseBankrollResult => {
           // Normalize odds safely: keep null/undefined/NaN as-is, parse numbers if valid
           let safeOdds = b.odds;
           if (b.odds !== null && b.odds !== undefined) {
-             const parsed = parseFloat(b.odds);
-             if (!isNaN(parsed)) {
-                 safeOdds = parsed;
-             }
+            const parsed = parseFloat(b.odds);
+            if (!isNaN(parsed)) {
+              safeOdds = parsed;
+            }
           }
 
           return {
             ...b,
+            sportsbook: normalizeSportsbook(b.sportsbook),
             // Fallback 0 for financial calculations
             wager: Number(b.wager) || 0,
             potentialProfit: Number(b.potentialProfit) || 0,
             odds: safeOdds,
             // Standardize status
-            status: b.status ? b.status.toUpperCase() : 'PENDING'
+            status: b.status ? b.status.toUpperCase() : "PENDING",
             // REMOVED: createdAt normalization. Preserving original type (likely string ISO).
           };
         }) as Bet[];
@@ -130,10 +170,9 @@ export const useBankroll = (): UseBankrollResult => {
 
       setDeposits(finalBooks);
       setBets(finalBets);
-
     } catch (err: any) {
-      console.error('Uncaught error fetching bankroll data:', err);
-      setError(err.message || 'Failed to load bankroll data');
+      console.error("Uncaught error fetching bankroll data:", err);
+      setError(err.message || "Failed to load bankroll data");
     } finally {
       setLoading(false);
     }
@@ -155,126 +194,153 @@ export const useBankroll = (): UseBankrollResult => {
 
   const totalBankroll = bankrollState.currentBalance;
 
-  // Action: Update Deposit
-  const updateBookDeposit = async (sportsbook: string, newDeposit: number) => {
+  // Action: Update Book Balance (Deposit or Withdraw)
+  const updateBookBalance = async (
+    sportsbook: string,
+    updates: { deposited?: number; withdrawn?: number },
+  ) => {
     // 0. Environment Check
     const sbUrl = import.meta.env.VITE_SUPABASE_URL;
-    console.log(`[Bankroll] Updating ${sportsbook} to ${newDeposit}. Supabase URL defined: ${!!sbUrl}`);
-    
+
     if (!user) {
-        setError("You must be logged in to save deposits.");
-        return;
+      setError("You must be logged in to save balances.");
+      return;
     }
 
     try {
+      const existing = deposits.find((d) => d.sportsbook === sportsbook);
       // Optimistic update
-      setDeposits(prev => {
-        const idx = prev.findIndex(d => d.sportsbook === sportsbook);
+      setDeposits((prev) => {
+        const idx = prev.findIndex((d) => d.sportsbook === sportsbook);
         if (idx >= 0) {
           const next = [...prev];
-          next[idx] = { ...next[idx], deposited: newDeposit };
+          const existing = next[idx];
+          next[idx] = {
+            ...existing,
+            deposited:
+              updates.deposited !== undefined
+                ? updates.deposited
+                : existing.deposited,
+            withdrawn:
+              updates.withdrawn !== undefined
+                ? updates.withdrawn
+                : existing.withdrawn,
+          };
           return next;
         }
-        return [...prev, { sportsbook, deposited: newDeposit }];
+        return [
+          ...prev,
+          {
+            sportsbook,
+            deposited: updates.deposited || 0,
+            withdrawn: updates.withdrawn || 0,
+          },
+        ];
       });
 
       // 1. Verifiable Upsert
-      console.log('[Bankroll] Sending upsert...');
+      const payload: any = { sportsbook, user_id: user.id };
+      payload.deposited =
+        updates.deposited !== undefined
+          ? updates.deposited
+          : existing?.deposited ?? 0;
+      payload.withdrawn =
+        updates.withdrawn !== undefined
+          ? updates.withdrawn
+          : existing?.withdrawn ?? 0;
+
       const { data: upsertData, error: upsertError } = await supabase
-        .from('book_balances')
-        .upsert({ 
-            sportsbook, 
-            deposited: newDeposit,
-            user_id: user.id 
-        }, { onConflict: 'sportsbook,user_id' }) // Assuming composite key includes user_id
+        .from("book_balances")
+        .upsert(payload, { onConflict: "sportsbook,user_id" })
         .select()
         .single();
 
       if (upsertError) {
-        console.error('[Bankroll] Upsert Failed:', upsertError);
-        throw upsertError; // DO NOT swallow error. Let UI handle it.
+        console.error("[Bankroll] Upsert Failed:", upsertError);
+        throw upsertError;
       }
-      
-      console.log('[Bankroll] Upsert Success. Returned:', upsertData);
 
-      // 2. Immediate Verification (Proof of Life)
-      const { data: verifyData, error: verifyError } = await supabase
-        .from('book_balances')
-        .select('sportsbook, deposited')
-        .eq('sportsbook', sportsbook)
-        .eq('user_id', user.id)
-        .single();
+      console.log("[Bankroll] Upsert Success. Returned:", upsertData);
 
-      console.log('[Bankroll] Verification Read:', verifyData, verifyError);
-
-      await fetchData(); 
-
+      await fetchData();
     } catch (err: any) {
-      console.error('[Bankroll] Critical Update Error:', err);
+      console.error("[Bankroll] Critical Update Error:", err);
       setError(`Failed to save: ${err.message || JSON.stringify(err)}`);
-      // Re-throw so modal stays open or shows alert
-      throw err; 
+      throw err;
     }
   };
 
   // Action: Add Bet
   const addBet = async (betData: Bet) => {
     if (!user) {
-        setError("You must be logged in to place bets.");
-        return;
+      setError("You must be logged in to place bets.");
+      return;
     }
 
     try {
       // Optimistic Update
-      setBets(prev => [betData, ...prev]);
+      setBets((prev) => [betData, ...prev]);
 
       const payload = { ...betData, user_id: user.id };
-      
+
       // Ensure createdAt is compatible (Postgres often prefers ISO string for timestamptz)
       // If betData.createdAt is number, convert to ISO?
       // For now, let's keep sending number as previously attempted, but user_id was likely the blocker.
       // If createdAt failure persists, we will convert.
 
-      const { error: insertError } = await supabase.from('bets').insert([payload]);
+      const { error: insertError } = await supabase
+        .from("bets")
+        .insert([payload]);
       if (insertError) throw insertError;
-      
-      // No full refresh needed if optimistic update is correct, 
+
+      // No full refresh needed if optimistic update is correct,
       // but good to sync eventually. For now, we trust the optimistic update.
     } catch (err: any) {
-      console.error('Error adding bet:', err);
-      setError(err.message || 'Failed to add bet');
+      console.error("Error adding bet:", err);
+      setError(err.message || "Failed to add bet");
       // Revert optimistic update
-      setBets(prev => prev.filter(b => b.id !== betData.id));
+      setBets((prev) => prev.filter((b) => b.id !== betData.id));
     }
   };
 
   // Action: Update Bet Status
   const updateBetStatus = async (id: string, status: BetStatus) => {
+    if (!user) {
+      setError("You must be logged in to update bets.");
+      return;
+    }
     try {
       // Optimistic Update
-      setBets(prev => prev.map(b => b.id === id ? { ...b, status } : b));
+      setBets((prev) => prev.map((b) => (b.id === id ? { ...b, status } : b)));
 
       const { error: updateError } = await supabase
-        .from('bets')
+        .from("bets")
         .update({ status })
-        .eq('id', id);
+        .eq("id", id)
+        .eq("user_id", user.id);
 
       if (updateError) throw updateError;
     } catch (err: any) {
-      console.error('Error updating bet status:', err);
-      setError(err.message || 'Failed to update bet status');
+      console.error("Error updating bet status:", err);
+      setError(err.message || "Failed to update bet status");
       await fetchData(); // Revert
     }
   };
 
   // Action: Update Bet Details
   const updateBet = async (updatedBet: Bet) => {
+    if (!user) {
+      setError("You must be logged in to update bets.");
+      return;
+    }
     try {
       // Optimistic Update
-      setBets(prev => prev.map(b => b.id === updatedBet.id ? updatedBet : b));
+      setBets((prev) =>
+        prev.map((b) => (b.id === updatedBet.id ? updatedBet : b)),
+      );
 
       const { error: updateError } = await supabase
-        .from('bets')
+        .from("bets")
         .update({
           matchup: updatedBet.matchup,
           pick: updatedBet.pick,
@@ -282,29 +348,35 @@ export const useBankroll = (): UseBankrollResult => {
           wager: updatedBet.wager,
           potentialProfit: updatedBet.potentialProfit,
           sportsbook: updatedBet.sportsbook,
-          tags: updatedBet.tags
+          tags: updatedBet.tags,
         })
-        .eq('id', updatedBet.id);
+        .eq("id", updatedBet.id)
+        .eq("user_id", user.id);
 
       if (updateError) throw updateError;
     } catch (err: any) {
-      console.error('Error updating bet:', err);
-      setError(err.message || 'Failed to update bet');
+      console.error("Error updating bet:", err);
+      setError(err.message || "Failed to update bet");
       await fetchData(); // Revert
     }
   };
 
   // Action: Delete Bet
   const deleteBet = async (id: string) => {
+    if (!user) {
+      setError("You must be logged in to delete bets.");
+      return;
+    }
     try {
       // Optimistic Update
       const previousBets = [...bets];
-      setBets(prev => prev.filter(b => b.id !== id));
+      setBets((prev) => prev.filter((b) => b.id !== id));
 
       const { error: deleteError } = await supabase
-        .from('bets')
+        .from("bets")
         .delete()
-        .eq('id', id);
+        .eq("id", id)
+        .eq("user_id", user.id);
 
       if (deleteError) {
         // Revert
@@ -312,8 +384,8 @@ export const useBankroll = (): UseBankrollResult => {
         throw deleteError;
       }
     } catch (err: any) {
-      console.error('Error deleting bet:', err);
-      setError(err.message || 'Failed to delete bet');
+      console.error("Error deleting bet:", err);
+      setError(err.message || "Failed to delete bet");
     }
   };
 
@@ -325,10 +397,10 @@ export const useBankroll = (): UseBankrollResult => {
     loading,
     error,
     refresh: fetchData,
-    updateBookDeposit,
+    updateBookBalance,
     addBet,
     updateBetStatus,
     updateBet,
-    deleteBet
+    deleteBet,
   };
 };

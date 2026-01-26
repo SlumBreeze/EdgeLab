@@ -62,6 +62,8 @@ Unlike basic odds screens, EdgeLab implements a rigorous "veto system" where Gem
 - Node.js 20+
 - npm
 - Supabase Project (for database)
+  - Use **SlumBreeze's Project** (ref `ekdcafbqwrbvxulutszx`) for EdgeLab.
+  - The **edgelab** Supabase project is paused and must not be used.
 
 ### Installation
 

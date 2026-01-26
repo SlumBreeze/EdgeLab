@@ -14,6 +14,7 @@
 
 - **Focus:** LLM agent development, prompt optimization.
 - **Active Projects:** Internal tooling, API integrations.
+- **Supabase Project:** Use "SlumBreeze's Project" (ref `ekdcafbqwrbvxulutszx`) for EdgeLab. The "edgelab" Supabase project is paused and should not be used.
 
 ## Operational Rules
 

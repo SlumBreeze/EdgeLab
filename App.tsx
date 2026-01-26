@@ -99,7 +99,7 @@ const AppContent: React.FC = () => {
       <HeaderActions onOpenBankroll={() => setIsBankrollOpen(true)} />
 
       {/* Main Content - All tabs stay mounted to preserve analysis queue state */}
-      <main className="flex-1 pb-20 pt-4 relative">
+      <main className="flex-1 pb-20 pt-20 relative">
         <div
           className={activeTab === "scout" ? "block h-full" : "hidden h-full"}
         >

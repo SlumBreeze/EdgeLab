@@ -16,6 +16,10 @@ The application functions as an "operating system" for handicappers, enforcing d
 - **Persistence:** Supabase (PostgreSQL) + Row Level Security (RLS)
 - **Deployment:** Google Cloud Run (Dockerized)
 
+## Supabase Project Selection (Required)
+
+Use **"SlumBreeze's Project"** (ref `ekdcafbqwrbvxulutszx`) for EdgeLab. The **"edgelab"** Supabase project is paused and must not be used.
+
 ## 📂 Architecture & Directory Structure
 
 ```
