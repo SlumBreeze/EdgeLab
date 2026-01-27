@@ -23,7 +23,7 @@ NON-NEGOTIABLE RULES:
 STRATEGIES:
 - Fade the Public: If >80% of public bets are on one side and the line moves the opposite way, call it "Reverse Line Movement."
 - Market Overreaction: Detect recency bias (e.g., a blowout last game) and avoid overreacting.
-- Discipline: If edge < 1.5%, recommendation must be PASS. Between 1.5% and 2.5% is LEAN. Only > 2.5% is BET.
+- Discipline: If edge < 1.0%, recommendation must be PASS. Between 1.0% and 2.0% is LEAN. Only > 2.0% is BET.
 
 OUTPUT:
 Return strict JSON with:
@@ -37,6 +37,39 @@ wagerType (Moneyline | Spread | Total)
 
 No extra keys. No props. No narrative fluff.
 `;
+
+const EDGE_PASS_THRESHOLD = 1.0;
+const EDGE_BET_THRESHOLD = 2.0;
+
+type UnitTier = {
+  label: string;
+  minTrueProb: number;
+  minEdge: number;
+  unitPct: number;
+};
+
+const UNIT_TIERS: UnitTier[] = [
+  { label: "Tier 4", minTrueProb: 93, minEdge: 3, unitPct: 5 },
+  { label: "Tier 3", minTrueProb: 90, minEdge: 5, unitPct: 3 },
+  { label: "Tier 2", minTrueProb: 80, minEdge: 3, unitPct: 2 },
+  { label: "Tier 1", minTrueProb: 70, minEdge: 3, unitPct: 1 },
+];
+
+const getUnitTier = (trueProb: number, edge: number): UnitTier | null => {
+  for (const tier of UNIT_TIERS) {
+    if (trueProb >= tier.minTrueProb && edge >= tier.minEdge) {
+      return tier;
+    }
+  }
+  return null;
+};
+
+const appendUnitNote = (text: string, tier: UnitTier | null): string => {
+  if (!tier) return text;
+  const note = `Unit ${tier.unitPct}% (${tier.label}).`;
+  if (!text) return note;
+  return `${text} ${note}`;
+};
 
 // ============================================
 // MATH FUNCTIONS (TypeScript, NOT LLM)
@@ -643,14 +676,14 @@ export const analyzeGame = async (game: GameData): Promise<AnalysisResult> => {
   });
 
   const best = candidates.sort((a, b) => b.edge - a.edge)[0];
-  if (!best || best.edge < 1.5) {
+  if (!best || best.edge < EDGE_PASS_THRESHOLD) {
     return {
       decision: "PASS",
       vetoTriggered: true,
-      vetoReason: "NO_EDGE: Edge < 1.5%.",
+      vetoReason: `NO_EDGE: Edge < ${EDGE_PASS_THRESHOLD}%.`,
       recommendation: "PASS",
-      reasoning: "Edge < 1.5%.",
-      researchSummary: "Edge < 1.5%.",
+      reasoning: `Edge < ${EDGE_PASS_THRESHOLD}%.`,
+      researchSummary: `Edge < ${EDGE_PASS_THRESHOLD}%.`,
       confidenceScore: 0,
       trueProbability: best?.trueProbability ?? 0,
       impliedProbability: best?.impliedProbability ?? 0,
@@ -786,31 +819,39 @@ Return JSON only.
   const reasoning = trimToTwoSentences(analysis.reasoning || "");
 
   // Strict Discipline:
-  // Edge < 1.5% -> PASS (Filtered above, but safety check)
-  // Edge 1.5% - 2.5% -> LEAN
-  // Edge >= 2.5% -> BET (if AI agrees)
+  // Edge < 1.0% -> PASS (Filtered above, but safety check)
+  // Edge 1.0% - 2.0% -> LEAN
+  // Edge >= 2.0% -> BET (if AI agrees)
 
   let calculatedRec = "PASS";
-  if (best.edge >= 2.5) {
+  if (best.edge >= EDGE_BET_THRESHOLD) {
     calculatedRec = normalizedRec; // Trust AI if edge is strong
-  } else if (best.edge >= 1.5) {
+  } else if (best.edge >= EDGE_PASS_THRESHOLD) {
     calculatedRec = "LEAN"; // Force LEAN for marginal edges
   }
 
   const finalRecommendation =
-    best.edge < 1.5 || normalizedWagerType !== best.market
+    best.edge < EDGE_PASS_THRESHOLD || normalizedWagerType !== best.market
       ? "PASS"
       : calculatedRec;
 
   const decision = finalRecommendation === "BET" ? "PLAYABLE" : "PASS";
+  const unitTier =
+    finalRecommendation === "BET"
+      ? getUnitTier(best.trueProbability, best.edge)
+      : null;
+  const summary = appendUnitNote(
+    reasoning || "Stoic: No narrative, math only.",
+    unitTier,
+  );
 
   return {
     decision,
     vetoTriggered: finalRecommendation !== "BET",
     vetoReason:
       finalRecommendation === "PASS"
-        ? best.edge <= 0
-          ? "NO_EDGE: Edge <= 0%."
+        ? best.edge < EDGE_PASS_THRESHOLD
+          ? `NO_EDGE: Edge < ${EDGE_PASS_THRESHOLD}%.`
           : "STOIC_PASS: No bet."
         : finalRecommendation === "LEAN"
           ? "LEAN_ONLY: Not strong enough to bet."
@@ -832,8 +873,8 @@ Return JSON only.
     lineFloor,
     oddsFloor,
     floorReason,
-    researchSummary: reasoning || "Stoic: No narrative, math only.",
-    edgeNarrative: reasoning || "Stoic: No narrative, math only.",
+    researchSummary: summary,
+    edgeNarrative: summary,
     confidence: confidenceToLabel(confidenceScore),
     confidenceScore,
     reasoning,
@@ -877,19 +918,35 @@ export const refreshAnalysisMathOnly = (game: QueuedGame): HighHitAnalysis => {
   let sharpImpliedProb = prior.sharpImpliedProb ?? 50;
 
   if (!selectedSide || !selectedSide.hasPositiveValue || selectedSide.lineValue < 0) {
-    // If edge is negative or very small (< 1.5 logic applies implicitly via lineValue check below? No, need explicit check)
+    // If edge is negative or very small (< 1.0 logic applies implicitly via lineValue check below? No, need explicit check)
     // Actually, calculateLineDiff returns points. We need percent edge.
     // Re-calculate edge here to be safe.
-    const trueProb = getTrueProbability(selectedSide.market, selectedSide.side, game.sharpLines);
-    const impliedProb = americanToImpliedProb(selectedSide.bestSoftOdds);
-    const currentEdge = trueProb - impliedProb;
-
-    if (currentEdge < 1.5) {
+    if (!selectedSide) {
       return {
         ...prior,
         decision: "PASS",
         vetoTriggered: true,
-        vetoReason: "LINE_MOVED: Edge dropped below 1.5%.",
+        vetoReason: "LINE_MOVED: Selected side no longer available.",
+        sharpImpliedProb,
+        lineValueCents: 0,
+        lineValuePoints: 0,
+      };
+    }
+
+    const trueProb = getTrueProbability(
+      selectedSide.market,
+      selectedSide.side,
+      game.sharpLines,
+    );
+    const impliedProb = americanToImpliedProb(selectedSide.bestSoftOdds);
+    const currentEdge = trueProb - impliedProb;
+
+    if (currentEdge < EDGE_PASS_THRESHOLD) {
+      return {
+        ...prior,
+        decision: "PASS",
+        vetoTriggered: true,
+        vetoReason: `LINE_MOVED: Edge dropped below ${EDGE_PASS_THRESHOLD}%.`,
         sharpImpliedProb,
         lineValueCents: 0,
         lineValuePoints: 0,

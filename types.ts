@@ -55,6 +55,7 @@ export interface QueuedGame extends Game {
   addedAt: number;
   edgeSignal?: "RED" | "YELLOW" | "WHITE";
   edgeDescription?: string;
+  autoAnalyze?: boolean;
   sharpLines?: BookLines;
   softLines: BookLines[];
   analysis?: HighHitAnalysis;

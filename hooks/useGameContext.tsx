@@ -408,7 +408,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({
   }, [allSportsData, userId, today, isSyncEnabled]);
 
   // Actions
-  const addToQueue = (game: Game) => {
+  const addToQueue = (game: Game & Partial<QueuedGame>) => {
     setQueue((prev) => {
       if (prev.some((g) => g.id === game.id)) return prev;
       return [
@@ -423,7 +423,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({
     });
   };
 
-  const addAllToQueue = (games: Game[]) => {
+  const addAllToQueue = (games: Array<Game & Partial<QueuedGame>>) => {
     if (!games.length) return;
     setQueue((prev) => {
       const existingIds = new Set(prev.map((g) => g.id));

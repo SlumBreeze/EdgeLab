@@ -1,9 +1,10 @@
 import React from 'react';
-import { Game, BookLines } from '../types';
+import { Game, BookLines, Sport } from '../types';
 import { formatEtTime, getTimeWindow, getTimeWindowLabel } from '../utils/timeWindow';
 
 interface ScoutGameCardProps {
   game: any;                    // Raw API game object
+  sport: Sport;
   pinnLines: BookLines | null;
   referenceLines: { spreadLineA: string; spreadLineB: string } | undefined;
   scanResult: { signal: string; description: string } | undefined;
@@ -12,14 +13,15 @@ interface ScoutGameCardProps {
   inQueue: boolean;
   movement: { icon: string; text: string; color: string } | null;
   onQuickScan: (gameObj: Game) => void;
-  onAddToQueue: (game: any, pinnLines: BookLines | null) => void;
-  mapToGameObject: (apiGame: any, pinnLines: BookLines | null) => Game;
+  onAddToQueue: (game: any, sport: Sport, pinnLines: BookLines | null) => void;
+  mapToGameObject: (apiGame: any, sport: Sport, pinnLines: BookLines | null) => Game;
 }
 
 const getEdgeEmoji = (signal: string) => signal === 'RED' ? '🔴' : signal === 'YELLOW' ? '🟡' : '⚪';
 
 const ScoutGameCard: React.FC<ScoutGameCardProps> = ({
   game,
+  sport,
   pinnLines,
   referenceLines: ref,
   scanResult: scan,
@@ -31,7 +33,7 @@ const ScoutGameCard: React.FC<ScoutGameCardProps> = ({
   onAddToQueue,
   mapToGameObject
 }) => {
-  const gameObj = mapToGameObject(game, pinnLines);
+  const gameObj = mapToGameObject(game, sport, pinnLines);
   const timeLabel = formatEtTime(game.commence_time);
   const windowLabel = getTimeWindowLabel(getTimeWindow(game.commence_time));
 
@@ -45,7 +47,7 @@ const ScoutGameCard: React.FC<ScoutGameCardProps> = ({
             {windowLabel}
           </span>
         </div>
-        <button onClick={() => onAddToQueue(game, pinnLines)} disabled={inQueue} className={`px-2 py-1 rounded text-[10px] font-bold transition-colors border ${inQueue ? 'bg-ink-base text-ink-text/40 border-ink-gray' : 'bg-ink-accent/10 text-ink-accent border-ink-accent/30 hover:bg-ink-accent/20'}`}>{inQueue ? '✓ Queue' : '+ Add'}</button>
+        <button onClick={() => onAddToQueue(game, sport, pinnLines)} disabled={inQueue} className={`px-2 py-1 rounded text-[10px] font-bold transition-colors border ${inQueue ? 'bg-ink-base text-ink-text/40 border-ink-gray' : 'bg-ink-accent/10 text-ink-accent border-ink-accent/30 hover:bg-ink-accent/20'}`}>{inQueue ? '✓ Queue' : '+ Add'}</button>
       </div>
       <div className="mb-2 pl-2">
         <div className="grid grid-cols-[2fr_1fr_1fr_2fr] gap-1 mb-1 text-[9px] text-ink-text/40 uppercase font-bold tracking-wider"><div>Team</div><div className="text-center">Ref</div><div className="text-center">Curr</div><div className="text-center">Move</div></div>

@@ -69,6 +69,27 @@ export default function Queue() {
     return () => clearTimeout(timerId);
   }, [activeAnalysisId, analysisQueue, analysisStartTime]);
 
+  useEffect(() => {
+    const autoIds = queue
+      .filter(
+        (g) =>
+          g.autoAnalyze &&
+          !g.analysis &&
+          !g.analysisError &&
+          !analysisQueue.includes(g.id) &&
+          activeAnalysisId !== g.id,
+      )
+      .map((g) => g.id);
+
+    if (autoIds.length === 0) return;
+
+    setAnalysisQueue((prev) => {
+      const next = new Set(prev);
+      autoIds.forEach((id) => next.add(id));
+      return Array.from(next);
+    });
+  }, [queue, analysisQueue, activeAnalysisId]);
+
   const processAnalysis = async (gameId: string) => {
     const game = queue.find((g) => g.id === gameId);
     if (!game) return;
@@ -128,7 +149,11 @@ export default function Queue() {
         softLines: matchedSoftLines,
       });
 
-      updateGame(game.id, { analysis: result, analysisError: undefined });
+      updateGame(game.id, {
+        analysis: result,
+        analysisError: undefined,
+        autoAnalyze: false,
+      });
 
       if (result.decision === "PLAYABLE") {
         toast.showSuccess(
@@ -144,7 +169,7 @@ export default function Queue() {
         error instanceof Error
           ? error.message
           : "Analysis failed. Try manual flow.";
-      updateGame(game.id, { analysisError: errorMessage });
+      updateGame(game.id, { analysisError: errorMessage, autoAnalyze: false });
       toast.showError(`Analysis failed: ${errorMessage}`);
     } finally {
       setActiveAnalysisId(null);
@@ -387,6 +412,16 @@ export default function Queue() {
                 {filteredQueue.length} of {queue.length}
               </div>
             )}
+            <div className="mt-2 p-3 bg-ink-paper/70 rounded-xl border border-ink-gray text-[11px] text-ink-text/70">
+              <div className="font-semibold text-ink-text/80 mb-1">
+                Scan cadence (ET)
+              </div>
+              <div className="flex flex-wrap gap-3">
+                <span>First pass: 90m pre-start</span>
+                <span>Second pass: 45-60m pre-start</span>
+                <span>Final lock: 20-30m pre-start</span>
+              </div>
+            </div>
           </div>
         )}
 

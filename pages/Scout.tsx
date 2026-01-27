@@ -3,7 +3,6 @@ import React, { useState, useEffect } from "react";
 import { Sport, Game, BookLines } from "../types";
 import { SPORTS_CONFIG } from "../constants";
 import {
-  fetchOddsForSport,
   getBookmakerLines,
   fetchAllSportsOdds,
 } from "../services/oddsService";
@@ -19,7 +18,6 @@ import {
 } from "../utils/timeWindow";
 
 export default function Scout() {
-  const [selectedSport, setSelectedSport] = useState<Sport>("NBA");
   // Fixed: Use local date string to match user's day, not UTC (which is tomorrow in evenings)
   const [selectedDate, setSelectedDate] = useState(() =>
     new Date().toLocaleDateString("en-CA"),
@@ -45,7 +43,6 @@ export default function Scout() {
     loadSlates,
   } = useGameContext();
 
-  const [apiGames, setApiGames] = useState<any[]>([]);
   const [scanningIds, setScanningIds] = useState<Set<string>>(new Set());
   const [batchScanning, setBatchScanning] = useState(false);
   const [progressText, setProgressText] = useState("");
@@ -79,34 +76,24 @@ export default function Scout() {
     }
   };
 
-  useEffect(() => {
-    if (!slatesLoaded || !allSportsData[selectedSport]) {
-      setApiGames([]);
-      return;
-    }
-    const data = allSportsData[selectedSport];
-    const filtered = data.filter((g: any) => {
-      // Filter logic matches the default date format now
-      const gameDate = new Date(g.commence_time).toLocaleDateString("en-CA");
-      return gameDate === selectedDate;
-    });
-    setApiGames(filtered);
-  }, [selectedSport, selectedDate, allSportsData, slatesLoaded]);
+  const getGamesForSport = (sport: Sport) => {
+    if (!slatesLoaded || !allSportsData[sport]) return [];
+    return allSportsData[sport]
+      .filter((g: any) => {
+        const gameDate = new Date(g.commence_time).toLocaleDateString("en-CA");
+        return gameDate === selectedDate;
+      })
+      .map((g: any) => ({ ...g, _sport: sport }));
+  };
 
-  // Auto-fetch if selected sport is missing data (e.g. new sport added like NCAAB)
-  useEffect(() => {
-    if (slatesLoaded && !allSportsData[selectedSport] && !loading) {
-      console.log(
-        `[Scout] Missing data for ${selectedSport}, auto-fetching...`,
-      );
-      handleLoadSlates();
-    }
-  }, [selectedSport, slatesLoaded, allSportsData, loading]);
+  const allGames = Object.keys(SPORTS_CONFIG).flatMap((sportKey) =>
+    getGamesForSport(sportKey as Sport),
+  );
 
   // Synchronize reference lines when new games are loaded
   useEffect(() => {
     if (slatesLoaded) {
-      apiGames.forEach((g) => {
+      allGames.forEach((g) => {
         if (!referenceLines[g.id]) {
           const pinn = getBookmakerLines(g, "pinnacle");
           if (pinn) {
@@ -118,12 +105,16 @@ export default function Scout() {
         }
       });
     }
-  }, [apiGames, slatesLoaded, referenceLines]);
+  }, [allGames, slatesLoaded, referenceLines]);
 
-  const mapToGameObject = (apiGame: any, pinnLines: BookLines | null): Game => {
+  const mapToGameObject = (
+    apiGame: any,
+    sport: Sport,
+    pinnLines: BookLines | null,
+  ): Game => {
     return {
       id: apiGame.id,
-      sport: selectedSport,
+      sport,
       date: apiGame.commence_time,
       status: "Scheduled",
       homeTeam: { name: apiGame.home_team },
@@ -143,6 +134,18 @@ export default function Scout() {
     setScanningIds((prev) => new Set(prev).add(game.id));
     const result = await quickScanGame(game);
     setScanResult(game.id, result);
+    if ((result.signal === "RED" || result.signal === "YELLOW") && !isInQueue(game.id)) {
+      const gameWithScan = {
+        ...game,
+        edgeSignal: result.signal,
+        edgeDescription: result.description,
+        autoAnalyze: true,
+      };
+      addToQueue(gameWithScan);
+      toast.showSuccess(
+        `Auto-added ${game.awayTeam.name} vs ${game.homeTeam.name} to Queue`,
+      );
+    }
     setScanningIds((prev) => {
       const next = new Set(prev);
       next.delete(game.id);
@@ -157,7 +160,7 @@ export default function Scout() {
 
   const handleScanAll = async () => {
     setBatchScanning(true);
-    const gamesToScan = apiGames
+    const gamesToScan = allGames
       .filter(isUpcomingGame)
       .filter((g) => isInTimeWindow(g.commence_time, selectedWindow))
       .filter((g) => !scanResults[g.id]);
@@ -174,10 +177,23 @@ export default function Scout() {
       for (const apiGame of gamesToScan) {
         count++;
         setProgressText(`Scanning ${count}/${gamesToScan.length}...`);
-        const gameObj = mapToGameObject(apiGame, null);
+        const sport = (apiGame._sport as Sport) || "NBA";
+        const gameObj = mapToGameObject(apiGame, sport, null);
         try {
           const result = await quickScanGame(gameObj);
           setScanResult(apiGame.id, result);
+          if (
+            (result.signal === "RED" || result.signal === "YELLOW") &&
+            !isInQueue(gameObj.id)
+          ) {
+            const gameWithScan = {
+              ...gameObj,
+              edgeSignal: result.signal,
+              edgeDescription: result.description,
+              autoAnalyze: true,
+            };
+            addToQueue(gameWithScan);
+          }
         } catch (e) {
           console.error(e);
         }
@@ -191,7 +207,7 @@ export default function Scout() {
   };
 
   const handleResetScans = () => {
-    const gamesToReset = apiGames.filter((g) =>
+    const gamesToReset = allGames.filter((g) =>
       isInTimeWindow(g.commence_time, selectedWindow),
     );
     if (gamesToReset.length === 0) return;
@@ -216,8 +232,12 @@ export default function Scout() {
     }
   };
 
-  const handleAddToQueue = (apiGame: any, pinnLines: BookLines | null) => {
-    const game = mapToGameObject(apiGame, pinnLines);
+  const handleAddToQueue = (
+    apiGame: any,
+    sport: Sport,
+    pinnLines: BookLines | null,
+  ) => {
+    const game = mapToGameObject(apiGame, sport, pinnLines);
     const scanData = scanResults[game.id];
     const gameWithScan = scanData
       ? {
@@ -233,7 +253,7 @@ export default function Scout() {
   };
 
   const handleAddAllScanned = () => {
-    const gamesToAdd = apiGames.filter(isEligibleScannedGame);
+    const gamesToAdd = allGames.filter(isEligibleScannedGame);
     if (gamesToAdd.length === 0) {
       toast.showInfo("No eligible scanned games to add.");
       return;
@@ -241,13 +261,15 @@ export default function Scout() {
 
     const mappedGames = gamesToAdd.map((game) => {
       const pinnLines = getBookmakerLines(game, "pinnacle");
-      const base = mapToGameObject(game, pinnLines);
+      const sport = (game._sport as Sport) || "NBA";
+      const base = mapToGameObject(game, sport, pinnLines);
       const scanData = scanResults[base.id];
       return scanData
         ? {
             ...base,
             edgeSignal: scanData.signal,
             edgeDescription: scanData.description,
+            autoAnalyze: true,
           }
         : base;
     });
@@ -295,13 +317,66 @@ export default function Scout() {
     return isUpcomingGame(apiGame);
   };
 
-  const upcomingGames = apiGames.filter(isUpcomingGame);
+  const SPORT_CADENCE_OFFSETS: Record<
+    Sport,
+    { first: number; second: number; lock: number }
+  > = {
+    NBA: { first: 90, second: 50, lock: 25 },
+    NHL: { first: 105, second: 60, lock: 30 },
+    NFL: { first: 150, second: 90, lock: 45 },
+    Other: { first: 90, second: 50, lock: 25 },
+  };
+
+  const roundToNearestMinutes = (date: Date, minutes: number) => {
+    const ms = minutes * 60 * 1000;
+    return new Date(Math.round(date.getTime() / ms) * ms);
+  };
+
+  const formatEtTime = (date: Date) => {
+    const time = new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/New_York",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(date);
+    return `${time} ET`;
+  };
+
+  const getModeStartTime = (games: any[]) => {
+    if (games.length === 0) return null;
+    const counts = new Map<number, number>();
+    for (const g of games) {
+      const start = new Date(g.commence_time);
+      if (!Number.isFinite(start.getTime())) continue;
+      const rounded = roundToNearestMinutes(start, 30).getTime();
+      counts.set(rounded, (counts.get(rounded) || 0) + 1);
+    }
+    let best: number | null = null;
+    let bestCount = 0;
+    counts.forEach((count, time) => {
+      if (count > bestCount) {
+        best = time;
+        bestCount = count;
+      }
+    });
+    return best ? new Date(best) : null;
+  };
+
+  const getCadenceLabel = (sport: Sport, games: any[]) => {
+    const anchor = getModeStartTime(games);
+    if (!anchor) return "Cadence unavailable";
+    const offsets = SPORT_CADENCE_OFFSETS[sport] || SPORT_CADENCE_OFFSETS.Other;
+    const first = new Date(anchor.getTime() - offsets.first * 60 * 1000);
+    const second = new Date(anchor.getTime() - offsets.second * 60 * 1000);
+    const lock = new Date(anchor.getTime() - offsets.lock * 60 * 1000);
+    return `First ${formatEtTime(first)} · Second ${formatEtTime(second)} · Lock ${formatEtTime(lock)}`;
+  };
+
+  const upcomingGames = allGames.filter(isUpcomingGame);
   const filteredGames = upcomingGames.filter((g) =>
     isInTimeWindow(g.commence_time, selectedWindow),
   );
-  const sortedGames = [...filteredGames].sort(
-    (a, b) => getSignalWeight(b.id) - getSignalWeight(a.id),
-  );
+  const sortBySignal = (games: any[]) =>
+    [...games].sort((a, b) => getSignalWeight(b.id) - getSignalWeight(a.id));
   const windowCounts = TIME_WINDOW_FILTERS.map((window) => ({
     ...window,
     count: upcomingGames.filter((g) =>
@@ -323,13 +398,15 @@ export default function Scout() {
 
     const mappedGames = gamesToAdd.map((game) => {
       const pinnLines = getBookmakerLines(game, "pinnacle");
-      const base = mapToGameObject(game, pinnLines);
+      const sport = (game._sport as Sport) || "NBA";
+      const base = mapToGameObject(game, sport, pinnLines);
       const scanData = scanResults[base.id];
       return scanData
         ? {
             ...base,
             edgeSignal: scanData.signal,
             edgeDescription: scanData.description,
+            autoAnalyze: true,
           }
         : base;
     });
@@ -381,24 +458,6 @@ export default function Scout() {
       <div className="shrink-0 p-4 pb-2 max-w-7xl mx-auto w-full">
         <h1 className="text-2xl font-bold text-ink-text mb-4">EdgeLab Scout</h1>
 
-        {/* Sport Selector */}
-        <div className="flex overflow-x-auto space-x-2 pb-2 no-scrollbar mb-2">
-          {Object.entries(SPORTS_CONFIG).map(([key, config]) => (
-            <button
-              key={key}
-              onClick={() => setSelectedSport(key as Sport)}
-              className={`flex items-center space-x-2 px-4 py-2 rounded-full whitespace-nowrap transition-all shadow-sm border ${
-                selectedSport === key
-                  ? "bg-ink-accent text-white font-bold border-ink-accent shadow-sm"
-                  : "bg-ink-paper text-ink-text/70 hover:text-ink-text border-ink-gray"
-              }`}
-            >
-              <span>{config.icon}</span>
-              <span>{config.label}</span>
-            </button>
-          ))}
-        </div>
-
         {/* Date & Scan Controls */}
         <div className="flex gap-2 mb-2">
           <input
@@ -407,7 +466,7 @@ export default function Scout() {
             onChange={(e) => setSelectedDate(e.target.value)}
             className="flex-1 bg-ink-paper text-ink-text p-3 rounded-xl border border-ink-gray focus:outline-none focus:border-ink-accent focus:ring-2 focus:ring-ink-accent/20 shadow-sm"
           />
-          {apiGames.length > 0 && (
+          {allGames.length > 0 && (
             <>
               <button
                 onClick={handleScanAll}
@@ -443,7 +502,7 @@ export default function Scout() {
             </>
           )}
 
-          {apiGames.length > 0 && selectedWindow !== "ALL" && (
+          {allGames.length > 0 && selectedWindow !== "ALL" && (
             <button
               onClick={handleResetScans}
               disabled={batchScanning}
@@ -455,7 +514,7 @@ export default function Scout() {
           )}
         </div>
 
-        {apiGames.length > 0 && (
+        {allGames.length > 0 && (
           <>
             <div className="flex overflow-x-auto space-x-2 pb-2 no-scrollbar mb-2">
               {windowCounts.map((window) => (
@@ -510,41 +569,72 @@ export default function Scout() {
             </div>
           ) : filteredGames.length === 0 ? (
             <div className="text-center py-10 text-ink-text/60 bg-ink-paper rounded-2xl border border-ink-gray">
-              No {selectedSport} games found for {selectedDate}.
+              No games found for {selectedDate}.
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {sortedGames.map((game) => {
-                const pinnLines = getBookmakerLines(game, "pinnacle");
-                const ref = referenceLines[game.id];
-                const movement =
-                  pinnLines && ref
-                    ? getMovementAnalysis(
-                        pinnLines.spreadLineA,
-                        ref.spreadLineA,
-                        game.home_team,
-                        game.away_team,
-                      )
-                    : null;
-                const scan = scanResults[game.id];
-                const isScanning = scanningIds.has(game.id);
-                const inQueue = isInQueue(game.id);
+            <div className="space-y-6">
+              {Object.entries(SPORTS_CONFIG).map(([sportKey, config]) => {
+                const sport = sportKey as Sport;
+                const sportGames = sortBySignal(
+                  getGamesForSport(sport)
+                    .filter(isUpcomingGame)
+                    .filter((g) =>
+                      isInTimeWindow(g.commence_time, selectedWindow),
+                    ),
+                );
+
+                if (sportGames.length === 0) return null;
 
                 return (
-                  <ScoutGameCard
-                    key={game.id}
-                    game={game}
-                    pinnLines={pinnLines}
-                    referenceLines={ref}
-                    scanResult={scan}
-                    isScanning={isScanning}
-                    isBatchScanning={batchScanning}
-                    inQueue={inQueue}
-                    movement={movement}
-                    onQuickScan={handleQuickScan}
-                    onAddToQueue={handleAddToQueue}
-                    mapToGameObject={mapToGameObject}
-                  />
+                  <section key={sportKey}>
+                    <div className="flex flex-col gap-1 mb-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg">{config.icon}</span>
+                        <h2 className="text-lg font-bold text-ink-text">
+                          {config.label}
+                        </h2>
+                      </div>
+                      <div className="text-[11px] text-ink-text/60">
+                        {getCadenceLabel(sport, sportGames)}
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                      {sportGames.map((game) => {
+                        const pinnLines = getBookmakerLines(game, "pinnacle");
+                        const ref = referenceLines[game.id];
+                        const movement =
+                          pinnLines && ref
+                            ? getMovementAnalysis(
+                                pinnLines.spreadLineA,
+                                ref.spreadLineA,
+                                game.home_team,
+                                game.away_team,
+                              )
+                            : null;
+                        const scan = scanResults[game.id];
+                        const isScanning = scanningIds.has(game.id);
+                        const inQueue = isInQueue(game.id);
+
+                        return (
+                          <ScoutGameCard
+                            key={game.id}
+                            game={game}
+                            sport={sport}
+                            pinnLines={pinnLines}
+                            referenceLines={ref}
+                            scanResult={scan}
+                            isScanning={isScanning}
+                            isBatchScanning={batchScanning}
+                            inQueue={inQueue}
+                            movement={movement}
+                            onQuickScan={handleQuickScan}
+                            onAddToQueue={handleAddToQueue}
+                            mapToGameObject={mapToGameObject}
+                          />
+                        );
+                      })}
+                    </div>
+                  </section>
                 );
               })}
             </div>
