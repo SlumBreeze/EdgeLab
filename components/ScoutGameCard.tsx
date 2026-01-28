@@ -1,6 +1,7 @@
 import React from 'react';
 import { Game, BookLines, Sport } from '../types';
 import { formatEtTime, getTimeWindow, getTimeWindowLabel } from '../utils/timeWindow';
+import { getCadenceStatus, getStatusLabel, getStatusColor } from '../utils/cadence';
 
 interface ScoutGameCardProps {
   game: any;                    // Raw API game object
@@ -36,16 +37,22 @@ const ScoutGameCard: React.FC<ScoutGameCardProps> = ({
   const gameObj = mapToGameObject(game, sport, pinnLines);
   const timeLabel = formatEtTime(game.commence_time);
   const windowLabel = getTimeWindowLabel(getTimeWindow(game.commence_time));
+  
+  const cadence = getCadenceStatus(game.commence_time, sport);
+  const cadenceLabel = getStatusLabel(cadence);
+  const cadenceColor = getStatusColor(cadence);
 
   return (
     <div className="bg-ink-paper border border-ink-gray rounded-xl p-3 shadow-sm transition-shadow relative overflow-hidden">
       {scan && <div className={`absolute top-0 left-0 bottom-0 w-1.5 ${scan.signal === 'RED' ? 'bg-status-loss' : scan.signal === 'YELLOW' ? 'bg-amber-400' : 'bg-ink-gray'}`} />}
       <div className="flex justify-between items-center mb-2 pl-2">
-        <div className="flex items-center gap-2">
-          <div className="text-[10px] font-bold text-ink-text/40 uppercase tracking-wider">{timeLabel}</div>
-          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-ink-base text-ink-text/60 border border-ink-gray">
-            {windowLabel}
-          </span>
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center gap-2">
+            <div className="text-[10px] font-bold text-ink-text/40 uppercase tracking-wider">{timeLabel}</div>
+            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${cadenceColor}`}>
+              {cadenceLabel}
+            </span>
+          </div>
         </div>
         <button onClick={() => onAddToQueue(game, sport, pinnLines)} disabled={inQueue} className={`px-2 py-1 rounded text-[10px] font-bold transition-colors border ${inQueue ? 'bg-ink-base text-ink-text/40 border-ink-gray' : 'bg-ink-accent/10 text-ink-accent border-ink-accent/30 hover:bg-ink-accent/20'}`}>{inQueue ? '✓ Queue' : '+ Add'}</button>
       </div>

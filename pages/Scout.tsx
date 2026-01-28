@@ -16,6 +16,11 @@ import {
   getTimeWindowLabel,
   isInTimeWindow,
 } from "../utils/timeWindow";
+import { 
+  getCadenceStatus, 
+  isScanWindowActive, 
+  SPORT_CADENCE_OFFSETS 
+} from "../utils/cadence";
 
 export default function Scout() {
   // Fixed: Use local date string to match user's day, not UTC (which is tomorrow in evenings)
@@ -158,12 +163,43 @@ export default function Scout() {
     return Number.isFinite(startTime) && startTime > Date.now();
   };
 
+  // --- DERIVED STATE ---
+  const upcomingGames = allGames.filter(isUpcomingGame);
+  const filteredGames = upcomingGames.filter((g) =>
+    isInTimeWindow(g.commence_time, selectedWindow),
+  );
+
+  // Filter games that are actually in a scan window (First, Second, Lock)
+  const gamesReadyToScan = filteredGames.filter((g) => {
+    if (scanResults[g.id]) return false;
+    const sport = (g._sport as Sport) || "NBA";
+    return isScanWindowActive(getCadenceStatus(g.commence_time, sport));
+  });
+
+  const unscannedGames = filteredGames.filter((g) => !scanResults[g.id]);
+
+  const sortBySignal = (games: any[]) =>
+    [...games].sort((a, b) => getSignalWeight(b.id) - getSignalWeight(a.id));
+  
+  const windowCounts = TIME_WINDOW_FILTERS.map((window) => ({
+    ...window,
+    count: upcomingGames.filter((g) =>
+      isInTimeWindow(g.commence_time, window.key),
+    ).length,
+  }));
+
+  // Count how many valid scanned games can be added
+  const scannedCount = filteredGames.filter(isEligibleScannedGame).length;
+  const windowAddCount = filteredGames.filter((g) => !isInQueue(g.id)).length;
+
+  // --- HANDLERS ---
+
   const handleScanAll = async () => {
     setBatchScanning(true);
-    const gamesToScan = allGames
-      .filter(isUpcomingGame)
-      .filter((g) => isInTimeWindow(g.commence_time, selectedWindow))
-      .filter((g) => !scanResults[g.id]);
+    
+    // Prioritize "Ready" games (in window). If none, fallback to all unscanned in view.
+    const gamesToScan = gamesReadyToScan.length > 0 ? gamesReadyToScan : unscannedGames;
+    
     let count = 0;
 
     try {
@@ -278,6 +314,34 @@ export default function Scout() {
     toast.showSuccess(`Added ${mappedGames.length} scanned games to Queue`);
   };
 
+  const handleAddWindow = () => {
+    if (selectedWindow === "ALL") return;
+    const gamesToAdd = filteredGames.filter((g) => !isInQueue(g.id));
+    if (gamesToAdd.length === 0) {
+      toast.showInfo("No games to add for this window.");
+      return;
+    }
+
+    const mappedGames = gamesToAdd.map((game) => {
+      const pinnLines = getBookmakerLines(game, "pinnacle");
+      const sport = (game._sport as Sport) || "NBA";
+      const base = mapToGameObject(game, sport, pinnLines);
+      const scanData = scanResults[base.id];
+      return scanData
+        ? {
+            ...base,
+            edgeSignal: scanData.signal,
+            edgeDescription: scanData.description,
+            autoAnalyze: true,
+          }
+        : base;
+    });
+
+    addAllToQueue(mappedGames);
+    const label = getTimeWindowLabel(selectedWindow);
+    toast.showSuccess(`Added ${mappedGames.length} ${label} games to Queue`);
+  };
+
   const getMovementAnalysis = (
     currentA: string,
     refA: string,
@@ -315,16 +379,6 @@ export default function Scout() {
     if (!signal || (signal !== "RED" && signal !== "YELLOW")) return false;
     if (isInQueue(apiGame.id)) return false;
     return isUpcomingGame(apiGame);
-  };
-
-  const SPORT_CADENCE_OFFSETS: Record<
-    Sport,
-    { first: number; second: number; lock: number }
-  > = {
-    NBA: { first: 90, second: 50, lock: 25 },
-    NHL: { first: 105, second: 60, lock: 30 },
-    NFL: { first: 150, second: 90, lock: 45 },
-    Other: { first: 90, second: 50, lock: 25 },
   };
 
   const roundToNearestMinutes = (date: Date, minutes: number) => {
@@ -369,51 +423,6 @@ export default function Scout() {
     const second = new Date(anchor.getTime() - offsets.second * 60 * 1000);
     const lock = new Date(anchor.getTime() - offsets.lock * 60 * 1000);
     return `First ${formatEtTime(first)} · Second ${formatEtTime(second)} · Lock ${formatEtTime(lock)}`;
-  };
-
-  const upcomingGames = allGames.filter(isUpcomingGame);
-  const filteredGames = upcomingGames.filter((g) =>
-    isInTimeWindow(g.commence_time, selectedWindow),
-  );
-  const sortBySignal = (games: any[]) =>
-    [...games].sort((a, b) => getSignalWeight(b.id) - getSignalWeight(a.id));
-  const windowCounts = TIME_WINDOW_FILTERS.map((window) => ({
-    ...window,
-    count: upcomingGames.filter((g) =>
-      isInTimeWindow(g.commence_time, window.key),
-    ).length,
-  }));
-
-  // Count how many valid scanned games can be added
-  const scannedCount = filteredGames.filter(isEligibleScannedGame).length;
-  const windowAddCount = filteredGames.filter((g) => !isInQueue(g.id)).length;
-
-  const handleAddWindow = () => {
-    if (selectedWindow === "ALL") return;
-    const gamesToAdd = filteredGames.filter((g) => !isInQueue(g.id));
-    if (gamesToAdd.length === 0) {
-      toast.showInfo("No games to add for this window.");
-      return;
-    }
-
-    const mappedGames = gamesToAdd.map((game) => {
-      const pinnLines = getBookmakerLines(game, "pinnacle");
-      const sport = (game._sport as Sport) || "NBA";
-      const base = mapToGameObject(game, sport, pinnLines);
-      const scanData = scanResults[base.id];
-      return scanData
-        ? {
-            ...base,
-            edgeSignal: scanData.signal,
-            edgeDescription: scanData.description,
-            autoAnalyze: true,
-          }
-        : base;
-    });
-
-    addAllToQueue(mappedGames);
-    const label = getTimeWindowLabel(selectedWindow);
-    toast.showSuccess(`Added ${mappedGames.length} ${label} games to Queue`);
   };
 
   // If slates are NOT loaded, show the initial state (centered)
@@ -479,7 +488,9 @@ export default function Scout() {
                     {progressText}
                   </span>
                 ) : (
-                  `⚡ Scan ${selectedWindow === "ALL" ? "All" : getTimeWindowLabel(selectedWindow)}`
+                  gamesReadyToScan.length > 0
+                    ? `⚡ Scan Ready (${gamesReadyToScan.length})`
+                    : `⚡ Scan All (${unscannedGames.length})`
                 )}
               </button>
 

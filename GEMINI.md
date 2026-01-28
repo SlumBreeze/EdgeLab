@@ -58,7 +58,17 @@ A multi-stage validation process for every potential bet:
 - **Data Quality Veto:** Ensures verified injury info exists.
 - **Contradiction Check:** Validates that AI reasoning aligns with the final recommendation.
 
-### 2. Line Shopping (Sharp vs. Soft)
+### 2. Scan Cadence Protocol (New)
+
+To minimize "trash volume" from early market noise, the app enforces sport-specific scanning windows:
+
+- **First Window:** Initial liquidity check (e.g., NBA: 90m pre-game).
+- **Second Window:** Injury confirmation window (e.g., NBA: 50m pre-game).
+- **Lock Window:** Final line movement check (e.g., NBA: 25m pre-game).
+
+The "Scan" button intelligently filters for games currently in these active windows.
+
+### 3. Line Shopping (Sharp vs. Soft)
 
 The app compares odds from **Pinnacle** (The "Sharp" book, representing market truth) against **Soft** books (DraftKings, FanDuel, etc.) to calculate the true mathematical edge.
 
