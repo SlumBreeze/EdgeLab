@@ -40,6 +40,8 @@ Unlike basic odds screens, EdgeLab implements a rigorous "veto system" where Gem
 
 - **The Queue:** A Kanban-style workflow for managing potential plays from discovery to execution.
 - **Scout:** Rapidly scan entire slates for line movements and injury alerts.
+- **Cadence Windows (ET):** First / Second / Lock windows per sport control when scans should run.
+- **Auto‑Scan (Optional):** Automatically scans games as they enter cadence windows.
 - **Card:** A daily "Battle Plan" generated from your approved queue, ready for execution.
 
 ---
@@ -167,6 +169,32 @@ edgelab/
 ├── utils/            # Core logic (Math, Edge Calculation, Validation)
 └── ...
 ```
+
+---
+
+## 🔁 Core Runtime Flow (How It Actually Works)
+
+1. **Scout loads slates**
+   - `services/oddsService.ts` pulls NBA/NFL/NHL odds (cached in memory + localStorage).
+   - Slate grouping uses **ET** (`America/New_York`) to avoid timezone drift.
+
+2. **Cadence windows gate scans**
+   - `utils/cadence.ts` defines First / Second / Lock windows per sport.
+   - Cards show a status badge: Waiting → First → Second → Lock.
+   - **Auto‑scan** can be toggled on the Scout header.
+
+3. **Quick Scan (Injuries/News)**
+   - `services/geminiService.ts` runs Google Search and returns RED / YELLOW / WHITE.
+   - RED/YELLOW games are **auto‑added to Queue** with `autoAnalyze: true`.
+
+4. **Queue auto‑analysis**
+   - `pages/Queue.tsx` processes `autoAnalyze` games sequentially (rate‑limited).
+   - Fetches sharp (Pinnacle) + soft lines, computes edge, calls Stoic AI.
+   - Result is PLAYABLE or PASS.
+
+5. **Card is manual**
+   - Plays are manually promoted/logged from Queue to Card.
+   - No auto‑promotion by default.
 
 ---
 

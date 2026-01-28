@@ -6,15 +6,17 @@
 
 ## Technical Foundation
 
-- **Stack:** Python, LangChain, OpenAI API.
-- **Package Mgmt:** `pip`.
-- **Standards:** PEP 8, type hints.
+- **Stack:** React 19, TypeScript, Vite.
+- **Package Mgmt:** `npm`.
+- **Styling:** Tailwind CSS (custom tokens).
+- **AI:** Google Gemini (via `@google/genai`).
+- **Data:** The Odds API + Supabase (optional sync).
 
 ## Project Context
 
-- **Focus:** LLM agent development, prompt optimization.
-- **Active Projects:** Internal tooling, API integrations.
+- **Domain:** Sports betting intelligence (Scout → Queue → Card → Tracker).
 - **Supabase Project:** Use "SlumBreeze's Project" (ref `ekdcafbqwrbvxulutszx`) for EdgeLab. The "edgelab" Supabase project is paused and should not be used.
+- **Timezone:** Slate dates are aligned to **America/New_York (ET)**. Do not use local timezone for slate grouping.
 
 ## Operational Rules
 
@@ -23,24 +25,26 @@
 
 ## 🚀 Key Workflows
 
-- **Prompt Chaining:** Sequential LLM calls.
-- **Agent Orchestration:** Tool use, planning.
-- **Data Handling:** Input/output validation.
+- **Scout:** Loads slates from Odds API, shows cadence windows, runs injury/news scans (Gemini).
+- **Auto‑scan:** Optional toggle; scans games only when they enter First/Second/Lock windows.
+- **Queue:** Auto‑analysis runs sequentially for `autoAnalyze` games; respects delay throttling.
+- **Card:** Manual promotion/logging; no auto‑promotion by default.
 
 ## 💻 Development & Commands
 
-- **Setup:** `pip install -r requirements.txt`
-- **Run:** `python main.py`
-- **Lint:** `flake8 .`
+- **Install:** `npm install`
+- **Dev:** `npm run dev`
+- **Build:** `npm run build`
+- **Deploy:** `npm run deploy`
 
 ## 📝 Conventions
 
-- **Code:** Docstrings, type annotations.
-- **LLM Calls:** Encapsulate in service layer.
-- **Prompts:** Store in separate files/config.
+- **UI State:** Keep Scout/Queue/Card mounted (tab switch hides, doesn’t unmount).
+- **Sync:** LocalStorage first, Supabase optional; avoid heavy sync on empty payloads.
+- **LLM Calls:** Encapsulate in `services/geminiService.ts`.
 
 ## ⚠️ Constraints
 
-- **API Limits:** Implement rate limiting, caching.
-- **Latency:** Asynchronous operations, feedback mechanisms.
-- **Cost:** Monitor token usage.
+- **API Limits:** Cache Odds API responses; avoid excessive refresh.
+- **Latency:** Sequential analysis queue; do not parallelize Gemini calls.
+- **Cost:** Prefer cached slates and minimize AI calls.

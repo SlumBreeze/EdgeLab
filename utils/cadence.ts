@@ -1,16 +1,9 @@
-import { Sport } from "../types";
+import type { Sport } from "../types";
+import { SPORT_CADENCE_OFFSETS } from "../constants";
 
 export type CadenceStatus = "WAITING" | "FIRST" | "SECOND" | "LOCK" | "CLOSED" | "LIVE";
 
-export const SPORT_CADENCE_OFFSETS: Record<
-  Sport,
-  { first: number; second: number; lock: number }
-> = {
-  NBA: { first: 90, second: 50, lock: 25 },
-  NHL: { first: 105, second: 60, lock: 30 },
-  NFL: { first: 150, second: 90, lock: 45 },
-  Other: { first: 90, second: 50, lock: 25 },
-};
+export { SPORT_CADENCE_OFFSETS };
 
 /**
  * Returns the current cadence status for a game based on its start time.

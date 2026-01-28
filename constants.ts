@@ -1,3 +1,16 @@
+import type { Sport } from './types';
+import { Sportsbook } from './types';
+
+export const SPORT_CADENCE_OFFSETS: Record<
+  Sport,
+  { first: number; second: number; lock: number }
+> = {
+  NBA: { first: 90, second: 50, lock: 25 },
+  NHL: { first: 105, second: 60, lock: 30 },
+  NFL: { first: 150, second: 90, lock: 45 },
+  Other: { first: 90, second: 50, lock: 25 },
+};
+
 export const SPORTS_CONFIG: Record<string, { label: string, espnSlug: string, icon: string }> = {
   NBA: { label: 'NBA', espnSlug: 'basketball/nba', icon: '🏀' },
   NFL: { label: 'NFL', espnSlug: 'football/nfl', icon: '🏈' },
@@ -8,8 +21,6 @@ export const COMMON_BOOKS = [
   "Pinnacle", "FanDuel", "DraftKings", "theScore Bet", "BetMGM",
   "Caesars", "Bet365", "BetRivers", "Hard Rock", "PointsBet", "Fanatics", "Fliff"
 ];
-
-import { Sportsbook } from './types';
 
 export const SPORTSBOOKS = Object.values(Sportsbook);
 

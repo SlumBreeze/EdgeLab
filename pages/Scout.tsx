@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 
 import { Sport, Game, BookLines } from "../types";
 import { SPORTS_CONFIG } from "../constants";
@@ -23,9 +23,19 @@ import {
 } from "../utils/cadence";
 
 export default function Scout() {
-  // Fixed: Use local date string to match user's day, not UTC (which is tomorrow in evenings)
+  const formatEtDate = (date: Date) =>
+    new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/New_York",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(date);
+
+  const AUTO_SCAN_STORAGE_KEY = "edgelab_auto_scan_enabled";
+
+  // Use ET for slate date alignment with sports schedules
   const [selectedDate, setSelectedDate] = useState(() =>
-    new Date().toLocaleDateString("en-CA"),
+    formatEtDate(new Date()),
   );
   const [loading, setLoading] = useState(false);
   const [selectedWindow, setSelectedWindow] = useState<TimeWindowFilter>("ALL");
@@ -51,6 +61,11 @@ export default function Scout() {
   const [scanningIds, setScanningIds] = useState<Set<string>>(new Set());
   const [batchScanning, setBatchScanning] = useState(false);
   const [progressText, setProgressText] = useState("");
+  const [autoScanEnabled, setAutoScanEnabled] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem(AUTO_SCAN_STORAGE_KEY) === "true";
+  });
+  const lastAutoScanAt = useRef(0);
 
   const slatesLoaded = Object.keys(allSportsData).length > 0;
 
@@ -85,7 +100,7 @@ export default function Scout() {
     if (!slatesLoaded || !allSportsData[sport]) return [];
     return allSportsData[sport]
       .filter((g: any) => {
-        const gameDate = new Date(g.commence_time).toLocaleDateString("en-CA");
+        const gameDate = formatEtDate(new Date(g.commence_time));
         return gameDate === selectedDate;
       })
       .map((g: any) => ({ ...g, _sport: sport }));
@@ -163,6 +178,12 @@ export default function Scout() {
     return Number.isFinite(startTime) && startTime > Date.now();
   };
 
+  const isInQueue = (id: string) => queue.some((g) => g.id === id);
+  const getSignalWeight = (id: string) => {
+    const s = scanResults[id]?.signal;
+    return s === "RED" ? 3 : s === "YELLOW" ? 2 : s === "WHITE" ? 1 : 0;
+  };
+
   // --- DERIVED STATE ---
   const upcomingGames = allGames.filter(isUpcomingGame);
   const filteredGames = upcomingGames.filter((g) =>
@@ -187,6 +208,11 @@ export default function Scout() {
       isInTimeWindow(g.commence_time, window.key),
     ).length,
   }));
+
+  const isEligibleScannedGame = (apiGame: any) => {
+    const scan = scanResults[apiGame.id]?.signal;
+    return scan && (scan === "RED" || scan === "YELLOW") && !isInQueue(apiGame.id) && isUpcomingGame(apiGame);
+  };
 
   // Count how many valid scanned games can be added
   const scannedCount = filteredGames.filter(isEligibleScannedGame).length;
@@ -241,6 +267,27 @@ export default function Scout() {
       setProgressText("");
     }
   };
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    localStorage.setItem(AUTO_SCAN_STORAGE_KEY, autoScanEnabled ? "true" : "false");
+  }, [autoScanEnabled]);
+
+  useEffect(() => {
+    if (!autoScanEnabled) return;
+    if (!slatesLoaded) return;
+
+    const interval = setInterval(() => {
+      if (batchScanning) return;
+      if (gamesReadyToScan.length === 0) return;
+      const now = Date.now();
+      if (now - lastAutoScanAt.current < 60_000) return; // throttle
+      lastAutoScanAt.current = now;
+      handleScanAll();
+    }, 30_000);
+
+    return () => clearInterval(interval);
+  }, [autoScanEnabled, slatesLoaded, batchScanning, gamesReadyToScan.length, handleScanAll]);
 
   const handleResetScans = () => {
     const gamesToReset = allGames.filter((g) =>
@@ -368,19 +415,6 @@ export default function Scout() {
     return null;
   };
 
-  const isInQueue = (id: string) => queue.some((g) => g.id === id);
-  const getSignalWeight = (id: string) => {
-    const s = scanResults[id]?.signal;
-    return s === "RED" ? 3 : s === "YELLOW" ? 2 : s === "WHITE" ? 1 : 0;
-  };
-
-  const isEligibleScannedGame = (apiGame: any) => {
-    const signal = scanResults[apiGame.id]?.signal;
-    if (!signal || (signal !== "RED" && signal !== "YELLOW")) return false;
-    if (isInQueue(apiGame.id)) return false;
-    return isUpcomingGame(apiGame);
-  };
-
   const roundToNearestMinutes = (date: Date, minutes: number) => {
     const ms = minutes * 60 * 1000;
     return new Date(Math.round(date.getTime() / ms) * ms);
@@ -492,6 +526,18 @@ export default function Scout() {
                     ? `⚡ Scan Ready (${gamesReadyToScan.length})`
                     : `⚡ Scan All (${unscannedGames.length})`
                 )}
+              </button>
+
+              <button
+                onClick={() => setAutoScanEnabled((v) => !v)}
+                className={`px-3 rounded-xl font-bold text-[11px] shadow-sm transition-all whitespace-nowrap border ${
+                  autoScanEnabled
+                    ? "bg-ink-accent/10 text-ink-accent border-ink-accent/30 hover:bg-ink-accent/20"
+                    : "bg-ink-base text-ink-text/50 border-ink-gray hover:text-ink-text"
+                }`}
+                title="Auto-scan when First/Second/Lock windows open"
+              >
+                Auto-scan: {autoScanEnabled ? "On" : "Off"}
               </button>
 
               <button
