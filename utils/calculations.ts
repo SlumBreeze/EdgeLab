@@ -11,6 +11,53 @@ import { NFL_TEAMS, NBA_TEAMS, MLB_TEAMS, NHL_TEAMS } from "../data/teams";
 import { SPORTSBOOKS } from "../constants";
 
 /**
+ * Calculates the recommended wager based on the Kelly Criterion.
+ * f* = (bp - q) / b
+ * where:
+ * f* is the fraction of the current bankroll to wager;
+ * b is the net odds received on the wager (decimal odds - 1);
+ * p is the probability of winning;
+ * q is the probability of losing (1 - p).
+ *
+ * @param bankroll Current total bankroll
+ * @param odds American odds (e.g. -110, +150)
+ * @param winProbability Probability of winning as a decimal (0.0 to 1.0)
+ * @param fractionalKelly Multiplier to reduce variance (e.g., 0.5 for Half Kelly). Default 0.25.
+ * @param maxWagerPct Optional cap on max wager percentage (e.g., 0.05 for 5%). Default 0.05.
+ * @returns Recommended wager amount, rounded to 2 decimal places.
+ */
+export const calculateKellyWager = (
+  bankroll: number,
+  odds: number,
+  winProbability: number,
+  fractionalKelly: number = 0.25,
+  maxWagerPct: number = 0.05
+): number => {
+  if (bankroll <= 0 || winProbability <= 0 || winProbability >= 1) return 0;
+
+  // Convert American to Decimal Odds
+  let decimalOdds: number;
+  if (odds > 0) {
+    decimalOdds = (odds / 100) + 1;
+  } else {
+    decimalOdds = (100 / Math.abs(odds)) + 1;
+  }
+
+  const b = decimalOdds - 1;
+  const p = winProbability;
+  const q = 1 - p;
+
+  const fStar = (b * p - q) / b;
+
+  if (fStar <= 0) return 0;
+
+  const adjustedF = fStar * fractionalKelly;
+  const finalPct = Math.min(adjustedF, maxWagerPct);
+
+  return Math.floor(bankroll * finalPct * 100) / 100;
+};
+
+/**
  * Calculates the potential profit for a given wager and American odds.
  * Does not include the returned stake.
  */

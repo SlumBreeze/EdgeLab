@@ -11,7 +11,9 @@ const CACHE_DURATION = 60 * 60 * 1000;
 const SPORT_KEYS: Record<Sport, string> = {
   'NBA': 'basketball_nba',
   'NFL': 'americanfootball_nfl',
-  'NHL': 'icehockey_nhl'
+  'NHL': 'icehockey_nhl',
+  'NCAAB': 'basketball_ncaab',
+  'Other': 'basketball_nba' // Default to something safe
 };
 
 // Filtered list based on user preference
@@ -162,7 +164,7 @@ export const fetchOddsForGame = async (sport: Sport, gameId: string): Promise<an
 // New function to batch load all sports
 export const fetchAllSportsOdds = async (forceRefresh = false): Promise<Record<Sport, any[]>> => {
   const results: Record<string, any[]> = {};
-  const sports: Sport[] = ['NBA', 'NFL', 'NHL'];
+  const sports: Sport[] = ['NBA', 'NFL', 'NHL', 'NCAAB'];
   
   console.log(`[OddsService] Batch loading all sports (Force: ${forceRefresh})...`);
   

@@ -13,17 +13,24 @@ const getAiClient = () =>
   new GoogleGenerativeAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
 
 const SYSTEM_PROMPT = `
-You are the Stoic Handicapper. You are cold, calculated, and indifferent to narratives.
+You are the Stoic Handicapper. You are cold, calculated, and indifferent to narratives, but you respect Situational Facts.
 
 NON-NEGOTIABLE RULES:
 - Ignore sports narratives, media hype, and "vibes."
 - Ignore ALL player props. Only evaluate Game Lines: Moneyline, Spread, Total.
-- Only act on math and Positive Expected Value (+EV).
+- Start with math and Positive Expected Value (+EV).
+- APPLY COMMON SENSE VETO: You MUST VETO (PASS) even a +EV bet if:
+    a) A key player is OUT or injured and the math doesn't reflect the impact.
+    b) Situational disadvantage (e.g., 3rd game in 4 nights, travel fatigue).
+    c) Extreme weather (NFL/Outdoor) that makes the market numbers unreliable.
 
 STRATEGIES:
 - Fade the Public: If >80% of public bets are on one side and the line moves the opposite way, call it "Reverse Line Movement."
 - Market Overreaction: Detect recency bias (e.g., a blowout last game) and avoid overreacting.
-- Discipline: If edge < 1.0%, recommendation must be PASS. Between 1.0% and 2.0% is LEAN. Only > 2.0% is BET.
+- Discipline (Updated): If edge <= 0%, recommendation must be PASS.
+  If edge is small (0% - 1.5%), you MAY still recommend BET or LEAN if:
+    a) The line value is positive (better points or juice than sharp), OR
+    b) Situational context strongly supports the bet.
 
 OUTPUT:
 Return strict JSON with:
@@ -34,12 +41,13 @@ trueProbability (number, win %)
 impliedProbability (number, % from odds)
 edge (number, true - implied)
 wagerType (Moneyline | Spread | Total)
+riskFactors (string array; e.g., ["Star Player Out", "Rest Disadvantage"])
 
 No extra keys. No props. No narrative fluff.
 `;
 
-const EDGE_PASS_THRESHOLD = 1.0;
-const EDGE_BET_THRESHOLD = 2.0;
+const EDGE_PASS_THRESHOLD = 0.0;
+const EDGE_BET_THRESHOLD = 1.5;
 
 type UnitTier = {
   label: string;
@@ -558,6 +566,7 @@ type StoicAiResult = {
   impliedProbability: number;
   edge: number;
   wagerType: "Moneyline" | "Spread" | "Total";
+  riskFactors?: string[];
 };
 
 const stoicResponseSchema: Schema = {
@@ -570,6 +579,10 @@ const stoicResponseSchema: Schema = {
     impliedProbability: { type: Type.NUMBER },
     edge: { type: Type.NUMBER },
     wagerType: { type: Type.STRING },
+    riskFactors: { 
+      type: Type.ARRAY,
+      items: { type: Type.STRING }
+    },
   },
   required: [
     "recommendation",
@@ -676,14 +689,19 @@ export const analyzeGame = async (game: GameData): Promise<AnalysisResult> => {
   });
 
   const best = candidates.sort((a, b) => b.edge - a.edge)[0];
-  if (!best || best.edge < EDGE_PASS_THRESHOLD) {
+  
+  // MODIFIED: Proceed to AI if there is a MATH edge OR a LINE (POINTS) advantage.
+  const hasPointAdvantage = best && best.lineValue > 0;
+  const hasMathEdge = best && best.edge > 0;
+
+  if (!best || (!hasMathEdge && !hasPointAdvantage)) {
     return {
       decision: "PASS",
       vetoTriggered: true,
-      vetoReason: `NO_EDGE: Edge < ${EDGE_PASS_THRESHOLD}%.`,
+      vetoReason: `NO_EDGE: No math or line advantage found.`,
       recommendation: "PASS",
-      reasoning: `Edge < ${EDGE_PASS_THRESHOLD}%.`,
-      researchSummary: `Edge < ${EDGE_PASS_THRESHOLD}%.`,
+      reasoning: `Math: ${best?.edge ?? 0}%, Line: ${best?.lineValue ?? 0} pts.`,
+      researchSummary: `Math: ${best?.edge ?? 0}%, Line: ${best?.lineValue ?? 0} pts.`,
       confidenceScore: 0,
       trueProbability: best?.trueProbability ?? 0,
       impliedProbability: best?.impliedProbability ?? 0,
@@ -748,6 +766,9 @@ export const analyzeGame = async (game: GameData): Promise<AnalysisResult> => {
     floorReason = "Matches sharp price";
   }
 
+  // NEW: Fetch Qualitative Context
+  const context = await quickScanGame(game);
+
   const prompt = `
 Matchup: ${game.awayTeam.name} at ${game.homeTeam.name}
 Sport: ${game.sport}
@@ -761,11 +782,17 @@ TrueProbability: ${best.trueProbability}%
 ImpliedProbability: ${best.impliedProbability}%
 Edge: ${best.edge}%
 
+Situational Context:
+- Injuries: ${context.injuryContext}
+- Spot: ${context.situationalContext}
+- Game Script: ${context.gameScript}
+
 Line Movement: ${lineMovement}
 
 Tasks:
 - Use search to find public betting % and line movement. If >80% public on one side and line moves opposite, call "Reverse Line Movement."
 - Check if recency bias is driving the move (market overreaction).
+- VETO the math if the Situational Context (Injuries/Rest) makes the +EV edge a "trap".
 - Ignore player props entirely. Only evaluate Moneyline/Spread/Total.
 - Reasoning max 2 sentences, blunt and data-only.
 Return JSON only.
@@ -796,6 +823,7 @@ Return JSON only.
       impliedProbability: best.impliedProbability,
       edge: best.edge,
       wagerType: best.market,
+      riskFactors: [],
     });
   } catch (error) {
     return {
@@ -818,22 +846,26 @@ Return JSON only.
   const confidenceScore = clampConfidence(analysis.confidence);
   const reasoning = trimToTwoSentences(analysis.reasoning || "");
 
-  // Strict Discipline:
-  // Edge < 1.0% -> PASS (Filtered above, but safety check)
-  // Edge 1.0% - 2.0% -> LEAN
-  // Edge >= 2.0% -> BET (if AI agrees)
+  // Updated Discipline:
+  // - Edge <= 0% -> PASS
+  // - Edge 0% - 1.5% -> Allow BET if AI supports it AND line value or situational confidence is strong
+  // - Edge >= 1.5% -> BET if AI supports it (BET or LEAN), unless AI says PASS
+  const hasLineValue = best.lineValue > 0 || best.priceValue > 0;
+  const hasSituationalSupport = confidenceScore >= 60;
 
-  let calculatedRec = "PASS";
-  if (best.edge >= EDGE_BET_THRESHOLD) {
-    calculatedRec = normalizedRec; // Trust AI if edge is strong
-  } else if (best.edge >= EDGE_PASS_THRESHOLD) {
-    calculatedRec = "LEAN"; // Force LEAN for marginal edges
+  let calculatedRec: "BET" | "PASS" | "LEAN" = "PASS";
+
+  if (best.edge > 0 && normalizedRec !== "PASS") {
+    if (best.edge >= EDGE_BET_THRESHOLD) {
+      calculatedRec = "BET";
+    } else if (hasLineValue || hasSituationalSupport) {
+      calculatedRec = "BET";
+    } else {
+      calculatedRec = "PASS";
+    }
   }
 
-  const finalRecommendation =
-    best.edge < EDGE_PASS_THRESHOLD || normalizedWagerType !== best.market
-      ? "PASS"
-      : calculatedRec;
+  const finalRecommendation = calculatedRec;
 
   const decision = finalRecommendation === "BET" ? "PLAYABLE" : "PASS";
   const unitTier =
@@ -850,12 +882,12 @@ Return JSON only.
     vetoTriggered: finalRecommendation !== "BET",
     vetoReason:
       finalRecommendation === "PASS"
-        ? best.edge < EDGE_PASS_THRESHOLD
-          ? `NO_EDGE: Edge < ${EDGE_PASS_THRESHOLD}%.`
-          : "STOIC_PASS: No bet."
-        : finalRecommendation === "LEAN"
-          ? "LEAN_ONLY: Not strong enough to bet."
-          : undefined,
+        ? best.edge <= 0
+          ? `NO_EDGE: Edge ${best.edge}%.`
+          : normalizedRec === "PASS"
+            ? "STOIC_VETO: AI rejected the spot."
+            : "MARGINAL_EDGE: Low edge without line value or strong context."
+        : undefined,
     caution:
       finalRecommendation === "LEAN" ? "Lean only: marginal edge." : undefined,
     recommendation: finalRecommendation,
@@ -882,6 +914,7 @@ Return JSON only.
     impliedProbability: best.impliedProbability,
     edge: best.edge,
     wagerType: normalizedWagerType || best.market,
+    riskFactors: analysis.riskFactors,
   };
 };
 
@@ -941,12 +974,13 @@ export const refreshAnalysisMathOnly = (game: QueuedGame): HighHitAnalysis => {
     const impliedProb = americanToImpliedProb(selectedSide.bestSoftOdds);
     const currentEdge = trueProb - impliedProb;
 
-    if (currentEdge < EDGE_PASS_THRESHOLD) {
+    // MODIFIED: Floor is now 0.0% to match new permissive logic
+    if (currentEdge <= 0.0) {
       return {
         ...prior,
         decision: "PASS",
         vetoTriggered: true,
-        vetoReason: `LINE_MOVED: Edge dropped below ${EDGE_PASS_THRESHOLD}%.`,
+        vetoReason: `LINE_MOVED: Edge dropped to ${currentEdge.toFixed(1)}% (<= 0%).`,
         sharpImpliedProb,
         lineValueCents: 0,
         lineValuePoints: 0,
@@ -1074,7 +1108,7 @@ export const refreshAnalysisMathOnly = (game: QueuedGame): HighHitAnalysis => {
 
 export const quickScanGame = async (
   game: Game,
-): Promise<{ signal: "RED" | "YELLOW" | "WHITE"; description: string }> => {
+): Promise<ScanResult> => {
   const ai = getAiClient();
   const dateObj = new Date(game.date);
   const readableDate = dateObj.toLocaleDateString("en-US", {
@@ -1084,14 +1118,20 @@ export const quickScanGame = async (
   });
 
   const prompt = `
-    Search for: "${game.awayTeam.name} vs ${game.homeTeam.name} ${game.sport} injury report ${readableDate}"
-
-    CRITICAL: You MUST return a valid JSON object.
-
-    Return JSON format:
+    Conduct a deep situational scan for ${game.awayTeam.name} vs ${game.homeTeam.name} (${game.sport}) on ${readableDate}.
+    
+    Research:
+    1. Injuries: Who is OUT or Questionable?
+    2. Situational Spot: Is this a back-to-back? Rest advantage? Travel fatigue?
+    3. Game Script: How is the game likely to play out based on matchups?
+    
+    Return JSON only:
     {
       "signal": "RED" | "YELLOW" | "WHITE",
-      "description": "Max 15 words"
+      "description": "Short summary (10 words)",
+      "injuryContext": "Detailed injury info",
+      "situationalContext": "Rest/Travel context",
+      "gameScript": "Expected game flow"
     }
   `;
 
@@ -1103,6 +1143,7 @@ export const quickScanGame = async (
         contents: prompt,
         config: {
           tools: [{ googleSearch: {} }],
+          responseMimeType: "application/json",
           temperature: 0.2,
         },
       },
@@ -1110,11 +1151,20 @@ export const quickScanGame = async (
 
     return cleanAndParseJson(response.text, {
       signal: "WHITE",
-      description: "Scan completed (no data/unrecognized)",
+      description: "Scan completed",
+      injuryContext: "No injury data found.",
+      situationalContext: "Standard rest.",
+      gameScript: "No specific script detected."
     });
   } catch (e) {
     console.error("Quick scan failed", e);
-    return { signal: "WHITE", description: "Scan unavailable" };
+    return { 
+      signal: "WHITE", 
+      description: "Scan unavailable",
+      injuryContext: "Unavailable",
+      situationalContext: "Unavailable",
+      gameScript: "Unavailable"
+    };
   }
 };
 

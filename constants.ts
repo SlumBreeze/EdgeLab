@@ -8,6 +8,7 @@ export const SPORT_CADENCE_OFFSETS: Record<
   NBA: { first: 90, second: 50, lock: 25 },
   NHL: { first: 105, second: 60, lock: 30 },
   NFL: { first: 150, second: 90, lock: 45 },
+  NCAAB: { first: 90, second: 50, lock: 25 },
   Other: { first: 90, second: 50, lock: 25 },
 };
 
@@ -15,6 +16,7 @@ export const SPORTS_CONFIG: Record<string, { label: string, espnSlug: string, ic
   NBA: { label: 'NBA', espnSlug: 'basketball/nba', icon: '🏀' },
   NFL: { label: 'NFL', espnSlug: 'football/nfl', icon: '🏈' },
   NHL: { label: 'NHL', espnSlug: 'hockey/nhl', icon: '🏒' },
+  NCAAB: { label: 'NCAAB', espnSlug: 'basketball/mens-college-basketball', icon: '🏫' },
 };
 
 export const COMMON_BOOKS = [

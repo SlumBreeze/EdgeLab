@@ -275,9 +275,26 @@ const QueuedGameCard: React.FC<Props> = ({
           )}
         </div>
         {game.edgeSignal ? (
-          <div className={`mt-2 text-xs px-3 py-2 rounded-lg border flex items-center gap-2 ${getEdgeColor(game.edgeSignal)}`}>
-            <span>{getEdgeEmoji(game.edgeSignal)}</span>
-            <span>{game.edgeDescription || 'No description available'}</span>
+          <div className="mt-2 space-y-2">
+            <div className={`text-xs px-3 py-2 rounded-lg border flex items-center gap-2 ${getEdgeColor(game.edgeSignal)}`}>
+              <span>{getEdgeEmoji(game.edgeSignal)}</span>
+              <span className="font-bold">{game.edgeDescription || 'No description available'}</span>
+            </div>
+            
+            {/* Enhanced Context Fields (from v3 scan) */}
+            {game.scanResult?.injuryContext && (
+              <div className="bg-ink-paper p-2 rounded border border-ink-gray text-[10px]">
+                <span className="text-ink-text/40 font-bold uppercase block mb-1">🩹 Injuries</span>
+                <span className="text-ink-text/70">{game.scanResult.injuryContext}</span>
+              </div>
+            )}
+            
+            {game.scanResult?.situationalContext && (
+              <div className="bg-ink-paper p-2 rounded border border-ink-gray text-[10px]">
+                <span className="text-ink-text/40 font-bold uppercase block mb-1">📅 Spot</span>
+                <span className="text-ink-text/70">{game.scanResult.situationalContext}</span>
+              </div>
+            )}
           </div>
         ) : (
           <p className="text-xs text-ink-text/40 mt-1 italic">Run a quick scan to check for injury edges</p>
@@ -494,6 +511,20 @@ const QueuedGameCard: React.FC<Props> = ({
             {game.analysis.vetoTriggered && game.analysis.vetoReason && (
               <div className="px-4 py-2 bg-status-loss/10 text-sm border-t border-status-loss/20 text-status-loss">
                 <strong>Veto:</strong> {game.analysis.vetoReason}
+              </div>
+            )}
+
+            {/* Risk Factors */}
+            {game.analysis.riskFactors && game.analysis.riskFactors.length > 0 && (
+              <div className="px-4 py-2 bg-amber-500/5 text-xs border-t border-amber-500/20">
+                <div className="font-bold text-amber-500 uppercase text-[9px] mb-1">⚠️ Risk Factors</div>
+                <div className="flex flex-wrap gap-1">
+                  {game.analysis.riskFactors.map((risk, i) => (
+                    <span key={i} className="bg-amber-500/10 text-amber-300 px-2 py-0.5 rounded border border-amber-500/30">
+                      {risk}
+                    </span>
+                  ))}
+                </div>
               </div>
             )}
             

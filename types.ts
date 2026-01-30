@@ -1,4 +1,4 @@
-export type Sport = "NBA" | "NFL" | "NHL" | "Other";
+export type Sport = "NBA" | "NFL" | "NHL" | "NCAAB" | "Other";
 export type TimeWindow = "EARLY" | "AFTERNOON" | "EVENING";
 export type TimeWindowFilter = "ALL" | TimeWindow;
 
@@ -55,6 +55,7 @@ export interface QueuedGame extends Game {
   addedAt: number;
   edgeSignal?: "RED" | "YELLOW" | "WHITE";
   edgeDescription?: string;
+  scanResult?: ScanResult;
   autoAnalyze?: boolean;
   sharpLines?: BookLines;
   softLines: BookLines[];
@@ -113,6 +114,7 @@ export interface AnalysisResult {
   impliedProbability?: number;
   edge?: number;
   wagerType?: "Moneyline" | "Spread" | "Total";
+  riskFactors?: string[];
 }
 
 export type HighHitAnalysis = AnalysisResult;
@@ -132,6 +134,9 @@ export interface SportsbookAccount {
 export interface ScanResult {
   signal: "RED" | "YELLOW" | "WHITE";
   description: string;
+  injuryContext?: string;
+  situationalContext?: string;
+  gameScript?: string;
 }
 
 export interface ReferenceLineData {

@@ -159,6 +159,7 @@ export default function Scout() {
         ...game,
         edgeSignal: result.signal,
         edgeDescription: result.description,
+        scanResult: result,
         autoAnalyze: true,
       };
       addToQueue(gameWithScan);
@@ -252,6 +253,7 @@ export default function Scout() {
               ...gameObj,
               edgeSignal: result.signal,
               edgeDescription: result.description,
+              scanResult: result,
               autoAnalyze: true,
             };
             addToQueue(gameWithScan);
@@ -327,6 +329,7 @@ export default function Scout() {
           ...game,
           edgeSignal: scanData.signal,
           edgeDescription: scanData.description,
+          scanResult: scanData,
         }
       : game;
     addToQueue(gameWithScan);
@@ -352,6 +355,7 @@ export default function Scout() {
             ...base,
             edgeSignal: scanData.signal,
             edgeDescription: scanData.description,
+            scanResult: scanData,
             autoAnalyze: true,
           }
         : base;
@@ -379,6 +383,7 @@ export default function Scout() {
             ...base,
             edgeSignal: scanData.signal,
             edgeDescription: scanData.description,
+            scanResult: scanData,
             autoAnalyze: true,
           }
         : base;

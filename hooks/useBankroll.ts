@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useCallback, useMemo } from "react";
 import { supabase } from "../services/supabaseClient";
 import { useAuth } from "../components/AuthContext";
 import {
@@ -11,6 +11,7 @@ import {
 import {
   calculateBookBalances,
   calculateBankrollStats,
+  calculateKellyWager,
 } from "../utils/calculations";
 import { SPORTSBOOKS } from "../constants";
 
@@ -30,14 +31,15 @@ interface UseBankrollResult {
   updateBetStatus: (id: string, status: BetStatus) => Promise<void>;
   updateBet: (updatedBet: Bet) => Promise<void>;
   deleteBet: (id: string) => Promise<void>;
+  getKellyWager: (odds: number, winProbability: number, fractional?: number) => number;
 }
 
 export const useBankroll = (): UseBankrollResult => {
   const { user } = useAuth();
-  const [deposits, setDeposits] = useState<BookDeposit[]>([]);
-  const [bets, setBets] = useState<Bet[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
+  const [deposits, setDeposits] = React.useState<BookDeposit[]>([]);
+  const [bets, setBets] = React.useState<Bet[]>([]);
+  const [loading, setLoading] = React.useState<boolean>(true);
+  const [error, setError] = React.useState<string | null>(null);
 
   const normalizeSportsbook = (value?: string) => {
     if (!value) return value || "";
@@ -179,7 +181,7 @@ export const useBankroll = (): UseBankrollResult => {
   }, [user]);
 
   // Initial Load
-  useEffect(() => {
+  React.useEffect(() => {
     fetchData();
   }, [fetchData]);
 
@@ -193,6 +195,11 @@ export const useBankroll = (): UseBankrollResult => {
   }, [bets, deposits]);
 
   const totalBankroll = bankrollState.currentBalance;
+
+  // New Kelly Helper
+  const getKellyWager = (odds: number, winProbability: number, fractional: number = 0.25) => {
+    return calculateKellyWager(totalBankroll, odds, winProbability, fractional);
+  };
 
   // Action: Update Book Balance (Deposit or Withdraw)
   const updateBookBalance = async (
@@ -402,5 +409,6 @@ export const useBankroll = (): UseBankrollResult => {
     updateBetStatus,
     updateBet,
     deleteBet,
+    getKellyWager,
   };
 };

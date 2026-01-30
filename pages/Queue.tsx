@@ -284,6 +284,7 @@ export default function Queue() {
     updateGame(gameId, {
       edgeSignal: result.signal,
       edgeDescription: result.description,
+      scanResult: result,
     });
     setAnalyzingIds((prev) => {
       const next = new Set(prev);

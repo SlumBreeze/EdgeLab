@@ -1,5 +1,5 @@
 import React from 'react';
-import { Game, BookLines, Sport } from '../types';
+import { Game, BookLines, Sport, ScanResult } from '../types';
 import { formatEtTime, getTimeWindow, getTimeWindowLabel } from '../utils/timeWindow';
 import { getCadenceStatus, getStatusLabel, getStatusColor } from '../utils/cadence';
 
@@ -8,7 +8,7 @@ interface ScoutGameCardProps {
   sport: Sport;
   pinnLines: BookLines | null;
   referenceLines: { spreadLineA: string; spreadLineB: string } | undefined;
-  scanResult: { signal: string; description: string } | undefined;
+  scanResult: ScanResult | undefined;
   isScanning: boolean;
   isBatchScanning: boolean;
   inQueue: boolean;
@@ -66,9 +66,19 @@ const ScoutGameCard: React.FC<ScoutGameCardProps> = ({
         </div>
         <div className="grid grid-cols-[2fr_1fr_1fr_2fr] gap-1 items-center py-1"><div className="font-bold text-ink-text truncate text-xs">{game.home_team}</div><div className="text-center text-ink-text/40 text-[10px] font-mono">{ref?.spreadLineB || '-'}</div><div className="text-center font-bold text-ink-text bg-ink-base rounded py-0.5 text-[10px] font-mono border border-ink-gray">{pinnLines?.spreadLineB || '-'}</div></div>
       </div>
-      <div className="pl-2">
+      <div className="pl-2 space-y-1.5">
         {scan ? (
-          <div className={`p-2 rounded-lg flex items-start gap-2 ${scan.signal === 'RED' ? 'bg-status-loss/10 border border-status-loss/20' : scan.signal === 'YELLOW' ? 'bg-amber-500/10 border border-amber-500/20' : 'bg-ink-base border border-ink-gray'}`}><span className="text-sm">{getEdgeEmoji(scan.signal)}</span><span className="text-[10px] text-ink-text/80 leading-tight font-medium">{scan.description}</span></div>
+          <>
+            <div className={`p-2 rounded-lg flex items-start gap-2 ${scan.signal === 'RED' ? 'bg-status-loss/10 border border-status-loss/20' : scan.signal === 'YELLOW' ? 'bg-amber-500/10 border border-amber-500/20' : 'bg-ink-base border border-ink-gray'}`}>
+              <span className="text-sm">{getEdgeEmoji(scan.signal)}</span>
+              <span className="text-[10px] text-ink-text/80 leading-tight font-bold">{scan.description}</span>
+            </div>
+            {scan.injuryContext && scan.injuryContext !== "No injury data found." && scan.injuryContext !== "Unavailable" && (
+              <div className="text-[9px] text-ink-text/50 line-clamp-2 px-1">
+                🩹 {scan.injuryContext}
+              </div>
+            )}
+          </>
         ) : (
           <button onClick={() => onQuickScan(gameObj)} disabled={isScanning || isBatchScanning} className="w-full py-1.5 bg-ink-base hover:bg-ink-gray text-ink-text/60 hover:text-ink-text rounded-lg text-[10px] font-bold transition-colors flex items-center justify-center gap-1 border border-ink-gray">{isScanning ? <span className="animate-pulse">Scanning...</span> : <><span className="text-[10px]">⚡</span> Scan Injuries</>}</button>
         )}

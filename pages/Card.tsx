@@ -19,6 +19,7 @@ import StickyCardSummary from "../components/StickyCardSummary";
 import { isPremiumEdge } from "../utils/edgeUtils";
 import { mapQueuedGameToDraftBet, DraftBet } from "../types/draftBet";
 import { refreshAnalysisMathOnly } from "../services/geminiService";
+import { calculateKellyWager } from "../utils/calculations";
 import {
   fetchOddsForGame,
   getBookmakerLines,
@@ -37,6 +38,16 @@ type AvailableBalanceLookup = (bookName: string) => number | null;
 const parseNumber = (value?: string) => {
   if (!value) return null;
   const parsed = parseFloat(value.replace(/^[ou]/i, ""));
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const parseAmericanOdds = (value?: string, fallback?: number) => {
+  if (fallback !== undefined && Number.isFinite(fallback)) return fallback;
+  if (!value) return null;
+  const matches = value.match(/([+-]\d{2,4})/g);
+  if (!matches || matches.length === 0) return null;
+  const last = matches[matches.length - 1];
+  const parsed = parseInt(last, 10);
   return Number.isFinite(parsed) ? parsed : null;
 };
 
@@ -163,6 +174,7 @@ export default function Card({
   );
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [selectedWindow, setSelectedWindow] = useState<TimeWindowFilter>("ALL");
+  const [kellyFraction, setKellyFraction] = useState(0.25);
 
   // History State
   const [historyDate, setHistoryDate] = useState<string>("");
@@ -803,6 +815,9 @@ export default function Card({
                       game={g}
                       dim={hasAutoPicked && !g.cardSlot}
                       onLogBet={onLogBet}
+                      kellyFraction={kellyFraction}
+                      onKellyFractionChange={setKellyFraction}
+                      bankrollForCard={bankrollForCard}
                       funding={playableAllocations.find(
                         (a) => a.gameId === g.id,
                       )}
@@ -836,6 +851,9 @@ const PlayableCard: React.FC<{
   game: QueuedGame;
   dim?: boolean;
   onLogBet: (draft: DraftBet) => void;
+  kellyFraction: number;
+  onKellyFractionChange: (value: number) => void;
+  bankrollForCard: number;
   funding?: {
     gameId: string;
     wagerUnits: number;
@@ -849,7 +867,15 @@ const PlayableCard: React.FC<{
     overrideBook?: string;
     overrideOdds?: number;
   };
-}> = ({ game, dim, onLogBet, funding }) => {
+}> = ({
+  game,
+  dim,
+  onLogBet,
+  kellyFraction,
+  onKellyFractionChange,
+  bankrollForCard,
+  funding,
+}) => {
   if (!game.analysis) return null; // Defensive check
   const a = game.analysis;
 
@@ -862,10 +888,6 @@ const PlayableCard: React.FC<{
     (a.recommendation && a.recommendation.length > 4
       ? a.recommendation
       : undefined);
-
-  const wagerUnits = funding?.wagerUnits ?? 1.0;
-  const wagerAmount = funding?.wagerAmount ?? 0;
-  const isWagerCalculated = funding?.isWagerCalculated ?? false;
 
   // Quality indicator for smart pick
   const linePoints = a.lineValuePoints || 0;
@@ -883,10 +905,31 @@ const PlayableCard: React.FC<{
   const displayBook = funding?.displayBook || a.softBestBook;
   const displayRecLine = funding?.displayRecLine || a.recLine;
 
+  const winProbPercent = a.recProbability ?? a.trueProbability ?? 0;
+  const winProb = winProbPercent > 0 ? winProbPercent / 100 : 0;
+  const oddsForKelly = parseAmericanOdds(
+    displayRecLine || a.recLine,
+    funding?.overrideOdds,
+  );
+  const kellyRaw =
+    bankrollForCard > 0 && oddsForKelly !== null && winProb > 0
+      ? calculateKellyWager(bankrollForCard, oddsForKelly, winProb, kellyFraction)
+      : 0;
+  const kellyCapped =
+    funding?.availableBalance !== null && funding?.availableBalance !== undefined
+      ? Math.min(kellyRaw, funding.availableBalance)
+      : kellyRaw;
+  const isKellyCapped =
+    funding?.availableBalance !== null &&
+    funding?.availableBalance !== undefined &&
+    kellyRaw > funding.availableBalance;
+
   const handleLogClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    const draft = mapQueuedGameToDraftBet(game, {
-      wager: wagerAmount,
+  const suggestedWager =
+      kellyCapped > 0 ? kellyCapped : 0;
+  const draft = mapQueuedGameToDraftBet(game, {
+      wager: suggestedWager,
       recLineOverride: displayRecLine,
       marketOverride: a.market,
     });
@@ -992,24 +1035,45 @@ const PlayableCard: React.FC<{
         </div>
       )}
 
-      {/* WAGER RECOMMENDATION BAR */}
+      {/* KELLY RECOMMENDATION */}
       <div className="flex items-center justify-between p-3 rounded-xl mb-4 bg-ink-base border border-ink-gray">
         <div>
           <div className="text-[10px] uppercase font-bold tracking-wider text-ink-text/60">
-            Recommended Wager
+            Kelly Suggestion
           </div>
-          {isWagerCalculated ? (
-            <div className="flex items-baseline gap-1">
+          {kellyCapped > 0 ? (
+            <div className="flex items-baseline gap-2">
               <span className="text-xl font-bold font-mono">
-                ${wagerAmount.toFixed(2)}
+                ${kellyCapped.toFixed(2)}
               </span>
-              <span className="text-xs text-ink-text/70">({wagerUnits}u)</span>
+              <span className="text-xs text-ink-text/70">
+                {winProbPercent.toFixed(1)}%
+              </span>
             </div>
           ) : (
             <div className="text-xs italic text-ink-text/50">
-              Set bankroll to see calc
+              No win prob or odds
             </div>
           )}
+          {isKellyCapped && (
+            <div className="text-[10px] text-amber-400 mt-1">
+              Capped to {displayBook} balance
+            </div>
+          )}
+        </div>
+        <div className="text-right">
+          <label className="text-[10px] uppercase font-bold tracking-wider text-ink-text/60 block mb-1">
+            Multiplier
+          </label>
+          <select
+            value={kellyFraction}
+            onChange={(e) => onKellyFractionChange(Number(e.target.value))}
+            className="bg-ink-paper border border-ink-gray rounded-lg px-2 py-1 text-xs font-mono text-ink-text focus:border-ink-accent outline-none"
+          >
+            <option value={0.25}>1/4 Kelly</option>
+            <option value={0.5}>1/2 Kelly</option>
+            <option value={1}>Full Kelly</option>
+          </select>
         </div>
         <div className="text-right">
           <div className="text-[10px] uppercase font-bold tracking-wider text-ink-text/60">

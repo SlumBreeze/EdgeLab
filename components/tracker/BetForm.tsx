@@ -5,7 +5,6 @@ import {
   DollarSign,
   Camera,
   Loader2,
-  Settings2,
   Calendar,
 } from "lucide-react";
 import { GoogleGenAI, Type } from "@google/genai";
@@ -64,9 +63,6 @@ export const BetForm: React.FC<BetFormProps> = ({
   const [wager, setWager] = useState<string | number>("");
 
   const [calculatedPayout, setCalculatedPayout] = useState(0);
-
-  const [wagerPct, setWagerPct] = useState(1);
-  const [showStrategy, setShowStrategy] = useState(false);
 
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -134,10 +130,6 @@ export const BetForm: React.FC<BetFormProps> = ({
 
       if (draftBet.stake !== undefined && draftBet.stake !== null) {
         setWager(draftBet.stake);
-      } else {
-        // If no stake provided in draft, use default calculation or leave empty
-        // const recommended = calculateRecommendedWager();
-        // setWager(recommended);
       }
     }
   }, [draftBet]);
@@ -175,17 +167,6 @@ export const BetForm: React.FC<BetFormProps> = ({
       setCalculatedPayout(0);
     }
   }, [wager, odds]);
-
-  const calculateRecommendedWager = () => {
-    const base = Math.max(currentBalance, 0);
-    const amount = base * (wagerPct / 100);
-    return Math.floor(amount * 100) / 100;
-  };
-
-  const applyRecommendedWager = () => {
-    const amount = calculateRecommendedWager();
-    setWager(amount);
-  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -308,10 +289,8 @@ export const BetForm: React.FC<BetFormProps> = ({
 
         if (result.wager && result.wager > 0) {
           setWager(result.wager);
-        } else {
-          setWager(calculateRecommendedWager());
         }
-
+        
         // Fuzzy match sport
         if (result.sport) {
           const upperSport = result.sport.toUpperCase();
@@ -358,9 +337,6 @@ export const BetForm: React.FC<BetFormProps> = ({
 
   const selectedBookBalance =
     bookBalances.find((b) => b.sportsbook === sportsbook)?.currentBalance || 0;
-  const recommendedAmount = calculateRecommendedWager();
-  const showBalanceWarning =
-    recommendedAmount > selectedBookBalance && showStrategy;
 
   // Helpers for validation
   const wNum = parseFloat(String(wager));
@@ -384,13 +360,6 @@ export const BetForm: React.FC<BetFormProps> = ({
           <div className="flex gap-2">
             <button
               type="button"
-              onClick={() => setShowStrategy(!showStrategy)}
-              className={`p-2 rounded-lg transition-all ${showStrategy ? "bg-ink-accent text-white shadow-md" : "bg-ink-base text-ink-text/40 hover:text-ink-accent border border-ink-gray"}`}
-            >
-              <Calculator size={18} />
-            </button>
-            <button
-              type="button"
               onClick={handleScanClick}
               className={`p-2 rounded-lg border transition-all ${!hasApiKey ? "bg-ink-base border-ink-gray text-ink-text/20 cursor-not-allowed" : "bg-ink-base border-ink-gray text-ink-text/40 hover:text-ink-accent hover:shadow-sm"}`}
               disabled={isAnalyzing || !hasApiKey}
@@ -411,58 +380,6 @@ export const BetForm: React.FC<BetFormProps> = ({
             />
           </div>
         </div>
-
-        {/* Strategy Panel */}
-        {showStrategy && (
-          <div className="bg-ink-accent/10 px-5 py-4 border-b border-ink-accent/20">
-            <div className="flex items-start justify-between">
-              <div>
-                <h4 className="text-sm font-bold text-ink-accent flex items-center gap-2">
-                  <Settings2 size={14} /> Smart Wager Size
-                </h4>
-                <p className="text-xs text-ink-text/60 mt-1">
-                  Based on {wagerPct}% of Total Bankroll
-                </p>
-              </div>
-              <div className="text-right">
-                <p className="text-xl font-bold font-mono text-ink-text">
-                  {formatCurrency(recommendedAmount)}
-                </p>
-                <button
-                  onClick={applyRecommendedWager}
-                  className="text-xs font-bold text-ink-accent hover:text-ink-text mt-1"
-                >
-                  Apply
-                </button>
-              </div>
-            </div>
-
-            <div className="mt-4 flex items-center gap-3">
-              <span className="text-xs font-bold text-ink-text/60">Risk:</span>
-              <input
-                type="range"
-                min="0.5"
-                max="10"
-                step="0.5"
-                value={wagerPct}
-                onChange={(e) => setWagerPct(Number(e.target.value))}
-                className="flex-grow h-1.5 bg-ink-gray rounded-lg appearance-none cursor-pointer accent-ink-accent"
-              />
-              <span className="text-xs font-mono font-bold w-10 text-right text-ink-text">
-                {wagerPct}%
-              </span>
-            </div>
-
-            {showBalanceWarning && (
-              <div className="mt-3 flex items-start gap-2 text-xs text-amber-500 bg-amber-500/10 p-2 rounded-lg border border-amber-500/20">
-                <p>
-                  Warning: Amount exceeds {sportsbook} balance (
-                  {formatCurrency(selectedBookBalance)}).
-                </p>
-              </div>
-            )}
-          </div>
-        )}
 
         {/* Main Form */}
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
