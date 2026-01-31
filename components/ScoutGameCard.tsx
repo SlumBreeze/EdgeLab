@@ -42,6 +42,10 @@ const ScoutGameCard: React.FC<ScoutGameCardProps> = ({
   const cadenceLabel = getStatusLabel(cadence);
   const cadenceColor = getStatusColor(cadence);
 
+  const isWhiteScan = scan?.signal === 'WHITE';
+  const isUnavailableScan = scan?.description?.toLowerCase().includes('scan unavailable');
+  const showRescan = !!scan && (isWhiteScan || isUnavailableScan);
+
   return (
     <div className="bg-ink-paper border border-ink-gray rounded-xl p-3 shadow-sm transition-shadow relative overflow-hidden">
       {scan && <div className={`absolute top-0 left-0 bottom-0 w-1.5 ${scan.signal === 'RED' ? 'bg-status-loss' : scan.signal === 'YELLOW' ? 'bg-amber-400' : 'bg-ink-gray'}`} />}
@@ -73,6 +77,21 @@ const ScoutGameCard: React.FC<ScoutGameCardProps> = ({
               <span className="text-sm">{getEdgeEmoji(scan.signal)}</span>
               <span className="text-[10px] text-ink-text/80 leading-tight font-bold">{scan.description}</span>
             </div>
+            {showRescan && (
+              <button
+                onClick={() => onQuickScan(gameObj)}
+                disabled={isScanning || isBatchScanning}
+                className="w-full py-1.5 bg-ink-base hover:bg-ink-gray text-ink-text/60 hover:text-ink-text rounded-lg text-[10px] font-bold transition-colors flex items-center justify-center gap-1 border border-ink-gray"
+              >
+                {isScanning ? (
+                  <span className="animate-pulse">Rescanning...</span>
+                ) : (
+                  <>
+                    <span className="text-[10px]">🔄</span> Rescan
+                  </>
+                )}
+              </button>
+            )}
             {scan.injuryContext && scan.injuryContext !== "No injury data found." && scan.injuryContext !== "Unavailable" && (
               <div className="text-[9px] text-ink-text/50 line-clamp-2 px-1">
                 🩹 {scan.injuryContext}

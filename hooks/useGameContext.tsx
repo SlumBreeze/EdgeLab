@@ -561,36 +561,23 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({
 
       skippedCount = skippedPicks.length;
 
-      // STEP 3: Sort by quality (best first)
+      // STEP 3: Market-aware sort (best first)
       qualityPicks.sort((a, b) => {
         const ap = a.analysis!;
         const bp = b.analysis!;
 
-        // Premium picks first (HIGH confidence or big edges)
-        const aPremium = isPremiumEdge(
-          ap.lineValuePoints,
-          ap.lineValueCents,
-          ap.confidence,
-          a.sport,
-          ap.market,
-        );
-        const bPremium = isPremiumEdge(
-          bp.lineValuePoints,
-          bp.lineValueCents,
-          bp.confidence,
-          b.sport,
-          bp.market,
-        );
-
-        if (aPremium !== bPremium) return bPremium ? 1 : -1;
-
-        // Then by line value points
-        const pointDiff = (bp.lineValuePoints || 0) - (ap.lineValuePoints || 0);
+        // 1) Line value points (CLV priority)
+        const pointDiff =
+          (bp.lineValuePoints || 0) - (ap.lineValuePoints || 0);
         if (pointDiff !== 0) return pointDiff;
 
-        // Then by juice cents
+        // 2) Price value (juice cents)
         const juiceDiff = (bp.lineValueCents || 0) - (ap.lineValueCents || 0);
         if (juiceDiff !== 0) return juiceDiff;
+
+        // 3) Edge % (tie-breaker)
+        const edgeDiff = (bp.edge || 0) - (ap.edge || 0);
+        if (edgeDiff !== 0) return edgeDiff;
 
         // Deterministic tiebreaker
         return a.id.localeCompare(b.id);
