@@ -58,6 +58,21 @@ export const calculateKellyWager = (
 };
 
 /**
+ * Maps persona risk tolerance to a fractional Kelly multiplier.
+ */
+export const riskToleranceToMultiplier = (tolerance: string): number => {
+  switch (tolerance.toLowerCase()) {
+    case 'conservative':
+      return 0.125; // 1/8 Kelly
+    case 'aggressive':
+      return 0.5;   // 1/2 Kelly
+    case 'balanced':
+    default:
+      return 0.25;  // 1/4 Kelly
+  }
+};
+
+/**
  * Calculates the potential profit for a given wager and American odds.
  * Does not include the returned stake.
  */
