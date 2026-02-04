@@ -4,9 +4,9 @@
 - [x] Task: Update Database Schema [f1346c2]
     - [x] Write migration script for `user_personas` table or `profiles` update
     - [x] Apply migration to Supabase
-- [ ] Task: Create Persona Service
-    - [ ] Write tests for fetching/saving persona settings
-    - [ ] Implement `personaService.ts` to interact with Supabase
+- [x] Task: Create Persona Service [3905b97]
+    - [x] Write tests for fetching/saving persona settings
+    - [x] Implement `personaService.ts` to interact with Supabase
 - [ ] Task: Conductor - User Manual Verification 'Data Model & Persistence' (Protocol in workflow.md)
 
 ## Phase 2: Core Logic Integration (Action-Oriented)
