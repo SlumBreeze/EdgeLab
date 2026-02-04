@@ -5,20 +5,21 @@ import {
   HighHitAnalysis,
   Game,
   AnalysisResult,
+  UserPersona,
 } from "../types";
 import { EXTRACTION_PROMPT } from "../constants";
 
-const GoogleGenerativeAI = GoogleGenAI;
-const getAiClient = () =>
-  new GoogleGenerativeAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
+export const getAiClient = () =>
+  new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
 
-const SYSTEM_PROMPT = `
+export const getSystemPrompt = (persona?: UserPersona) => `
 You are the Stoic Handicapper. You are cold, calculated, and indifferent to narratives.
 
 NON-NEGOTIABLE RULES:
 - Ignore sports narratives, media hype, and "vibes."
 - Ignore ALL player props. Only evaluate Game Lines: Moneyline, Spread, Total.
 - Only act on math and Positive Expected Value (+EV).
+${persona?.volume_mode === "High Action" ? "- VOLUME MODE ENABLED: Prioritize finding the best playable side for every game. Rank candidates even if the edge is thin." : ""}
 
 STRATEGIES:
 - Fade the Public: If >80% of public bets are on one side and the line moves the opposite way, call it "Reverse Line Movement."
@@ -39,7 +40,7 @@ riskFactors (string array; e.g., ["Star Player Out", "Rest Disadvantage"])
 No extra keys. No props. No narrative fluff.
 `;
 
-const EDGE_PASS_THRESHOLD = 0.0;
+const DEFAULT_EDGE_THRESHOLD = 0.0;
 
 type UnitTier = {
   label: string;
@@ -257,11 +258,11 @@ const fileToBase64 = (file: File): Promise<string> => {
 };
 
 // GENERATE WITH FALLBACK
-const generateWithFallback = async (
-  ai: GoogleGenAI,
+export const generateWithFallback = async (
   models: string[],
   paramsWithoutModel: any,
 ) => {
+  const ai = getAiClient();
   for (const model of models) {
     try {
       console.log(`[Gemini] Attempting generation with ${model}...`);
@@ -507,11 +508,9 @@ const bookLinesSchema = {
 export const extractLinesFromScreenshot = async (
   file: File,
 ): Promise<BookLines> => {
-  const ai = getAiClient();
   const base64 = await fileToBase64(file);
 
-  const response = await generateWithFallback(
-    ai,
+  const response = await geminiService.generateWithFallback(
     ["gemini-3-flash-preview", "gemini-2.0-flash-exp"],
     {
       contents: {
@@ -643,7 +642,12 @@ const getTrueProbability = (
   return side === "AWAY" ? noVig.probA : noVig.probB;
 };
 
-export const analyzeGame = async (game: GameData): Promise<AnalysisResult> => {
+export const analyzeGame = async (
+  game: GameData,
+  persona?: UserPersona,
+): Promise<AnalysisResult> => {
+  const edgeThreshold = persona?.min_edge_percentage ?? DEFAULT_EDGE_THRESHOLD;
+
   if (!game.sharpLines || game.softLines.length === 0) {
     return {
       decision: "PASS",
@@ -681,14 +685,14 @@ export const analyzeGame = async (game: GameData): Promise<AnalysisResult> => {
   });
 
   const best = candidates.sort((a, b) => b.edge - a.edge)[0];
-  if (!best || best.edge <= EDGE_PASS_THRESHOLD) {
+  if (!best || best.edge <= edgeThreshold) {
     return {
       decision: "PASS",
       vetoTriggered: true,
       vetoReason: "NO_EDGE: No positive EV.",
       recommendation: "PASS",
-      reasoning: "Edge <= 0%.",
-      researchSummary: "Edge <= 0%.",
+      reasoning: `Edge <= ${edgeThreshold}%.`,
+      researchSummary: `Edge <= ${edgeThreshold}%.`,
       confidenceScore: 0,
       trueProbability: best?.trueProbability ?? 0,
       impliedProbability: best?.impliedProbability ?? 0,
@@ -738,7 +742,7 @@ export const analyzeGame = async (game: GameData): Promise<AnalysisResult> => {
   }
 
   // Fetch qualitative context for AI context + UI display (no hard veto)
-  const context = await quickScanGame(game);
+  const context = await geminiService.quickScanGame(game);
 
   const prompt = `
 Matchup: ${game.awayTeam.name} at ${game.homeTeam.name}
@@ -768,16 +772,14 @@ Tasks:
 Return JSON only.
 `;
 
-  const ai = getAiClient();
   let analysis: StoicAiResult;
   try {
-    const response = await generateWithFallback(
-      ai,
+    const response = await geminiService.generateWithFallback(
       ["gemini-3-pro-preview"],
       {
         contents: prompt,
         config: {
-          systemInstruction: SYSTEM_PROMPT,
+          systemInstruction: getSystemPrompt(persona),
           tools: [{ googleSearch: {} }],
           responseMimeType: "application/json",
           responseSchema: stoicResponseSchema,
@@ -817,7 +819,7 @@ Return JSON only.
   const reasoning = trimToTwoSentences(analysis.reasoning || "");
 
   const finalRecommendation =
-    best.edge <= EDGE_PASS_THRESHOLD || normalizedWagerType !== best.market
+    best.edge <= edgeThreshold || normalizedWagerType !== best.market
       ? "PASS"
       : normalizedRec;
 
@@ -836,7 +838,7 @@ Return JSON only.
     vetoTriggered: finalRecommendation !== "BET",
     vetoReason:
       finalRecommendation === "PASS"
-        ? best.edge <= EDGE_PASS_THRESHOLD
+        ? best.edge <= edgeThreshold
           ? "NO_EDGE: No positive EV."
           : "STOIC_PASS: No bet."
         : undefined,
@@ -870,7 +872,13 @@ Return JSON only.
   };
 };
 
-export const refreshAnalysisMathOnly = (game: QueuedGame): HighHitAnalysis => {
+export const refreshAnalysisMathOnly = (
+  game: QueuedGame,
+  persona?: UserPersona,
+): HighHitAnalysis => {
+  const edgeThreshold = persona?.min_edge_percentage ?? DEFAULT_EDGE_THRESHOLD;
+  const maxOdds = persona?.max_odds_american ?? -160;
+
   const prior = game.analysis;
   if (!prior) {
     return {
@@ -924,12 +932,12 @@ export const refreshAnalysisMathOnly = (game: QueuedGame): HighHitAnalysis => {
     selectedSide.priceValue > 0 ? selectedSide.priceValue : 0;
 
   const bestOddsVal = parseFloat(selectedSide.bestSoftOdds);
-  if (!isNaN(bestOddsVal) && bestOddsVal < -160) {
+  if (!isNaN(bestOddsVal) && bestOddsVal < maxOdds) {
     return {
       ...prior,
       decision: "PASS",
       vetoTriggered: true,
-      vetoReason: `JUICE_VETO: Recommended odds ${formatOddsForDisplay(bestOddsVal)} are worse than -160 limit.`,
+      vetoReason: `JUICE_VETO: Recommended odds ${formatOddsForDisplay(bestOddsVal)} are worse than ${formatOddsForDisplay(maxOdds)} limit.`,
       sharpImpliedProb,
       lineValueCents,
       lineValuePoints: selectedSide.lineValue,
@@ -1034,7 +1042,6 @@ export const quickScanGame = async (
     };
   }
 
-  const ai = getAiClient();
   const dateObj = new Date(game.date);
   const readableDate = dateObj.toLocaleDateString("en-US", {
     weekday: "short",
@@ -1061,8 +1068,7 @@ export const quickScanGame = async (
   `;
 
   try {
-    const response = await generateWithFallback(
-      ai,
+    const response = await geminiService.generateWithFallback(
       ["gemini-3-flash-preview"],
       {
         contents: prompt,
@@ -1086,8 +1092,7 @@ export const quickScanGame = async (
 
     // Fallback: try without googleSearch tool
     try {
-      const response = await generateWithFallback(
-        ai,
+      const response = await geminiService.generateWithFallback(
         ["gemini-3-flash-preview"],
         {
           contents: prompt,
@@ -1139,4 +1144,22 @@ export const detectMarketDiff = (
     return Math.abs(s1 - s2) > 15;
   }
   return false;
+};
+
+// Create a named export object for internal spying
+export const geminiService = {
+  getAiClient,
+  getSystemPrompt,
+  generateWithFallback,
+  analyzeGame,
+  refreshAnalysisMathOnly,
+  quickScanGame,
+  detectMarketDiff,
+  formatOddsForDisplay,
+  americanToImpliedProb,
+  calculateNoVigProb,
+  calculateJuiceDiff,
+  calculateLineDiff,
+  checkPriceVetoes,
+  extractLinesFromScreenshot
 };

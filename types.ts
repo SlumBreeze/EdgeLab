@@ -214,6 +214,10 @@ export interface AnalysisState {
 
   // v2.6 Active Books (Derived from Bankroll)
   activeBookNames: string[];
+
+  // v2.7 AI Persona
+  persona?: UserPersona;
+  setPersona: (persona: UserPersona) => void;
 }
 
 // --- ProBet Tracker Types ---
@@ -330,3 +334,12 @@ export interface GameScore {
 }
 
 export type ScoreMap = Record<string, GameScore[]>; // Key is YYYY-MM-DD
+export interface UserPersona {
+  user_id: string;
+  min_edge_percentage: number;
+  volume_mode: string;
+  max_odds_american: number;
+  risk_tolerance: string;
+  active_sports: string[];
+  updated_at?: string;
+}
