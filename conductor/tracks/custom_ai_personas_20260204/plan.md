@@ -1,6 +1,6 @@
 # Implementation Plan: Custom AI Personas
 
-## Phase 1: Data Model & Persistence
+## Phase 1: Data Model & Persistence [checkpoint: 16b85ba]
 - [x] Task: Update Database Schema [f1346c2]
     - [x] Write migration script for `user_personas` table or `profiles` update
     - [x] Apply migration to Supabase
