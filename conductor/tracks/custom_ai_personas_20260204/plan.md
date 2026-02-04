@@ -1,9 +1,9 @@
 # Implementation Plan: Custom AI Personas
 
 ## Phase 1: Data Model & Persistence
-- [ ] Task: Update Database Schema
-    - [ ] Write migration script for `user_personas` table or `profiles` update
-    - [ ] Apply migration to Supabase
+- [x] Task: Update Database Schema [f1346c2]
+    - [x] Write migration script for `user_personas` table or `profiles` update
+    - [x] Apply migration to Supabase
 - [ ] Task: Create Persona Service
     - [ ] Write tests for fetching/saving persona settings
     - [ ] Implement `personaService.ts` to interact with Supabase
