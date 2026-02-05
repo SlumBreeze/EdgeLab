@@ -1,12 +1,12 @@
 # Implementation Plan: Batch Window Processing
 
-## Phase 1: Batch Action Logic & Context Updates
-- [ ] Task: Update GameContext for Batch Completion
-    - [ ] Write tests for batch status tracking
-    - [ ] Add `isBatchProcessing` and `batchProgress` state to `AnalysisState`
-- [ ] Task: Create Batch Processor Hook or Utility
-    - [ ] Write tests for the sequential scan-then-analyze logic
-    - [ ] Implement `useBatchProcessor` to coordinate services
+## Phase 1: Batch Action Logic & Context Updates [checkpoint: 680c11d]
+- [x] Task: Update GameContext for Batch Completion [680c11d]
+    - [x] Write tests for batch status tracking
+    - [x] Add `isBatchProcessing` and `batchProgress` state to `AnalysisState`
+- [x] Task: Create Batch Processor Hook or Utility [680c11d]
+    - [x] Write tests for the sequential scan-then-analyze logic
+    - [x] Implement `useBatchProcessor` to coordinate services
 - [ ] Task: Conductor - User Manual Verification 'Batch Action Logic' (Protocol in workflow.md)
 
 ## Phase 2: Scout UI Integration
