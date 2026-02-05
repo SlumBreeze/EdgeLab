@@ -26,6 +26,10 @@ export type DraftBet = {
   // optional EV fields if you have them
   evPct?: number | null;
   edge?: number | null;
+
+  // v2.8 Rebalancing fields
+  recommendedBook?: string;
+  balanceStatus?: "SUFFICIENT" | "LOW" | "CRITICAL";
 };
 
 // Helper: Extract American Odds (e.g. -110, +145) from a string
@@ -148,5 +152,7 @@ export function mapQueuedGameToDraftBet(q: any, overrides: DraftBetOverrides = {
     rationale: q?.analysis?.researchSummary ?? q?.analysis?.edgeNarrative ?? '',
     evPct: q?.analysis?.lineValueCents ?? null, // Using lineValueCents as a proxy for EV
     edge: q?.analysis?.sharpImpliedProb ?? null,
+    recommendedBook: q?.analysis?.recommendedBook,
+    balanceStatus: q?.analysis?.balanceStatus,
   };
 }

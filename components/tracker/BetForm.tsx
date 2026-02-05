@@ -443,6 +443,33 @@ export const BetForm: React.FC<BetFormProps> = ({
             </select>
           </div>
 
+          {/* Smart Wallet Recommendation Badge */}
+          {draftBet?.recommendedBook && (
+            <div className={`px-4 py-2 rounded-xl border flex items-center justify-between transition-all ${
+              sportsbook === draftBet.recommendedBook 
+                ? 'bg-ink-accent/10 border-ink-accent text-ink-accent' 
+                : 'bg-ink-base/50 border-ink-gray text-ink-text/40'
+            }`}>
+              <div className="flex items-center gap-2">
+                <div className={`w-2 h-2 rounded-full ${
+                  sportsbook === draftBet.recommendedBook ? 'bg-ink-accent animate-pulse' : 'bg-ink-gray'
+                }`} />
+                <span className="text-[10px] font-bold uppercase tracking-wider">
+                  Smart Wallet: Use {draftBet.recommendedBook}
+                </span>
+              </div>
+              {draftBet.balanceStatus && (
+                <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${
+                  draftBet.balanceStatus === 'SUFFICIENT' ? 'bg-status-win/10 border-status-win text-status-win' :
+                  draftBet.balanceStatus === 'LOW' ? 'bg-amber-500/10 border-amber-500 text-amber-500' :
+                  'bg-status-loss/10 border-status-loss text-status-loss'
+                }`}>
+                  {draftBet.balanceStatus}
+                </span>
+              )}
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-4">
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-text/40 font-bold text-[10px] uppercase">
