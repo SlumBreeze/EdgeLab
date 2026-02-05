@@ -17,8 +17,8 @@
     - [x] Ensure the "Recommended" book is auto-selected or prioritized in the manual entry screen
 - [ ] Task: Conductor - User Manual Verification 'Bet Entry UI Integration' (Protocol in workflow.md)
 
-## Phase 3: Bankroll Status Refinement
-- [ ] Task: Add "Low Funds" Alerts
-    - [ ] Write tests for balance threshold warnings
-    - [ ] Implement visual indicators in the Bankroll Modal for books requiring re-funding
+## Phase 3: Bankroll Status Refinement [checkpoint: 38dfa4a]
+- [x] Task: Add "Low Funds" Alerts [38dfa4a]
+    - [x] Write tests for balance threshold warnings
+    - [x] Implement visual indicators in the Bankroll Modal for books requiring re-funding
 - [ ] Task: Conductor - User Manual Verification 'Bankroll Status Refinement' (Protocol in workflow.md)
