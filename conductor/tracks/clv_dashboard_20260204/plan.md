@@ -10,13 +10,13 @@
     - [x] Implement `utils/clvUtils.ts`
 - [ ] Task: Conductor - User Manual Verification 'Data Model & Math' (Protocol in workflow.md)
 
-## Phase 2: Analytics UI Components
-- [ ] Task: Create CLV Summary Cards
-    - [ ] Write tests for "Beat Rate" and "Average Alpha" components
-    - [ ] Implement data-dense summary badges for the Tracker header
-- [ ] Task: Implement CLV Alpha Chart
-    - [ ] Write tests for chart data processing
-    - [ ] Create `CLVTrendChart.tsx` using Recharts to visualize edge trends over time
+## Phase 2: Analytics UI Components [checkpoint: 77d1749]
+- [x] Task: Create CLV Summary Cards [77d1749]
+    - [x] Write tests for "Beat Rate" and "Average Alpha" components
+    - [x] Implement data-dense summary badges for the Tracker header
+- [x] Task: Implement CLV Alpha Chart [77d1749]
+    - [x] Write tests for chart data processing
+    - [x] Create `CLVTrendChart.tsx` using Recharts to visualize edge trends over time
 - [ ] Task: Conductor - User Manual Verification 'Analytics UI' (Protocol in workflow.md)
 
 ## Phase 3: Bet Settlement & Manual Entry
