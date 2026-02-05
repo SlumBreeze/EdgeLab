@@ -22,6 +22,7 @@ import {
   calculatePotentialProfit,
   formatBetPickDisplay,
 } from "../../utils/calculations";
+import { calculateCLV } from "../../utils/clvUtils";
 import { findMatchingGame } from "../../utils/scores";
 import { SPORTSBOOKS, SPORTSBOOK_THEME, SPORTS } from "../../constants";
 
@@ -145,11 +146,17 @@ export const BetList: React.FC<BetListProps> = ({
         Number(editForm.wager),
         Number(editForm.odds),
       );
+
+      const clv = editForm.closing_odds_sharp 
+        ? calculateCLV(Number(editForm.odds), Number(editForm.closing_odds_sharp))
+        : undefined;
+
       onEdit({
         ...(editForm as Bet),
         potentialProfit: updatedProfit,
         wager: Number(editForm.wager),
         odds: Number(editForm.odds),
+        clv_percent: clv,
       });
       setEditingId(null);
       setEditForm({});
@@ -288,6 +295,8 @@ export const BetList: React.FC<BetListProps> = ({
                     Sportsbook
                   </th>
                   <th className="px-4 py-3 text-right w-20">Odds</th>
+                  <th className="px-4 py-3 text-right w-20">Closing</th>
+                  <th className="px-4 py-3 text-right w-20">CLV %</th>
                   <th className="px-4 py-3 text-right w-28">Wager</th>
                   <th className="px-4 py-3 text-center w-28">Result</th>
                   <th className="px-4 py-3 text-right w-20"></th>
@@ -409,17 +418,40 @@ export const BetList: React.FC<BetListProps> = ({
                                   </select>
                                 </td>
                                 <td className="px-4 py-3 text-right">
-                                  <input
-                                    type="number"
-                                    value={editForm.odds}
-                                    onChange={(e) =>
-                                      setEditForm({
-                                        ...editForm,
-                                        odds: Number(e.target.value),
-                                      })
-                                    }
-                                    className="bg-ink-paper border border-ink-gray rounded px-2 py-1 text-ink-text text-xs w-20 text-right"
-                                  />
+                                  <div className="flex flex-col items-end gap-1">
+                                    <label className="text-[8px] text-ink-text/40 uppercase font-bold">Taken</label>
+                                    <input
+                                      type="number"
+                                      value={editForm.odds}
+                                      onChange={(e) =>
+                                        setEditForm({
+                                          ...editForm,
+                                          odds: Number(e.target.value),
+                                        })
+                                      }
+                                      className="bg-ink-paper border border-ink-gray rounded px-2 py-1 text-ink-text text-xs w-20 text-right"
+                                    />
+                                  </div>
+                                </td>
+                                <td className="px-4 py-3 text-right">
+                                  <div className="flex flex-col items-end gap-1">
+                                    <label className="text-[8px] text-ink-text/40 uppercase font-bold">Closing</label>
+                                    <input
+                                      type="number"
+                                      placeholder="Closing"
+                                      value={editForm.closing_odds_sharp || ""}
+                                      onChange={(e) =>
+                                        setEditForm({
+                                          ...editForm,
+                                          closing_odds_sharp: Number(e.target.value),
+                                        })
+                                      }
+                                      className="bg-ink-paper border border-ink-gray rounded px-2 py-1 text-ink-text text-xs w-20 text-right"
+                                    />
+                                  </div>
+                                </td>
+                                <td className="px-4 py-3 text-right text-xs text-ink-text/40 italic">
+                                  Auto
                                 </td>
                                 <td className="px-4 py-3 text-right">
                                   <input
@@ -497,6 +529,15 @@ export const BetList: React.FC<BetListProps> = ({
                                 </td>
                                 <td className="px-4 py-2 text-right text-[12px] font-mono font-bold text-ink-text align-top">
                                   {bet.odds > 0 ? `+${bet.odds}` : bet.odds}
+                                </td>
+                                <td className="px-4 py-2 text-right text-[12px] font-mono text-ink-text/60 align-top">
+                                  {bet.closing_odds_sharp ? (bet.closing_odds_sharp > 0 ? `+${bet.closing_odds_sharp}` : bet.closing_odds_sharp) : '--'}
+                                </td>
+                                <td className={`px-4 py-2 text-right text-[12px] font-mono font-bold align-top ${
+                                  (bet.clv_percent || 0) > 0 ? 'text-status-win' : 
+                                  (bet.clv_percent || 0) < 0 ? 'text-status-loss' : 'text-ink-text/40'
+                                }`}>
+                                  {bet.clv_percent !== undefined ? `${bet.clv_percent >= 0 ? '+' : ''}${bet.clv_percent.toFixed(1)}%` : '--'}
                                 </td>
                                 <td className="px-4 py-2 text-right align-top">
                                   <div className="flex flex-col items-end">
