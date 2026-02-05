@@ -9,13 +9,13 @@
     - [x] Implement `useBatchProcessor` to coordinate services
 - [ ] Task: Conductor - User Manual Verification 'Batch Action Logic' (Protocol in workflow.md)
 
-## Phase 2: Scout UI Integration
-- [ ] Task: Implement "Process Entire Window" Button
-    - [ ] Write tests for button rendering and window filtering
-    - [ ] Add the primary action button to the Scout header when a window is selected
-- [ ] Task: Add Batch Progress Overlay
-    - [ ] Write tests for progress status display
-    - [ ] Implement a minimalist, Bloomberg-style progress bar/indicator
+## Phase 2: Scout UI Integration [checkpoint: bbf1dc5]
+- [x] Task: Implement "Process Entire Window" Button [bbf1dc5]
+    - [x] Write tests for button rendering and window filtering
+    - [x] Add the primary action button to the Scout header when a window is selected
+- [x] Task: Add Batch Progress Overlay [bbf1dc5]
+    - [x] Write tests for progress status display
+    - [x] Implement a minimalist, Bloomberg-style progress bar/indicator
 - [ ] Task: Conductor - User Manual Verification 'Scout UI Integration' (Protocol in workflow.md)
 
 ## Phase 3: Auto-Card Promotion
