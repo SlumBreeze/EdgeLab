@@ -304,10 +304,19 @@ export const BankrollModal: React.FC<BankrollModalProps> = ({
             const theme = getBookTheme(book.sportsbook);
             const pnl = book.currentBalance + (book.withdrawn || 0) - book.deposited;
             const isPositivePnL = pnl >= 0;
+            
+            // Rebalancing status
+            const isCritical = book.currentBalance < 20;
+            const isLow = book.currentBalance < 100;
+
             return (
               <div
                 key={book.sportsbook}
-                className="flex items-center justify-between p-4 bg-ink-base rounded-xl border border-ink-gray hover:border-ink-gray/80 transition-all"
+                className={`flex items-center justify-between p-4 bg-ink-base rounded-xl border transition-all ${
+                  isCritical ? 'border-status-loss/50 bg-status-loss/5' : 
+                  isLow ? 'border-amber-500/50 bg-amber-500/5' : 
+                  'border-ink-gray hover:border-ink-gray/80'
+                }`}
               >
                 <div className="flex items-center gap-3">
                   <div
@@ -315,9 +324,21 @@ export const BankrollModal: React.FC<BankrollModalProps> = ({
                     style={{ backgroundColor: theme.bg }}
                   ></div>
                   <div>
-                    <h4 className="font-bold text-ink-text text-sm">
-                      {book.sportsbook}
-                    </h4>
+                    <div className="flex items-center gap-2">
+                      <h4 className="font-bold text-ink-text text-sm">
+                        {book.sportsbook}
+                      </h4>
+                      {isCritical && (
+                        <span className="flex items-center gap-1 text-[8px] font-bold text-status-loss bg-status-loss/10 px-1.5 py-0.5 rounded border border-status-loss/20 uppercase animate-pulse">
+                          <AlertCircle size={8} /> Critical
+                        </span>
+                      )}
+                      {!isCritical && isLow && (
+                        <span className="flex items-center gap-1 text-[8px] font-bold text-amber-500 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20 uppercase">
+                          <AlertCircle size={8} /> Low
+                        </span>
+                      )}
+                    </div>
                     <p className="text-[10px] text-ink-text/60 font-medium">
                       In: {formatCurrency(book.deposited)}
                     </p>
