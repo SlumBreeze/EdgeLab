@@ -1,0 +1,24 @@
+# Implementation Plan: Auto-Pilot Protocol
+
+## Phase 1: End-to-End Pipeline Sync [checkpoint: 7d76982]
+- [x] Task: Integrate Auto-Promotion into Queue [7d76982]
+    - [x] Write tests for automatic `autoPick` trigger after analysis
+    - [x] Update `processAnalysis` in `Queue.tsx` to trigger smart-pick logic
+- [x] Task: Globalize Automation Scope [7d76982]
+    - [x] Write tests for monitoring games outside of the selected UI window
+    - [x] Refactor the automation effect in `Scout.tsx` to use `upcomingGames` instead of `filteredGames`
+- [ ] Task: Conductor - User Manual Verification 'End-to-End Pipeline' (Protocol in workflow.md)
+
+## Phase 2: UI Rebranding & Feedback [checkpoint: 31fc156]
+- [x] Task: Rebrand Auto-scan to Auto-Pilot [31fc156]
+    - [x] Update labels and icons in `Scout.tsx` and `App.tsx`
+    - [x] Implement a more descriptive "Auto-Pilot" status indicator (e.g., "Auto-Pilot: Monitoring 12 Games")
+- [x] Task: Refine Batch Progress for Auto-Pilot [31fc156]
+    - [x] Ensure background tasks provide subtle, non-intrusive progress updates
+- [ ] Task: Conductor - User Manual Verification 'UI Rebranding' (Protocol in workflow.md)
+
+## Phase 3: Freshness & Rate Limits [checkpoint: c660c3e]
+- [x] Task: Implement LOCK Window Prioritization [c660c3e]
+    - [x] Ensure Auto-Pilot runs scans exactly 30 minutes before tip-off for maximum accuracy
+    - [x] Optimize the interval frequency to conserve API rate limits
+- [ ] Task: Conductor - User Manual Verification 'Freshness & Optimization' (Protocol in workflow.md)
