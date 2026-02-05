@@ -1,13 +1,13 @@
 # Implementation Plan: CLV Performance Dashboard
 
-## Phase 1: Data Model & Mathematical Foundation
-- [ ] Task: Update Bet Schema
-    - [ ] Add `closing_odds_sharp` and `clv_percent` to the `bets` table in Supabase
-    - [ ] Update `Bet` interface in `types.ts`
-- [ ] Task: Create CLV Utility Engine
-    - [ ] Write tests for CLV calculation (taken price vs no-vig close)
-    - [ ] Write tests for xROI (Expected ROI) calculation
-    - [ ] Implement `utils/clvUtils.ts`
+## Phase 1: Data Model & Mathematical Foundation [checkpoint: 457bab9]
+- [x] Task: Update Bet Schema [457bab9]
+    - [x] Add `closing_odds_sharp` and `clv_percent` to the `bets` table in Supabase
+    - [x] Update `Bet` interface in `types.ts`
+- [x] Task: Create CLV Utility Engine [457bab9]
+    - [x] Write tests for CLV calculation (taken price vs no-vig close)
+    - [x] Write tests for xROI (Expected ROI) calculation
+    - [x] Implement `utils/clvUtils.ts`
 - [ ] Task: Conductor - User Manual Verification 'Data Model & Math' (Protocol in workflow.md)
 
 ## Phase 2: Analytics UI Components
