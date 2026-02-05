@@ -49,6 +49,8 @@ import { BankrollModal as TrackerBankrollModal } from "../components/tracker/Tra
 import { DataManagementModal } from "../components/tracker/DataManagementModal";
 import { AnalyticsDashboard } from "../components/tracker/AnalyticsDashboard";
 import { BankrollTrendChart } from "../components/tracker/BankrollTrendChart";
+import { CLVStats } from "../components/tracker/CLVStats";
+import { CLVTrendChart } from "../components/tracker/CLVTrendChart";
 import { supabase } from "../services/supabaseClient";
 
 const Tracker: React.FC = () => {
@@ -418,6 +420,45 @@ const Tracker: React.FC = () => {
               trend="neutral"
               icon={<Wallet size={18} />}
             />
+          </div>
+        </section>
+
+        {/* Market Alpha Analysis (CLV & xROI) */}
+        <section className="bg-ink-paper rounded-2xl border border-ink-gray shadow-lg overflow-hidden group">
+          <div className="px-6 py-4 bg-ink-base/30 border-b border-ink-gray flex justify-between items-center">
+            <div>
+              <h2 className="text-lg font-bold text-ink-text flex items-center gap-2">
+                <Percent size={18} className="text-ink-accent" />
+                Market Alpha Analysis (CLV)
+              </h2>
+              <p className="text-[10px] text-ink-text/40 uppercase tracking-widest mt-1 font-mono">
+                Validated Against Pinnacle Closing Lines
+              </p>
+            </div>
+          </div>
+          <div className="p-6">
+            <CLVStats bets={bets} />
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-center">
+              <div className="lg:col-span-2 h-[200px]">
+                <CLVTrendChart bets={bets} />
+              </div>
+              <div className="bg-ink-base/50 p-4 rounded-xl border border-ink-gray text-xs space-y-3">
+                <div className="flex items-start gap-2">
+                  <TrendingUp size={14} className="text-ink-accent shrink-0 mt-0.5" />
+                  <p className="text-ink-text/70 leading-relaxed italic">
+                    "Beating the closing line is the single best predictor of long-term success. Short-term wins/losses are variance; CLV is skill."
+                  </p>
+                </div>
+                <div className="pt-2 border-t border-ink-gray flex justify-between items-center">
+                  <span className="text-ink-text/40 font-mono text-[9px]">ALPHA_ENGINE_v3.0</span>
+                  <div className="flex gap-1">
+                    <div className="w-1 h-1 rounded-full bg-ink-accent animate-pulse" />
+                    <div className="w-1 h-1 rounded-full bg-ink-accent animate-pulse delay-75" />
+                    <div className="w-1 h-1 rounded-full bg-ink-accent animate-pulse delay-150" />
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </section>
 
