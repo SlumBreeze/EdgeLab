@@ -15,11 +15,11 @@
     - [x] Update `quickScanGame` to explicitly query for beat writer reports and "sharp" sentiment
 - [ ] Task: Conductor - User Manual Verification 'AI Search Integration' (Protocol in workflow.md)
 
-## Phase 3: Trap Alert UI
-- [ ] Task: Create TrapAlert Component
-    - [ ] Write tests for `TrapAlert` rendering and visibility
-    - [ ] Implement a high-visibility, data-dense alert component for the Bloomberg UI
-- [ ] Task: Update Game Cards for Warnings
-    - [ ] Write integration tests for displaying warnings on `QueuedGameCard`
-    - [ ] Connect the new "Trap Alert" status to the UI state
+## Phase 3: Trap Alert UI [checkpoint: 06d3e45]
+- [x] Task: Create TrapAlert Component [06d3e45]
+    - [x] Write tests for `TrapAlert` rendering and visibility
+    - [x] Implement a high-visibility, data-dense alert component for the Bloomberg UI
+- [x] Task: Update Game Cards for Warnings [06d3e45]
+    - [x] Write integration tests for displaying warnings on `QueuedGameCard`
+    - [x] Connect the new "Trap Alert" status to the UI state
 - [ ] Task: Conductor - User Manual Verification 'Trap Alert UI' (Protocol in workflow.md)
