@@ -9,12 +9,12 @@
     - [x] Update `analyzeGame` to pre-calculate the recommendation if balances are available
 - [ ] Task: Conductor - User Manual Verification 'Logic & Context Updates' (Protocol in workflow.md)
 
-## Phase 2: Bet Entry UI Integration
-- [ ] Task: Enhance BetForm with Smart Suggestions
-    - [ ] Write tests for `BetForm` displaying the recommended book badge
-    - [ ] Update UI to highlight the suggested book in the dropdown or selection list
-- [ ] Task: Update TrackerNewBet Workflow
-    - [ ] Ensure the "Recommended" book is auto-selected or prioritized in the manual entry screen
+## Phase 2: Bet Entry UI Integration [checkpoint: 5d13362]
+- [x] Task: Enhance BetForm with Smart Suggestions [5d13362]
+    - [x] Write tests for `BetForm` displaying the recommended book badge
+    - [x] Update UI to highlight the suggested book in the dropdown or selection list
+- [x] Task: Update TrackerNewBet Workflow [5d13362]
+    - [x] Ensure the "Recommended" book is auto-selected or prioritized in the manual entry screen
 - [ ] Task: Conductor - User Manual Verification 'Bet Entry UI Integration' (Protocol in workflow.md)
 
 ## Phase 3: Bankroll Status Refinement
