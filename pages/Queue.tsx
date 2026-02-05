@@ -33,6 +33,7 @@ export default function Queue() {
     activeBookNames,
     persona,
     bookBalances,
+    autoPickBestGames,
   } = useGameContext();
   const [analyzingIds, setAnalyzingIds] = useState<Set<string>>(new Set());
   const [selectedWindow, setSelectedWindow] = useState<TimeWindowFilter>("ALL");
@@ -164,6 +165,9 @@ export default function Queue() {
       } else {
         toast.showInfo(`Analysis Complete: PASS (${game.awayTeam.name})`);
       }
+
+      // Auto-Pilot: Finalize promotion to Card immediately
+      autoPickBestGames();
     } catch (error) {
       console.error(`Analysis failed for game ${gameId}:`, error);
       // Update game with error state so the card can display the failure

@@ -197,7 +197,8 @@ export default function Scout() {
   );
 
   // Filter games that are actually in a scan window (First, Second, Lock)
-  const gamesReadyToScan = filteredGames.filter((g) => {
+  // AUTO-PILOT: Monitor ALL upcoming games, not just filtered ones
+  const gamesReadyToScan = upcomingGames.filter((g) => {
     if (scanResults[g.id]) return false;
     const sport = (g._sport as Sport) || "NBA";
     return isScanWindowActive(getCadenceStatus(g.commence_time, sport));
@@ -245,8 +246,10 @@ export default function Scout() {
   const handleScanAll = async () => {
     setBatchScanning(true);
     
-    // Prioritize "Ready" games (in window). If none, fallback to all unscanned in view.
-    const gamesToScan = gamesReadyToScan.length > 0 ? gamesReadyToScan : unscannedGames;
+    const globalUnscanned = upcomingGames.filter(g => !scanResults[g.id]);
+
+    // Prioritize "Ready" games (in window). If none, fallback to all unscanned upcoming.
+    const gamesToScan = gamesReadyToScan.length > 0 ? gamesReadyToScan : globalUnscanned;
     
     let count = 0;
 
