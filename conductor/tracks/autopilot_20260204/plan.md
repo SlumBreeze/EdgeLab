@@ -1,12 +1,12 @@
 # Implementation Plan: Auto-Pilot Protocol
 
-## Phase 1: End-to-End Pipeline Sync
-- [ ] Task: Integrate Auto-Promotion into Queue
-    - [ ] Write tests for automatic `autoPick` trigger after analysis
-    - [ ] Update `processAnalysis` in `Queue.tsx` to trigger smart-pick logic
-- [ ] Task: Globalize Automation Scope
-    - [ ] Write tests for monitoring games outside of the selected UI window
-    - [ ] Refactor the automation effect in `Scout.tsx` to use `upcomingGames` instead of `filteredGames`
+## Phase 1: End-to-End Pipeline Sync [checkpoint: 7d76982]
+- [x] Task: Integrate Auto-Promotion into Queue [7d76982]
+    - [x] Write tests for automatic `autoPick` trigger after analysis
+    - [x] Update `processAnalysis` in `Queue.tsx` to trigger smart-pick logic
+- [x] Task: Globalize Automation Scope [7d76982]
+    - [x] Write tests for monitoring games outside of the selected UI window
+    - [x] Refactor the automation effect in `Scout.tsx` to use `upcomingGames` instead of `filteredGames`
 - [ ] Task: Conductor - User Manual Verification 'End-to-End Pipeline' (Protocol in workflow.md)
 
 ## Phase 2: UI Rebranding & Feedback
