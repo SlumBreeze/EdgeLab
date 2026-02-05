@@ -161,6 +161,8 @@ export interface AnalysisState {
   addToQueue: (game: Game) => void;
   addAllToQueue: (games: Game[]) => void;
   removeFromQueue: (gameId: string) => void;
+  removeGames: (gameIds: string[]) => void;
+  restoreGames: (games: QueuedGame[]) => void;
   updateGame: (gameId: string, updates: Partial<QueuedGame>) => void;
   addSoftLines: (gameId: string, lines: BookLines) => void;
   updateSoftLineBook: (

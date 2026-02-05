@@ -26,6 +26,8 @@ export default function Queue() {
   const {
     queue,
     removeFromQueue,
+    removeGames,
+    restoreGames,
     updateGame,
     addSoftLines,
     updateSoftLineBook,
@@ -281,6 +283,26 @@ export default function Queue() {
     toast.showInfo("Removed from queue");
   };
 
+  const handleClearAll = () => {
+    const gamesToRemove = filteredQueue;
+    if (gamesToRemove.length === 0) return;
+
+    const ids = gamesToRemove.map((g) => g.id);
+    const windowLabel = getTimeWindowLabel(selectedWindow);
+
+    removeGames(ids);
+
+    addToast({
+      id: `clear-${Date.now()}`,
+      message: `Cleared ${gamesToRemove.length} games from ${windowLabel}`,
+      type: "info",
+      action: {
+        label: "Undo",
+        onClick: () => restoreGames(gamesToRemove),
+      },
+    });
+  };
+
   const handleScan = async (gameId: string) => {
     const game = queue.find((g) => g.id === gameId);
     if (!game) return;
@@ -389,23 +411,47 @@ export default function Queue() {
 
         {queue.length > 0 && (
           <div className="mb-3">
-            <div className="flex overflow-x-auto space-x-2 pb-2 no-scrollbar">
-              {windowCounts.map((window) => (
-                <button
-                  key={window.key}
-                  onClick={() => setSelectedWindow(window.key)}
-                  className={`flex items-center gap-2 px-3 py-2 rounded-full whitespace-nowrap transition-all shadow-sm border ${
-                    selectedWindow === window.key
-                      ? "bg-ink-accent text-white font-bold border-ink-accent shadow-sm"
-                      : "bg-ink-paper text-ink-text/70 hover:text-ink-text border-ink-gray"
-                  }`}
-                >
-                  <span className="text-xs">{window.label}</span>
-                  <span
-                    className={`text-[10px] px-2 py-0.5 rounded-full ${
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex overflow-x-auto space-x-2 pb-2 no-scrollbar">
+                {windowCounts.map((window) => (
+                  <button
+                    key={window.key}
+                    onClick={() => setSelectedWindow(window.key)}
+                    className={`flex items-center gap-2 px-3 py-2 rounded-full whitespace-nowrap transition-all shadow-sm border ${
                       selectedWindow === window.key
-                        ? "bg-white/20 text-white"
-                        : "bg-ink-base text-ink-text/60 border border-ink-gray"
+                        ? "bg-ink-accent text-white font-bold border-ink-accent shadow-sm"
+                        : "bg-ink-paper text-ink-text/70 hover:text-ink-text border-ink-gray"
+                    }`}
+                  >
+                    <span className="text-xs">{window.label}</span>
+                    <span
+                      className={`text-[10px] px-2 py-0.5 rounded-full ${
+                        selectedWindow === window.key
+                          ? "bg-white/20 text-white"
+                          : "bg-ink-base text-ink-text/60 border border-ink-gray"
+                      }`}
+                    >
+                      {window.count}
+                    </span>
+                  </button>
+                ))}
+              </div>
+
+              <button
+                onClick={handleClearAll}
+                disabled={filteredQueue.length === 0}
+                className={`flex items-center gap-2 px-4 py-2 rounded-full whitespace-nowrap transition-all shadow-sm border ${
+                  filteredQueue.length > 0
+                    ? "bg-ink-panel text-ink-text/60 hover:text-red-400 border-ink-gray hover:border-red-400/30"
+                    : "bg-ink-base text-ink-text/20 border-ink-gray/50 cursor-not-allowed"
+                }`}
+                title={`Clear all ${getTimeWindowLabel(selectedWindow)} games`}
+              >
+                <span className="text-[10px] font-bold uppercase tracking-wider">
+                  🗑️ Clear {selectedWindow === "ALL" ? "Slate" : getTimeWindowLabel(selectedWindow)}
+                </span>
+              </button>
+            </div>
                     }`}
                   >
                     {window.count}

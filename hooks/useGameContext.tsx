@@ -496,6 +496,19 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({
     setQueue((prev) => prev.filter((g) => g.id !== gameId));
   };
 
+  const removeGames = (gameIds: string[]) => {
+    const ids = new Set(gameIds);
+    setQueue((prev) => prev.filter((g) => !ids.has(g.id)));
+  };
+
+  const restoreGames = (games: QueuedGame[]) => {
+    setQueue((prev) => {
+      const existingIds = new Set(prev.map((g) => g.id));
+      const toAdd = games.filter((g) => !existingIds.has(g.id));
+      return [...prev, ...toAdd];
+    });
+  };
+
   const updateGame = (gameId: string, updates: Partial<QueuedGame>) => {
     setQueue((prev) =>
       prev.map((g) => (g.id === gameId ? { ...g, ...updates } : g)),
@@ -698,6 +711,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({
         addToQueue,
         addAllToQueue,
         removeFromQueue,
+        removeGames,
+        restoreGames,
         updateGame,
         addSoftLines,
         updateSoftLineBook,
