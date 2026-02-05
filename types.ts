@@ -70,6 +70,8 @@ export interface AnalysisResult {
   vetoTriggered: boolean;
   vetoReason?: string;
   caution?: string; // New field for yellow card warnings (e.g., bad ML juice)
+  trapAlert?: string; // High-visibility warning for narrative contradictions
+  expertSentiment?: string; // Summary of consensus from beat writers/experts
 
   // Math-derived recommendation
   recommendation?: "BET" | "PASS" | "LEAN";

@@ -22,7 +22,9 @@ NON-NEGOTIABLE RULES:
 ${persona?.volume_mode === "High Action" ? "- VOLUME MODE ENABLED: Prioritize finding the best playable side for every game. Rank candidates even if the edge is thin." : ""}
 
 STRATEGIES:
-- Fade the Public: If >80% of public bets are on one side and the line moves the opposite way, call it "Reverse Line Movement."
+- **Narrative Audit (Trap Detection):** Cross-reference public betting data and social sentiment. 
+- **The Public Darling:** Detect if >75% of public is on one side. If line doesn't move or moves opposite, flag as "TRAP: Reverse Line Movement."
+- **Expert Sentiment:** Search for consensus from reputable beat writers and sharp handicappers. 
 - Market Overreaction: Detect recency bias (e.g., a blowout last game) and avoid overreacting.
 - Discipline: If edge <= 0%, recommendation must be PASS.
 
@@ -35,7 +37,9 @@ trueProbability (number, win %)
 impliedProbability (number, % from odds)
 edge (number, true - implied)
 wagerType (Moneyline | Spread | Total)
-riskFactors (string array; e.g., ["Star Player Out", "Rest Disadvantage"])
+riskFactors (string array)
+trapAlert (string; ONLY if a trap/RLM is detected, otherwise empty)
+expertSentiment (string; 1-sentence summary of expert consensus)
 
 No extra keys. No props. No narrative fluff.
 `;
@@ -558,6 +562,8 @@ type StoicAiResult = {
   edge: number;
   wagerType: "Moneyline" | "Spread" | "Total";
   riskFactors?: string[];
+  trapAlert?: string;
+  expertSentiment?: string;
 };
 
 const stoicResponseSchema: Schema = {
@@ -574,6 +580,8 @@ const stoicResponseSchema: Schema = {
       type: Type.ARRAY,
       items: { type: Type.STRING }
     },
+    trapAlert: { type: Type.STRING },
+    expertSentiment: { type: Type.STRING },
   },
   required: [
     "recommendation",
@@ -869,6 +877,8 @@ Return JSON only.
     edge: best.edge,
     wagerType: normalizedWagerType || best.market,
     riskFactors: analysis.riskFactors,
+    trapAlert: analysis.trapAlert,
+    expertSentiment: analysis.expertSentiment,
   };
 };
 
