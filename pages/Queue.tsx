@@ -31,6 +31,8 @@ export default function Queue() {
     updateSoftLineBook,
     setSharpLines,
     activeBookNames,
+    persona,
+    bookBalances,
   } = useGameContext();
   const [analyzingIds, setAnalyzingIds] = useState<Set<string>>(new Set());
   const [selectedWindow, setSelectedWindow] = useState<TimeWindowFilter>("ALL");
@@ -147,7 +149,7 @@ export default function Queue() {
         ...game,
         sharpLines: pinnacle,
         softLines: matchedSoftLines,
-      });
+      }, persona, bookBalances);
 
       updateGame(game.id, {
         analysis: result,
@@ -299,7 +301,7 @@ export default function Queue() {
 
     setAnalyzingIds((prev) => new Set(prev).add(gameId));
     try {
-      const result = await analyzeGame(game);
+      const result = await analyzeGame(game, persona, bookBalances);
       updateGame(gameId, { analysis: result });
 
       if (result.decision === "PLAYABLE") {

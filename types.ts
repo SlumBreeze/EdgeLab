@@ -72,6 +72,8 @@ export interface AnalysisResult {
   caution?: string; // New field for yellow card warnings (e.g., bad ML juice)
   trapAlert?: string; // High-visibility warning for narrative contradictions
   expertSentiment?: string; // Summary of consensus from beat writers/experts
+  recommendedBook?: string; // The specific book suggested by rebalancing logic
+  balanceStatus?: "SUFFICIENT" | "LOW" | "CRITICAL"; // Status of funds in the recommended book
 
   // Math-derived recommendation
   recommendation?: "BET" | "PASS" | "LEAN";

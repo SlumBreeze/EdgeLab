@@ -168,6 +168,8 @@ export default function Card({
     updateGame,
     activeBookNames,
     userId,
+    persona,
+    bookBalances,
   } = useGameContext();
   const [lastPickResult, setLastPickResult] = useState<AutoPickResult | null>(
     null,
@@ -343,7 +345,7 @@ export default function Card({
           sharpLines: pinnacle,
           softLines: matchedSoftLines,
         };
-        const result = refreshAnalysisMathOnly(refreshedGame);
+        const result = refreshAnalysisMathOnly(refreshedGame, persona, bookBalances);
 
         updateGame(game.id, {
           sharpLines: pinnacle,

@@ -13,7 +13,8 @@ export const useBatchProcessor = () => {
     autoPickBestGames,
     activeBookNames,
     persona,
-    userId
+    userId,
+    bookBalances,
   } = useGameContext();
 
   const processBatch = useCallback(async (games: any[], windowFilter: TimeWindowFilter) => {
@@ -113,7 +114,7 @@ export const useBatchProcessor = () => {
               ...game,
               sharpLines: pinnacle,
               softLines: matchedSoftLines
-            }, persona);
+            }, persona, bookBalances);
 
             updateGame(game.id, {
               sharpLines: pinnacle,

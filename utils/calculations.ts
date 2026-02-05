@@ -73,6 +73,44 @@ export const riskToleranceToMultiplier = (tolerance: string): number => {
 };
 
 /**
+ * Identifies the best-funded book among a list of candidate books.
+ */
+export const getRecommendedBook = (
+  candidateBooks: string[],
+  balances: BookBalanceDisplay[]
+): { book: string | null; status: "SUFFICIENT" | "LOW" | "CRITICAL" | null } => {
+  if (candidateBooks.length === 0 || balances.length === 0) {
+    return { book: null, status: null };
+  }
+
+  // Map candidates to their balance data
+  const candidateBalances = balances
+    .filter(b => candidateBooks.some(c => 
+      c.toLowerCase().includes(b.sportsbook.toLowerCase()) || 
+      b.sportsbook.toLowerCase().includes(c.toLowerCase())
+    ))
+    .sort((a, b) => b.currentBalance - a.currentBalance);
+
+  if (candidateBalances.length === 0) {
+    return { book: null, status: null };
+  }
+
+  const bestBook = candidateBalances[0];
+  let status: "SUFFICIENT" | "LOW" | "CRITICAL" = "SUFFICIENT";
+
+  if (bestBook.currentBalance < 20) {
+    status = "CRITICAL";
+  } else if (bestBook.currentBalance < 100) {
+    status = "LOW";
+  }
+
+  return { 
+    book: bestBook.sportsbook, 
+    status 
+  };
+};
+
+/**
  * Calculates the potential profit for a given wager and American odds.
  * Does not include the returned stake.
  */

@@ -6,8 +6,10 @@ import {
   Game,
   AnalysisResult,
   UserPersona,
+  BookBalanceDisplay,
 } from "../types";
 import { EXTRACTION_PROMPT } from "../constants";
+import { getRecommendedBook } from "../utils/calculations";
 
 export const getAiClient = () =>
   new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
@@ -653,6 +655,7 @@ const getTrueProbability = (
 export const analyzeGame = async (
   game: GameData,
   persona?: UserPersona,
+  balances?: BookBalanceDisplay[],
 ): Promise<AnalysisResult> => {
   const edgeThreshold = persona?.min_edge_percentage ?? DEFAULT_EDGE_THRESHOLD;
 
@@ -841,6 +844,19 @@ Return JSON only.
     unitTier,
   );
 
+  // Smart Wallet: Calculate recommended book based on liquidity
+  let recommendedBook: string | undefined;
+  let balanceStatus: "SUFFICIENT" | "LOW" | "CRITICAL" | undefined;
+
+  if (balances && finalRecommendation === "BET") {
+    const candidateBooks = [best.bestSoftBook];
+    const rec = getRecommendedBook(candidateBooks, balances);
+    if (rec.book) {
+      recommendedBook = rec.book;
+      balanceStatus = rec.status || undefined;
+    }
+  }
+
   return {
     decision,
     vetoTriggered: finalRecommendation !== "BET",
@@ -879,12 +895,15 @@ Return JSON only.
     riskFactors: analysis.riskFactors,
     trapAlert: analysis.trapAlert,
     expertSentiment: analysis.expertSentiment,
+    recommendedBook,
+    balanceStatus,
   };
 };
 
 export const refreshAnalysisMathOnly = (
   game: QueuedGame,
   persona?: UserPersona,
+  balances?: BookBalanceDisplay[],
 ): HighHitAnalysis => {
   const edgeThreshold = persona?.min_edge_percentage ?? DEFAULT_EDGE_THRESHOLD;
   const maxOdds = persona?.max_odds_american ?? -160;
@@ -1011,6 +1030,19 @@ export const refreshAnalysisMathOnly = (
       ? formatOddsForDisplay(selectedSide.bestSoftOdds)
       : `${selectedSide.bestSoftLine} (${formatOddsForDisplay(selectedSide.bestSoftOdds)})`;
 
+  // Smart Wallet: Calculate recommended book based on liquidity
+  let recommendedBook: string | undefined;
+  let balanceStatus: "SUFFICIENT" | "LOW" | "CRITICAL" | undefined;
+
+  if (balances) {
+    const candidateBooks = [selectedSide.bestSoftBook];
+    const rec = getRecommendedBook(candidateBooks, balances);
+    if (rec.book) {
+      recommendedBook = rec.book;
+      balanceStatus = rec.status || undefined;
+    }
+  }
+
   return {
     ...prior,
     decision: "PLAYABLE",
@@ -1031,6 +1063,8 @@ export const refreshAnalysisMathOnly = (
     lineFloor,
     oddsFloor,
     floorReason,
+    recommendedBook,
+    balanceStatus,
   };
 };
 
