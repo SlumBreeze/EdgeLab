@@ -280,6 +280,8 @@ export interface Bet {
   createdAt: number;
   tags?: string[];
   user_id?: string;
+  closing_odds_sharp?: number;
+  clv_percent?: number;
 }
 
 export interface BookDeposit {
