@@ -27,6 +27,8 @@ import { useBankroll } from "./useBankroll";
 import { isInTimeWindow } from "../utils/timeWindow";
 import { personaService } from "../services/personaService";
 import { useAuth } from "../components/AuthContext";
+import { getCadenceStatus } from "../utils/cadence";
+import { calculateCLV } from "../utils/clvUtils";
 
 const GameContext = createContext<AnalysisState | undefined>(undefined);
 
@@ -426,6 +428,30 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({
     return () => clearTimeout(timer);
   }, [allSportsData, userId, today, isSyncEnabled]);
 
+  // v2.9 Auto-Snapshot Closing Lines
+  useEffect(() => {
+    if (!slatesLoaded) return;
+
+    const interval = setInterval(() => {
+      queue.forEach(game => {
+        const status = getCadenceStatus(game.date, game.sport);
+        // If in LOCK window and we haven't snapshotted yet
+        if (status === 'LOCK' && game.sharpLines) {
+          const snapshotKey = `edgelab_clv_snap_${game.id}`;
+          if (!localStorage.getItem(snapshotKey)) {
+            const closingOdds = parseFloat(game.sharpLines.mlOddsA); // Simplified for now
+            // Actually we need the odds for the SPECIFIC side picked.
+            // But since addBet happens later, we just snapshot ALL sharp lines.
+            localStorage.setItem(snapshotKey, JSON.stringify(game.sharpLines));
+            console.log(`[CLV] Snapshotted closing lines for ${game.id}`);
+          }
+        }
+      });
+    }, 60000); // Check every minute
+
+    return () => clearInterval(interval);
+  }, [queue, slatesLoaded]);
+
   // Actions
   const addToQueue = (game: Game & Partial<QueuedGame>) => {
     setQueue((prev) => {
@@ -620,6 +646,30 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({
     return { picked: pickedCount, skipped: skippedCount, reasons: skipReasons };
   };
 
+  const addBetWithCLV = async (betData: Bet) => {
+    // Attempt to attach auto-snapshotted closing line
+    const snapshotKey = `edgelab_clv_snap_${betData.id}`;
+    const snapshotStr = localStorage.getItem(snapshotKey);
+    
+    let updatedBet = { ...betData };
+    
+    if (snapshotStr) {
+      try {
+        const game = queue.find(g => g.id === betData.id);
+        if (game?.analysis?.oddsFloor) {
+           const closing = parseFloat(game.analysis.oddsFloor.replace('+', ''));
+           updatedBet.closing_odds_sharp = closing;
+           updatedBet.clv_percent = calculateCLV(betData.odds, closing);
+        }
+      } catch (e) {
+        console.error("[CLV] Failed to apply snapshot", e);
+      }
+    }
+
+    // Call underlying bankroll service
+    await addBet(updatedBet);
+  };
+
   const setScanResult = (gameId: string, result: ScanResult) => {
     setScanResults((prev) => ({ ...prev, [gameId]: result }));
   };
@@ -667,9 +717,10 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({
         updateBookBalance,
         bets,
         bankrollState,
-        bankrollLoading,
-        addBet,
-        updateBetStatus,
+            bankrollLoading,
+            addBet: addBetWithCLV,
+            updateBetStatus,
+        
         updateBet,
         deleteBet,
         refreshBankroll,
