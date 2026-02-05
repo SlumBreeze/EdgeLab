@@ -545,82 +545,73 @@ export default function Scout() {
       <div className="shrink-0 p-4 pb-2 max-w-7xl mx-auto w-full">
         <h1 className="text-2xl font-bold text-ink-text mb-4">EdgeLab Scout</h1>
 
-        {/* Date & Scan Controls */}
-        <div className="flex gap-2 mb-2">
+        {/* Command Center header */}
+        <div className="flex gap-2 mb-2 items-stretch">
           <input
             type="date"
             value={selectedDate}
             onChange={(e) => setSelectedDate(e.target.value)}
-            className="flex-1 bg-ink-paper text-ink-text p-3 rounded-xl border border-ink-gray focus:outline-none focus:border-ink-accent focus:ring-2 focus:ring-ink-accent/20 shadow-sm"
+            className="w-40 bg-ink-paper text-ink-text p-3 rounded-xl border border-ink-gray focus:outline-none focus:border-ink-accent focus:ring-2 focus:ring-ink-accent/20 shadow-sm font-mono text-xs"
           />
           {allGames.length > 0 && (
-            <>
-              <button
-                onClick={handleScanAll}
-                disabled={batchScanning}
-                className={`flex-1 px-4 rounded-xl font-bold text-sm shadow-sm transition-all whitespace-nowrap ${batchScanning ? "bg-ink-base text-ink-text/40" : "bg-ink-accent hover:bg-sky-500 text-white"}`}
-              >
-                {batchScanning ? (
-                  <span className="flex items-center justify-center gap-2">
-                    <span className="animate-spin text-xs">⚡</span>{" "}
-                    {progressText}
-                  </span>
-                ) : (
-                  gamesReadyToScan.length > 0
-                    ? `⚡ Scan Ready (${gamesReadyToScan.length})`
-                    : `⚡ Scan All (${unscannedGames.length})`
-                )}
-              </button>
-
+            <div className="flex-1 flex gap-2">
               <button
                 onClick={() => setAutoPilotEnabled((v) => !v)}
-                className={`px-3 rounded-xl font-bold text-[11px] shadow-sm transition-all whitespace-nowrap border ${
+                className={`flex-1 px-4 py-3 rounded-xl font-bold text-xs shadow-sm transition-all whitespace-nowrap border flex items-center justify-center gap-2 ${
                   autoPilotEnabled
-                    ? "bg-ink-accent/10 text-ink-accent border-ink-accent/30 hover:bg-ink-accent/20"
-                    : "bg-ink-base text-ink-text/50 border-ink-gray hover:text-ink-text"
+                    ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30 shadow-[0_0_15px_rgba(16,185,129,0.1)]"
+                    : "bg-ink-base text-ink-text/40 border-ink-gray hover:text-ink-text"
                 }`}
                 title="Automatically scan, analyze and promote games entering Lock windows"
               >
-                Auto-Pilot: {autoPilotEnabled ? "ON" : "OFF"}
-                {autoPilotEnabled && upcomingGames.length > 0 && (
-                  <span className="ml-1 opacity-60">({upcomingGames.length}m)</span>
+                {autoPilotEnabled ? (
+                  <>
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                    </span>
+                    AUTO-PILOT: ON
+                  </>
+                ) : (
+                  "🤖 AUTO-PILOT: OFF"
                 )}
               </button>
 
               <button
-                onClick={handleAddAllScanned}
-                disabled={scannedCount === 0}
-                className={`flex-1 px-4 rounded-xl font-bold text-sm shadow-sm transition-all whitespace-nowrap border ${scannedCount > 0 ? "bg-ink-paper text-ink-accent border-ink-accent hover:bg-ink-accent/10" : "bg-ink-base text-ink-text/40 border-ink-gray"}`}
+                onClick={selectedWindow === "ALL" ? async () => {
+                  if (window.confirm("Process every game on today's slate? (Scan + Analyze + Card)")) {
+                    await processBatch(upcomingGames, "ALL");
+                  }
+                } : handleProcessBatch}
+                disabled={isBatchProcessing || upcomingGames.length === 0}
+                className={`flex-1 px-4 py-3 rounded-xl font-bold text-xs shadow-sm transition-all border flex items-center justify-center gap-2 ${
+                  !isBatchProcessing && upcomingGames.length > 0
+                    ? "bg-ink-accent text-white border-ink-accent hover:bg-sky-500"
+                    : "bg-ink-base text-ink-text/40 border-ink-gray"
+                }`}
               >
-                + Add Scanned ({scannedCount})
+                {isBatchProcessing ? (
+                  <span className="animate-pulse">PROCESSING BATCH...</span>
+                ) : (
+                  <>⚡ PROCESS {selectedWindow === "ALL" ? "ENTIRE SLATE" : `${getTimeWindowLabel(selectedWindow)} BATCH`}</>
+                )}
               </button>
 
               <button
                 onClick={handleRefresh}
-                disabled={loading || batchScanning}
+                disabled={loading || batchScanning || isBatchProcessing}
                 className="px-4 bg-ink-paper text-ink-text/70 border border-ink-gray hover:text-ink-text rounded-xl font-bold shadow-sm transition-all text-xl"
                 title="Refresh Slates"
               >
                 🔄
               </button>
-            </>
-          )}
-
-          {allGames.length > 0 && selectedWindow !== "ALL" && (
-            <button
-              onClick={handleResetScans}
-              disabled={batchScanning}
-              className="px-3 bg-ink-base text-ink-text/40 hover:text-red-400 border border-ink-gray rounded-xl font-bold shadow-sm transition-all"
-              title="Reset Scans"
-            >
-              🗑️
-            </button>
+            </div>
           )}
         </div>
 
         {allGames.length > 0 && (
-          <>
-            <div className="flex overflow-x-auto space-x-2 pb-2 no-scrollbar mb-2">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex overflow-x-auto space-x-2 no-scrollbar">
               {windowCounts.map((window) => (
                 <button
                   key={window.key}
@@ -645,35 +636,41 @@ export default function Scout() {
               ))}
             </div>
 
-            {selectedWindow !== "ALL" && (
-              <div className="flex gap-2 mb-2">
+            <div className="flex gap-2">
+              <button
+                onClick={handleAddAllScanned}
+                disabled={scannedCount === 0 || isBatchProcessing}
+                className={`px-3 py-2 rounded-xl font-bold text-[10px] shadow-sm transition-all whitespace-nowrap border ${scannedCount > 0 ? "bg-ink-paper text-ink-accent border-ink-accent hover:bg-ink-accent/10" : "bg-ink-base text-ink-text/40 border-ink-gray"}`}
+              >
+                + Add Scanned ({scannedCount})
+              </button>
+
+              {selectedWindow !== "ALL" && (
                 <button
                   onClick={handleAddWindow}
                   disabled={windowAddCount === 0 || isBatchProcessing}
-                  className={`flex-1 py-2 rounded-xl font-bold text-xs shadow-sm transition-all border ${
-                    windowAddCount > 0 && !isBatchProcessing
+                  className={`px-3 py-2 rounded-xl font-bold text-[10px] shadow-sm transition-all border ${
+                    windowAddCount > 0
                       ? "bg-ink-paper text-ink-accent border-ink-accent hover:bg-ink-accent/10"
                       : "bg-ink-base text-ink-text/40 border-ink-gray"
                   }`}
                 >
-                  + Add {getTimeWindowLabel(selectedWindow)} Window (
-                  {windowAddCount})
+                  + Add Window ({windowAddCount})
                 </button>
+              )}
+
+              {selectedWindow !== "ALL" && (
                 <button
-                  onClick={handleProcessBatch}
-                  disabled={isBatchProcessing || filteredGames.length === 0}
-                  className={`flex-1 py-2 rounded-xl font-bold text-xs shadow-sm transition-all border ${
-                    !isBatchProcessing && filteredGames.length > 0
-                      ? "bg-ink-accent text-white border-ink-accent hover:bg-sky-500"
-                      : "bg-ink-base text-ink-text/40 border-ink-gray"
-                  }`}
-                  title="Scan, Analyze, and Add all games in this window to Card"
+                  onClick={handleResetScans}
+                  disabled={batchScanning || isBatchProcessing}
+                  className="px-3 bg-ink-base text-ink-text/40 hover:text-red-400 border border-ink-gray rounded-xl font-bold shadow-sm transition-all"
+                  title="Reset Scans"
                 >
-                  ⚡ Process {getTimeWindowLabel(selectedWindow)} Batch
+                  🗑️
                 </button>
-              </div>
-            )}
-          </>
+              )}
+            </div>
+          </div>
         )}
       </div>
 

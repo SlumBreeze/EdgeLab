@@ -47,10 +47,12 @@ const parseNumber = (value?: string) => {
 const parseAmericanOdds = (value?: string, fallback?: number) => {
   if (fallback !== undefined && Number.isFinite(fallback)) return fallback;
   if (!value) return null;
-  const matches = value.match(/([+-]\d{2,4})/g);
-  if (!matches || matches.length === 0) return null;
-  const last = matches[matches.length - 1];
-  const parsed = parseInt(last, 10);
+  
+  // Extract number including sign
+  const match = value.match(/([+-]?\d{2,4})/);
+  if (!match) return null;
+  
+  const parsed = parseInt(match[1], 10);
   return Number.isFinite(parsed) ? parsed : null;
 };
 
