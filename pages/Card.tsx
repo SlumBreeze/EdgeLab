@@ -19,7 +19,10 @@ import StickyCardSummary from "../components/StickyCardSummary";
 import { isPremiumEdge } from "../utils/edgeUtils";
 import { mapQueuedGameToDraftBet, DraftBet } from "../types/draftBet";
 import { refreshAnalysisMathOnly } from "../services/geminiService";
-import { calculateKellyWager } from "../utils/calculations";
+import { 
+  calculateKellyWager, 
+  riskToleranceToMultiplier 
+} from "../utils/calculations";
 import {
   fetchOddsForGame,
   getBookmakerLines,
@@ -493,6 +496,8 @@ export default function Card({
         availableBalance,
         overrideBook: usedAlt && selectedAlt ? selectedAlt.bookName : undefined,
         overrideOdds,
+        recommendedBook: analysis.recommendedBook,
+        balanceStatus: analysis.balanceStatus,
       };
     });
   })();
@@ -820,6 +825,7 @@ export default function Card({
                       kellyFraction={kellyFraction}
                       onKellyFractionChange={setKellyFraction}
                       bankrollForCard={bankrollForCard}
+                      persona={persona}
                       funding={playableAllocations.find(
                         (a) => a.gameId === g.id,
                       )}
@@ -856,6 +862,7 @@ const PlayableCard: React.FC<{
   kellyFraction: number;
   onKellyFractionChange: (value: number) => void;
   bankrollForCard: number;
+  persona?: UserPersona;
   funding?: {
     gameId: string;
     wagerUnits: number;
@@ -868,6 +875,8 @@ const PlayableCard: React.FC<{
     availableBalance: number | null;
     overrideBook?: string;
     overrideOdds?: number;
+    recommendedBook?: string;
+    balanceStatus?: string;
   };
 }> = ({
   game,
@@ -876,6 +885,7 @@ const PlayableCard: React.FC<{
   kellyFraction,
   onKellyFractionChange,
   bankrollForCard,
+  persona,
   funding,
 }) => {
   if (!game.analysis) return null; // Defensive check
@@ -913,9 +923,13 @@ const PlayableCard: React.FC<{
     displayRecLine || a.recLine,
     funding?.overrideOdds,
   );
+
+  // Use Persona-driven Kelly Multiplier
+  const personaMultiplier = persona ? riskToleranceToMultiplier(persona.risk_tolerance) : kellyFraction;
+
   const kellyRaw =
     bankrollForCard > 0 && oddsForKelly !== null && winProb > 0
-      ? calculateKellyWager(bankrollForCard, oddsForKelly, winProb, kellyFraction)
+      ? calculateKellyWager(bankrollForCard, oddsForKelly, winProb, personaMultiplier)
       : 0;
   const kellyCapped =
     funding?.availableBalance !== null && funding?.availableBalance !== undefined
@@ -1064,18 +1078,12 @@ const PlayableCard: React.FC<{
           )}
         </div>
         <div className="text-right">
-          <label className="text-[10px] uppercase font-bold tracking-wider text-ink-text/60 block mb-1">
-            Multiplier
-          </label>
-          <select
-            value={kellyFraction}
-            onChange={(e) => onKellyFractionChange(Number(e.target.value))}
-            className="bg-ink-paper border border-ink-gray rounded-lg px-2 py-1 text-xs font-mono text-ink-text focus:border-ink-accent outline-none"
-          >
-            <option value={0.25}>1/4 Kelly</option>
-            <option value={0.5}>1/2 Kelly</option>
-            <option value={1}>Full Kelly</option>
-          </select>
+          <div className="text-[10px] uppercase font-bold tracking-wider text-ink-text/60 mb-1">
+            AI Risk Profile
+          </div>
+          <div className="bg-ink-accent/10 border border-ink-accent/30 text-ink-accent text-[10px] font-bold px-2 py-1 rounded">
+            {persona?.risk_tolerance?.toUpperCase() || 'BALANCED'}
+          </div>
         </div>
         <div className="text-right">
           <div className="text-[10px] uppercase font-bold tracking-wider text-ink-text/60">
@@ -1084,6 +1092,33 @@ const PlayableCard: React.FC<{
           <div className="font-bold">{a.confidence || "MEDIUM"}</div>
         </div>
       </div>
+
+      {/* Smart Wallet Recommendation Badge */}
+      {funding?.recommendedBook && (
+        <div className={`px-3 py-2 rounded-xl border flex items-center justify-between transition-all mb-4 ${
+          funding.displayBook === funding.recommendedBook 
+            ? 'bg-ink-accent/10 border-ink-accent text-ink-accent' 
+            : 'bg-amber-500/10 border-amber-500/30 text-amber-500'
+        }`}>
+          <div className="flex items-center gap-2">
+            <div className={`w-1.5 h-1.5 rounded-full ${
+              funding.displayBook === funding.recommendedBook ? 'bg-ink-accent animate-pulse' : 'bg-amber-500'
+            }`} />
+            <span className="text-[9px] font-bold uppercase tracking-wider">
+              Smart Wallet: {funding.displayBook === funding.recommendedBook ? 'Target Confirmed' : `Switch to ${funding.recommendedBook}`}
+            </span>
+          </div>
+          {funding.balanceStatus && (
+            <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded-full border ${
+              funding.balanceStatus === 'SUFFICIENT' ? 'bg-status-win/10 border-status-win text-status-win' :
+              funding.balanceStatus === 'LOW' ? 'bg-amber-500/10 border-amber-500 text-amber-500' :
+              'bg-status-loss/10 border-status-loss text-status-loss'
+            }`}>
+              {funding.balanceStatus}
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Matchup context */}
       <div className="text-sm mb-3 text-ink-text/70">
