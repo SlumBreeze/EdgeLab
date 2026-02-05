@@ -127,6 +127,14 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({
     localStorage.setItem("edgelab_persona", JSON.stringify(newPersona));
   };
 
+  const [isBatchProcessing, setIsBatchProcessing] = useState(false);
+  const [batchProgress, setBatchProgress] = useState<BatchProgress>({
+    total: 0,
+    current: 0,
+    phase: "IDLE",
+    statusText: "",
+  });
+
   const [dailyPlays, setDailyPlays] = useState<DailyPlayTracker>({
     date: today,
     playCount: 0,
@@ -691,6 +699,10 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({
         activeBookNames,
         persona,
         setPersona,
+        isBatchProcessing,
+        batchProgress,
+        setIsBatchProcessing,
+        setBatchProgress,
       }}
     >
       {children}

@@ -218,6 +218,19 @@ export interface AnalysisState {
   // v2.7 AI Persona
   persona?: UserPersona;
   setPersona: (persona: UserPersona) => void;
+
+  // v2.8 Batch Processing
+  isBatchProcessing: boolean;
+  batchProgress: BatchProgress;
+  setIsBatchProcessing: (isProcessing: boolean) => void;
+  setBatchProgress: (progress: BatchProgress) => void;
+}
+
+export interface BatchProgress {
+  total: number;
+  current: number;
+  phase: "SCANNING" | "ANALYZING" | "COMPLETED" | "IDLE";
+  statusText: string;
 }
 
 // --- ProBet Tracker Types ---
