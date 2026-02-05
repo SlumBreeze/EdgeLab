@@ -450,7 +450,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({
     }, 60000); // Check every minute
 
     return () => clearInterval(interval);
-  }, [queue, slatesLoaded]);
+  }, [queue, allSportsData]);
 
   // Actions
   const addToQueue = (game: Game & Partial<QueuedGame>) => {
