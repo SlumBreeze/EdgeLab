@@ -17,8 +17,8 @@
     - [x] Ensure background tasks provide subtle, non-intrusive progress updates
 - [ ] Task: Conductor - User Manual Verification 'UI Rebranding' (Protocol in workflow.md)
 
-## Phase 3: Freshness & Rate Limits
-- [ ] Task: Implement LOCK Window Prioritization
-    - [ ] Ensure Auto-Pilot runs scans exactly 30 minutes before tip-off for maximum accuracy
-    - [ ] Optimize the interval frequency to conserve API rate limits
+## Phase 3: Freshness & Rate Limits [checkpoint: c660c3e]
+- [x] Task: Implement LOCK Window Prioritization [c660c3e]
+    - [x] Ensure Auto-Pilot runs scans exactly 30 minutes before tip-off for maximum accuracy
+    - [x] Optimize the interval frequency to conserve API rate limits
 - [ ] Task: Conductor - User Manual Verification 'Freshness & Optimization' (Protocol in workflow.md)
