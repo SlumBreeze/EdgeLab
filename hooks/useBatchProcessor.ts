@@ -137,6 +137,8 @@ export const useBatchProcessor = () => {
       statusText: 'Batch complete! Generating smart card...'
     });
 
+    // Small delay to ensure last updateGame has propagated
+    await new Promise(resolve => setTimeout(resolve, 500));
     autoPickBestGames(windowFilter);
 
     // Finalize

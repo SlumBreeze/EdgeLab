@@ -63,7 +63,8 @@ describe('useBatchProcessor', () => {
 
     await act(async () => {
       const promise = result.current.processBatch(mockGames as any, 'EVENING');
-      vi.runAllTimersAsync();
+      // Run timers multiple times to handle the new delay and finalize
+      await vi.runAllTimersAsync();
       await promise;
     });
 
