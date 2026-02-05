@@ -18,12 +18,14 @@ import {
   AutoPickResult,
   BookBalanceDisplay,
   TimeWindowFilter,
+  UserPersona,
 } from "../types";
 import { MAX_DAILY_PLAYS, SPORTSBOOK_THEME } from "../constants";
 import { supabase, isSupabaseConfigured } from "../services/supabaseClient";
 import { isPremiumEdge, isStandardEdge } from "../utils/edgeUtils";
 import { useBankroll } from "./useBankroll";
 import { isInTimeWindow } from "../utils/timeWindow";
+import { personaService } from "../services/personaService";
 
 const GameContext = createContext<AnalysisState | undefined>(undefined);
 
@@ -111,6 +113,20 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({
 
   // State
   const [queue, setQueue] = useState<QueuedGame[]>([]);
+  const [persona, setPersonaState] = useState<UserPersona | undefined>(() => {
+    try {
+      const saved = localStorage.getItem("edgelab_persona");
+      return saved ? JSON.parse(saved) : undefined;
+    } catch {
+      return undefined;
+    }
+  });
+
+  const setPersona = (newPersona: UserPersona) => {
+    setPersonaState(newPersona);
+    localStorage.setItem("edgelab_persona", JSON.stringify(newPersona));
+  };
+
   const [dailyPlays, setDailyPlays] = useState<DailyPlayTracker>({
     date: today,
     playCount: 0,
@@ -187,6 +203,12 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({
       }
 
       try {
+        // Fetch Persona
+        const remotePersona = await personaService.getPersona(userId);
+        if (remotePersona) {
+          setPersona(remotePersona);
+        }
+
         const { data: sData, error: sError } = await supabase
           .from("daily_slates")
           .select(
@@ -512,10 +534,11 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({
         if (g.analysis?.decision !== "PLAYABLE") return false;
         if (!g.analysis.softBestOdds) return false;
 
-        // JUICE VETO: Skip odds worse than -160
+        // JUICE VETO: Use persona limit or fallback to -160
+        const oddsLimit = persona?.max_odds_american ?? -160;
         const oddsStr = g.analysis.softBestOdds;
         const oddsVal = parseFloat(oddsStr);
-        if (!isNaN(oddsVal) && oddsVal < -160) {
+        if (!isNaN(oddsVal) && oddsVal < oddsLimit) {
           return false;
         }
 
@@ -666,6 +689,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({
         userId,
         setUserId: setUserIdManual,
         activeBookNames,
+        persona,
+        setPersona,
       }}
     >
       {children}

@@ -7,13 +7,18 @@ import Card from "./pages/Card";
 import Tracker from "./pages/Tracker";
 import TrackerNewBet from "./pages/TrackerNewBet";
 import { BankrollModal } from "./components/BankrollModal";
+import { PersonaEditor } from "./components/PersonaEditor";
 import { DraftBet } from "./types/draftBet";
 import { Bet } from "./types";
 import { AuthProvider, useAuth } from "./components/AuthContext";
 import Login from "./pages/Login";
 
-const HeaderActions: React.FC<{ onOpenBankroll: () => void }> = ({
+const HeaderActions: React.FC<{ 
+  onOpenBankroll: () => void;
+  onOpenPersona: () => void;
+}> = ({
   onOpenBankroll,
+  onOpenPersona,
 }) => {
   const { syncStatus } = useGameContext();
 
@@ -67,8 +72,18 @@ const HeaderActions: React.FC<{ onOpenBankroll: () => void }> = ({
       <button
         onClick={onOpenBankroll}
         className="bg-ink-paper backdrop-blur shadow-md border border-ink-gray rounded-full w-10 h-10 flex items-center justify-center hover:scale-105 transition-all text-xl"
+        title="Bankroll Manager"
       >
         💰
+      </button>
+
+      {/* Persona Button */}
+      <button
+        onClick={onOpenPersona}
+        className="bg-ink-paper backdrop-blur shadow-md border border-ink-gray rounded-full w-10 h-10 flex items-center justify-center hover:scale-105 transition-all text-xl"
+        title="AI Persona Configuration"
+      >
+        👤
       </button>
     </div>
   );
@@ -80,6 +95,7 @@ const AppContent: React.FC = () => {
     "scout" | "queue" | "card" | "tracker" | "tracker-new"
   >("scout");
   const [isBankrollOpen, setIsBankrollOpen] = useState(false);
+  const [isPersonaOpen, setIsPersonaOpen] = useState(false);
   const [draftBet, setDraftBet] = useState<DraftBet | null>(null);
 
   const handleLogBet = (draft: DraftBet) => {
@@ -96,7 +112,10 @@ const AppContent: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-ink-base text-ink-text flex flex-col font-sans">
-      <HeaderActions onOpenBankroll={() => setIsBankrollOpen(true)} />
+      <HeaderActions 
+        onOpenBankroll={() => setIsBankrollOpen(true)} 
+        onOpenPersona={() => setIsPersonaOpen(true)}
+      />
 
       {/* Main Content - All tabs stay mounted to preserve analysis queue state */}
       <main className="flex-1 pb-20 pt-20 relative">
@@ -136,6 +155,11 @@ const AppContent: React.FC = () => {
       <BankrollModal
         isOpen={isBankrollOpen}
         onClose={() => setIsBankrollOpen(false)}
+      />
+
+      <PersonaEditor
+        isOpen={isPersonaOpen}
+        onClose={() => setIsPersonaOpen(false)}
       />
 
       {/* Bottom Navigation */}
