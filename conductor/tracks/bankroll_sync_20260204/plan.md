@@ -1,12 +1,12 @@
 # Implementation Plan: Multi-Book Balance Sync & Auto-Rebalancing
 
-## Phase 1: Logic & Context Updates
-- [ ] Task: Implement Recommendation Logic
-    - [ ] Write unit tests for `getRecommendedBook` utility
-    - [ ] Create logic to find the best-funded book among those offering the best (or near-best) price
-- [ ] Task: Update Analysis Result Mapping
-    - [ ] Add `recommendedBook` field to `AnalysisResult` type
-    - [ ] Update `analyzeGame` to pre-calculate the recommendation if balances are available
+## Phase 1: Logic & Context Updates [checkpoint: 8e778ed]
+- [x] Task: Implement Recommendation Logic [8e778ed]
+    - [x] Write unit tests for `getRecommendedBook` utility
+    - [x] Create logic to find the best-funded book among those offering the best (or near-best) price
+- [x] Task: Update Analysis Result Mapping [8e778ed]
+    - [x] Add `recommendedBook` field to `AnalysisResult` type
+    - [x] Update `analyzeGame` to pre-calculate the recommendation if balances are available
 - [ ] Task: Conductor - User Manual Verification 'Logic & Context Updates' (Protocol in workflow.md)
 
 ## Phase 2: Bet Entry UI Integration
