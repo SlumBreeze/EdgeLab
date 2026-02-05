@@ -38,7 +38,7 @@ export const TrapAlert: React.FC<Props> = ({ alert, sentiment }) => {
             <div className="text-ink-accent font-bold uppercase tracking-tighter mb-0.5">
               MARKET SURVEILLANCE: EXPERT CONSENSUS
             </div>
-            <p className="text-ink-gray leading-tight italic">
+            <p className="text-ink-muted leading-tight italic">
               "{sentiment}"
             </p>
           </div>
@@ -47,8 +47,8 @@ export const TrapAlert: React.FC<Props> = ({ alert, sentiment }) => {
 
       {/* Footer Info */}
       <div className="bg-ink-paper p-1 flex items-center justify-end gap-1 border-t border-ink-gray">
-        <Info className="w-2.5 h-2.5 text-ink-gray" />
-        <span className="text-[8px] text-ink-gray uppercase tracking-widest">Qualitative Audit Phase Complete</span>
+        <Info className="w-2.5 h-2.5 text-ink-muted" />
+        <span className="text-[8px] text-ink-muted uppercase tracking-widest">Qualitative Audit Phase Complete</span>
       </div>
     </div>
   );

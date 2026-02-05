@@ -23,7 +23,7 @@ export const CompactSoftLines: React.FC<Props> = ({
   return (
     <div className="mb-3 border border-ink-gray rounded-xl overflow-hidden bg-ink-paper shadow-sm">
       <table className="w-full text-[11px]">
-        <thead className="bg-ink-base text-ink-text/50 font-bold uppercase tracking-wider border-b border-ink-gray">
+        <thead className="bg-ink-base text-ink-text/90 font-bold uppercase tracking-wider border-b border-ink-gray">
           <tr>
             <th className="px-3 py-2 text-left w-[90px]">Book</th>
             <th className="px-2 py-2 text-center w-[25%]">Away Spread</th>
@@ -41,7 +41,7 @@ export const CompactSoftLines: React.FC<Props> = ({
             let homeBetter = false;
             let totalBetter = false;
             let edgeLabel = '—';
-            let edgeColor = 'text-ink-text/20';
+            let edgeColor = 'text-ink-text/60';
 
             if (sharp) {
                 // Spreads (Higher value is better for the bettor)
@@ -103,7 +103,7 @@ export const CompactSoftLines: React.FC<Props> = ({
                     ) : (
                         <button 
                             onClick={() => setEditingLineIndex(idx)}
-                            className="font-bold text-ink-text/70 hover:text-ink-accent flex items-center gap-1 text-[11px] text-left leading-tight"
+                            className="font-bold text-ink-text/90 hover:text-ink-accent flex items-center gap-1 text-[11px] text-left leading-tight"
                         >
                             {line.bookName}
                         </button>
@@ -113,21 +113,21 @@ export const CompactSoftLines: React.FC<Props> = ({
                 <td className={`px-2 py-2 text-center border-l border-r border-ink-gray align-middle ${awayBetter ? 'bg-ink-accent/10' : ''}`}>
                     <div className="flex flex-col items-center leading-none gap-0.5">
                         <span className={`font-bold ${awayBetter ? 'text-ink-accent' : 'text-ink-text'}`}>{line.spreadLineA}</span>
-                        <span className={`text-[9px] ${awayBetter ? 'text-ink-accent' : 'text-ink-text/40'}`}>{formatOddsForDisplay(line.spreadOddsA)}</span>
+                        <span className={`text-[9px] ${awayBetter ? 'text-ink-accent' : 'text-ink-text/60'}`}>{formatOddsForDisplay(line.spreadOddsA)}</span>
                     </div>
                 </td>
 
                 <td className={`px-2 py-2 text-center border-r border-ink-gray align-middle ${homeBetter ? 'bg-ink-accent/10' : ''}`}>
                     <div className="flex flex-col items-center leading-none gap-0.5">
                         <span className={`font-bold ${homeBetter ? 'text-ink-accent' : 'text-ink-text'}`}>{line.spreadLineB}</span>
-                        <span className={`text-[9px] ${homeBetter ? 'text-ink-accent' : 'text-ink-text/40'}`}>{formatOddsForDisplay(line.spreadOddsB)}</span>
+                        <span className={`text-[9px] ${homeBetter ? 'text-ink-accent' : 'text-ink-text/60'}`}>{formatOddsForDisplay(line.spreadOddsB)}</span>
                     </div>
                 </td>
 
                 <td className={`px-2 py-2 text-center align-middle ${totalBetter ? 'bg-ink-accent/5' : ''}`}>
                      <div className="flex flex-col items-center leading-none gap-0.5">
                         <span className="text-ink-text font-medium">{line.totalLine}</span>
-                        <div className="flex justify-center gap-1 text-[9px] text-ink-text/40">
+                        <div className="flex justify-center gap-1 text-[9px] text-ink-text/60">
                            <span>o{formatOddsForDisplay(line.totalOddsOver)}</span>
                            <span>u{formatOddsForDisplay(line.totalOddsUnder)}</span>
                         </div>

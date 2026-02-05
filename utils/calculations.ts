@@ -524,6 +524,10 @@ export const inferSportFromBet = (bet: Partial<Bet>): string => {
   if (NBA_TEAMS.some((t) => text.includes(t.toLowerCase()))) return "NBA";
   if (MLB_TEAMS.some((t) => text.includes(t.toLowerCase()))) return "MLB";
   if (NHL_TEAMS.some((t) => text.includes(t.toLowerCase()))) return "NHL";
+  
+  if (/\b(soccer|fc|cf|real|united|city|atletico|bayern|borussia|arsenal|liverpool|chelsea|tottenham|milan|inter|juventus|psg|roma|napoli|dortmund|leipzig|barcelona)\b/i.test(text)) {
+    return "SOCCER";
+  }
 
   return "Other";
 };

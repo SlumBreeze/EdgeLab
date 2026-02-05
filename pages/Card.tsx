@@ -157,7 +157,7 @@ const getFactConfidenceStyle = (confidence?: string) => {
     return "bg-amber-500/10 text-amber-300 border-amber-500/30";
   if (confidence === "LOW")
     return "bg-status-loss/10 text-status-loss border-status-loss/30";
-  return "bg-ink-base text-ink-text/50 border-ink-gray";
+  return "bg-ink-base text-ink-text/70 border-ink-gray";
 };
 
 export default function Card({
@@ -583,7 +583,7 @@ export default function Card({
                   </span>
                 )}
               </div>
-              <p className="text-ink-text/60 text-sm">
+              <p className="text-ink-text/80 text-sm">
                 {isHistoryMode
                   ? `Viewing history for ${historyDate}`
                   : new Date().toLocaleDateString(undefined, {
@@ -608,7 +608,7 @@ export default function Card({
                   disabled={isRefreshing}
                   className={`px-3 py-2 rounded-lg text-[11px] font-bold uppercase tracking-wide border shadow-sm transition-all ${
                     isRefreshing
-                      ? "bg-ink-base text-ink-text/40 border-ink-gray cursor-not-allowed"
+                      ? "bg-ink-base text-ink-text/80 border-ink-gray cursor-not-allowed"
                       : "bg-ink-paper text-ink-text border-ink-gray hover:border-ink-text/40"
                   }`}
                 >
@@ -646,7 +646,7 @@ export default function Card({
                   className={`text-[10px] px-2 py-0.5 rounded-full ${
                     selectedWindow === window.key
                       ? "bg-white/20 text-white"
-                      : "bg-ink-base text-ink-text/60 border border-ink-gray"
+                      : "bg-ink-base text-ink-text/80 border border-ink-gray"
                   }`}
                 >
                   {window.count}
@@ -663,7 +663,7 @@ export default function Card({
             {/* 1. Summary Card */}
             {analyzedGames.length > 0 && (
               <div className="bg-ink-paper rounded-2xl border border-ink-gray shadow-sm p-4">
-                <h3 className="text-xs font-bold text-ink-text/40 uppercase mb-3">
+                <h3 className="text-xs font-bold text-ink-text/80 uppercase mb-3">
                   Summary
                 </h3>
                 <div className="flex justify-between items-center mb-4">
@@ -671,16 +671,16 @@ export default function Card({
                     <div className="text-2xl font-bold text-ink-text">
                       {targetCount}
                     </div>
-                    <div className="text-[10px] text-ink-text/50 uppercase">
+                    <div className="text-[10px] text-ink-text/70 uppercase">
                       Playable
                     </div>
                   </div>
                   <div className="h-8 w-px bg-ink-gray"></div>
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-ink-text/60">
+                    <div className="text-2xl font-bold text-ink-text/80">
                       {passed.length}
                     </div>
-                    <div className="text-[10px] text-ink-text/50 uppercase">
+                    <div className="text-[10px] text-ink-text/70 uppercase">
                       Passed
                     </div>
                   </div>
@@ -689,7 +689,7 @@ export default function Card({
                     <div className="text-2xl font-bold text-ink-text font-mono">
                       ${analytics.totalWagered.toFixed(0)}
                     </div>
-                    <div className="text-[10px] text-ink-text/50 uppercase">
+                    <div className="text-[10px] text-ink-text/70 uppercase">
                       Risk
                     </div>
                   </div>
@@ -747,7 +747,7 @@ export default function Card({
                             : "bg-status-loss/10"
                       }`}
                     >
-                      <div className="text-[10px] text-ink-text/60">
+                      <div className="text-[10px] text-ink-text/80">
                         {scenario.record}
                       </div>
                       <div
@@ -763,7 +763,7 @@ export default function Card({
             )}
 
             {/* 3. Discipline Quote */}
-            <div className="text-center text-ink-text/40 text-xs italic p-4">
+            <div className="text-center text-ink-text/80 text-xs italic p-4">
               "Passing is profitable."
             </div>
           </div>
@@ -790,7 +790,7 @@ export default function Card({
             {isLoadingHistory && (
               <div className="py-20 text-center">
                 <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-ink-accent mx-auto mb-4"></div>
-                <p className="text-ink-text/60">
+                <p className="text-ink-text/80">
                   Fetching history from database...
                 </p>
               </div>
@@ -799,13 +799,13 @@ export default function Card({
             {/* Empty State */}
             {!isLoadingHistory && analyzedGames.length === 0 && (
               <div className="text-center py-20 bg-ink-paper rounded-2xl border border-ink-gray shadow-sm">
-                <p className="text-ink-text/60">
+                <p className="text-ink-text/80">
                   {isHistoryMode
                     ? `No data found for ${historyDate}`
                     : "No analyses completed yet."}
                 </p>
                 {!isHistoryMode && (
-                  <p className="text-ink-text/50 text-sm mt-2">
+                  <p className="text-ink-text/70 text-sm mt-2">
                     Add games from Scout → Upload lines → Run analysis
                   </p>
                 )}
@@ -841,7 +841,7 @@ export default function Card({
             {/* PASSED GAMES */}
             {passed.length > 0 && (
               <section>
-                <h2 className="text-ink-text/60 font-bold text-sm uppercase tracking-wider mb-3 flex items-center">
+                <h2 className="text-ink-text/80 font-bold text-sm uppercase tracking-wider mb-3 flex items-center">
                   <span className="mr-2">⛔</span> Passed ({passed.length})
                 </h2>
                 <div className="space-y-3">
@@ -971,7 +971,7 @@ const PlayableCard: React.FC<{
     >
       {/* SLOT BADGE */}
       <div className="flex justify-between items-start mb-2">
-        <span className="text-xs font-bold uppercase text-ink-text/60">
+        <span className="text-xs font-bold uppercase text-ink-text/80">
           {game.sport}
         </span>
         <div className="flex items-center gap-2">
@@ -1057,7 +1057,7 @@ const PlayableCard: React.FC<{
       {/* KELLY RECOMMENDATION */}
       <div className="flex items-center justify-between p-3 rounded-xl mb-4 bg-ink-base border border-ink-gray">
         <div>
-          <div className="text-[10px] uppercase font-bold tracking-wider text-ink-text/60">
+          <div className="text-[10px] uppercase font-bold tracking-wider text-ink-text/80">
             Kelly Suggestion
           </div>
           {kellyCapped > 0 ? (
@@ -1070,7 +1070,7 @@ const PlayableCard: React.FC<{
               </span>
             </div>
           ) : (
-            <div className="text-xs italic text-ink-text/50">
+            <div className="text-xs italic text-ink-text/70">
               No win prob or odds
             </div>
           )}
@@ -1081,7 +1081,7 @@ const PlayableCard: React.FC<{
           )}
         </div>
         <div className="text-right">
-          <div className="text-[10px] uppercase font-bold tracking-wider text-ink-text/60 mb-1">
+          <div className="text-[10px] uppercase font-bold tracking-wider text-ink-text/80 mb-1">
             AI Risk Profile
           </div>
           <div className="bg-ink-accent/10 border border-ink-accent/30 text-ink-accent text-[10px] font-bold px-2 py-1 rounded">
@@ -1089,7 +1089,7 @@ const PlayableCard: React.FC<{
           </div>
         </div>
         <div className="text-right">
-          <div className="text-[10px] uppercase font-bold tracking-wider text-ink-text/60">
+          <div className="text-[10px] uppercase font-bold tracking-wider text-ink-text/80">
             Edge Strength
           </div>
           <div className="font-bold">{a.confidence || "MEDIUM"}</div>
@@ -1159,7 +1159,7 @@ const PassedCard: React.FC<{ game: QueuedGame }> = ({ game }) => {
   return (
     <div className="p-4 rounded-2xl border border-ink-gray bg-ink-paper shadow-sm">
       <div className="flex justify-between items-start mb-2">
-        <span className="text-xs font-bold text-ink-text/60 uppercase">
+        <span className="text-xs font-bold text-ink-text/80 uppercase">
           {game.sport}
         </span>
         {a.vetoTriggered && (
@@ -1185,11 +1185,11 @@ const PassedCard: React.FC<{ game: QueuedGame }> = ({ game }) => {
         <div className="text-xs text-status-loss mb-2">{a.vetoReason}</div>
       )}
 
-      <details className="text-xs text-ink-text/60">
+      <details className="text-xs text-ink-text/80">
         <summary className="cursor-pointer hover:text-ink-text">
           Research Summary
         </summary>
-        <div className="mt-2 p-2 bg-ink-base rounded-xl whitespace-pre-wrap text-ink-text/60 border border-ink-gray">
+        <div className="mt-2 p-2 bg-ink-base rounded-xl whitespace-pre-wrap text-ink-text/80 border border-ink-gray">
           {a.researchSummary}
         </div>
       </details>

@@ -361,7 +361,7 @@ export const BetForm: React.FC<BetFormProps> = ({
             <button
               type="button"
               onClick={handleScanClick}
-              className={`p-2 rounded-lg border transition-all ${!hasApiKey ? "bg-ink-base border-ink-gray text-ink-text/20 cursor-not-allowed" : "bg-ink-base border-ink-gray text-ink-text/40 hover:text-ink-accent hover:shadow-sm"}`}
+              className={`p-2 rounded-lg border transition-all ${!hasApiKey ? "bg-ink-base border-ink-gray text-ink-text/40 cursor-not-allowed" : "bg-ink-base border-ink-gray text-ink-text/40 hover:text-ink-accent hover:shadow-sm"}`}
               disabled={isAnalyzing || !hasApiKey}
               title={!hasApiKey ? "API Key Missing" : "Scan Betting Slip"}
             >
@@ -393,7 +393,7 @@ export const BetForm: React.FC<BetFormProps> = ({
                 required
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
-                className="w-full bg-ink-base border border-ink-gray rounded-xl pl-9 pr-2 py-3 text-sm font-medium focus:border-ink-accent outline-none text-ink-text placeholder:text-ink-text/20 transition-all focus:ring-1 focus:ring-ink-accent"
+                className="w-full bg-ink-base border border-ink-gray rounded-xl pl-9 pr-2 py-3 text-sm font-medium focus:border-ink-accent outline-none text-ink-text placeholder:text-ink-text/40 transition-all focus:ring-1 focus:ring-ink-accent"
               />
             </div>
             <div className="relative sm:col-span-2">
@@ -402,7 +402,7 @@ export const BetForm: React.FC<BetFormProps> = ({
                 placeholder="Matchup (e.g. Lakers vs Celtics)"
                 value={matchup}
                 onChange={(e) => setMatchup(e.target.value)}
-                className="w-full bg-ink-base border border-ink-gray rounded-xl px-4 py-3 text-sm font-medium focus:border-ink-accent outline-none text-ink-text placeholder:text-ink-text/20 transition-all focus:ring-1 focus:ring-ink-accent"
+                className="w-full bg-ink-base border border-ink-gray rounded-xl px-4 py-3 text-sm font-medium focus:border-ink-accent outline-none text-ink-text placeholder:text-ink-text/40 transition-all focus:ring-1 focus:ring-ink-accent"
               />
             </div>
           </div>
@@ -413,7 +413,7 @@ export const BetForm: React.FC<BetFormProps> = ({
               placeholder="Pick (e.g. Lakers -5.5)"
               value={pick}
               onChange={(e) => setPick(e.target.value)}
-              className="w-full bg-ink-base border border-ink-gray rounded-xl px-4 py-3 text-sm font-medium focus:border-ink-accent outline-none text-ink-text placeholder:text-ink-text/20 transition-all focus:ring-1 focus:ring-ink-accent"
+              className="w-full bg-ink-base border border-ink-gray rounded-xl px-4 py-3 text-sm font-medium focus:border-ink-accent outline-none text-ink-text placeholder:text-ink-text/40 transition-all focus:ring-1 focus:ring-ink-accent"
             />
           </div>
 
@@ -482,7 +482,7 @@ export const BetForm: React.FC<BetFormProps> = ({
                 placeholder="-110"
                 value={odds}
                 onChange={(e) => setOdds(e.target.value)}
-                className="w-full bg-ink-base border border-ink-gray rounded-xl pl-12 pr-4 py-3 text-right text-sm font-mono font-bold focus:border-ink-accent outline-none text-ink-text placeholder:text-ink-text/20 transition-all focus:ring-1 focus:ring-ink-accent"
+                className="w-full bg-ink-base border border-ink-gray rounded-xl pl-12 pr-4 py-3 text-right text-sm font-mono font-bold focus:border-ink-accent outline-none text-ink-text placeholder:text-ink-text/40 transition-all focus:ring-1 focus:ring-ink-accent"
               />
             </div>
             <div className="relative">
@@ -494,7 +494,7 @@ export const BetForm: React.FC<BetFormProps> = ({
                 placeholder="Wager"
                 value={wager}
                 onChange={(e) => setWager(e.target.value)}
-                className="w-full bg-ink-base border border-ink-gray rounded-xl pl-10 pr-4 py-3 text-right text-sm font-mono font-bold focus:border-ink-accent outline-none text-ink-text placeholder:text-ink-text/20 transition-all focus:ring-1 focus:ring-ink-accent"
+                className="w-full bg-ink-base border border-ink-gray rounded-xl pl-10 pr-4 py-3 text-right text-sm font-mono font-bold focus:border-ink-accent outline-none text-ink-text placeholder:text-ink-text/40 transition-all focus:ring-1 focus:ring-ink-accent"
               />
             </div>
           </div>

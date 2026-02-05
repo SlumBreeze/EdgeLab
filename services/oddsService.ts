@@ -13,6 +13,8 @@ const SPORT_KEYS: Record<Sport, string> = {
   'NFL': 'americanfootball_nfl',
   'NHL': 'icehockey_nhl',
   'NCAAB': 'basketball_ncaab',
+  'NCAAF': 'americanfootball_ncaaf',
+  'MLB': 'baseball_mlb',
   'SOCCER': 'soccer_epl', // Base key for soccer, fetchOddsForSport will handle multiples
   'Other': 'basketball_nba' // Default to something safe
 };
@@ -109,10 +111,8 @@ const fetchOddsByLeagueKey = async (sportKey: string, forceRefresh = false): Pro
     return [];
   }
 
-  console.log(`[OddsService] Fetching fresh API data for ${sportKey}... (Key ends in ...${API_KEY.slice(-4)})`);
-  
-  // Request US, US2 (offshore), and EU regions to cover all requested books
   const url = `${BASE_URL}/${sportKey}/odds?apiKey=${API_KEY}&regions=us,us2,eu,au&markets=h2h,spreads,totals&oddsFormat=american`;
+  console.log(`[OddsService] Fetching: ${url.replace(API_KEY, 'HIDDEN')}`);
   
   try {
     const response = await fetch(url);
@@ -142,10 +142,13 @@ const fetchOddsByLeagueKey = async (sportKey: string, forceRefresh = false): Pro
 
 export const fetchOddsForSport = async (sport: Sport, forceRefresh = false): Promise<any[]> => {
   if (sport === 'SOCCER') {
+    console.log(`[OddsService] Fetching all soccer leagues...`);
     const allSoccerOdds = await Promise.all(
       SOCCER_LEAGUE_KEYS.map(key => fetchOddsByLeagueKey(key, forceRefresh))
     );
-    return allSoccerOdds.flat();
+    const flattened = allSoccerOdds.flat();
+    console.log(`[OddsService] Total soccer games found: ${flattened.length}`);
+    return flattened;
   }
 
   const sportKey = SPORT_KEYS[sport];
@@ -187,7 +190,7 @@ export const fetchOddsForGame = async (sport: Sport, gameId: string): Promise<an
 // New function to batch load all sports
 export const fetchAllSportsOdds = async (forceRefresh = false): Promise<Record<Sport, any[]>> => {
   const results: Record<string, any[]> = {};
-  const sports: Sport[] = ['NBA', 'NFL', 'NHL', 'NCAAB', 'SOCCER'];
+  const sports: Sport[] = ['NBA', 'NFL', 'NHL', 'NCAAB', 'NCAAF', 'MLB', 'SOCCER'];
   
   console.log(`[OddsService] Batch loading all sports (Force: ${forceRefresh})...`);
   
@@ -204,6 +207,10 @@ export const clearOddsCache = () => {
   memoryCache = {};
   if (typeof window !== 'undefined') {
     Object.values(SPORT_KEYS).forEach(key => {
+      localStorage.removeItem(getStorageKey(key));
+    });
+    // Also clear individual soccer leagues
+    SOCCER_LEAGUE_KEYS.forEach(key => {
       localStorage.removeItem(getStorageKey(key));
     });
     console.log("[OddsService] Cache cleared.");

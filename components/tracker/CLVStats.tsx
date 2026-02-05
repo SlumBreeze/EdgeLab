@@ -29,19 +29,19 @@ export const CLVStats: React.FC<Props> = ({ bets }) => {
     <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
       {/* Beat Rate Card */}
       <div className="bg-ink-panel border border-ink-gray p-4 rounded-xl shadow-sm">
-        <div className="flex items-center gap-2 text-ink-text/40 mb-2">
+        <div className="flex items-center gap-2 text-ink-text/80 mb-2">
           <Target size={14} className="text-ink-accent" />
           <span className="text-[10px] font-bold uppercase tracking-wider">CLV Beat Rate</span>
         </div>
         <div className="flex items-baseline gap-2">
           <span className="text-2xl font-mono font-bold text-ink-text">{beatRate.toFixed(1)}%</span>
-          <span className="text-[10px] text-ink-text/40 font-medium">Global</span>
+          <span className="text-[10px] text-ink-text/80 font-medium">Global</span>
         </div>
       </div>
 
       {/* Average Alpha Card */}
       <div className="bg-ink-panel border border-ink-gray p-4 rounded-xl shadow-sm">
-        <div className="flex items-center gap-2 text-ink-text/40 mb-2">
+        <div className="flex items-center gap-2 text-ink-text/80 mb-2">
           <TrendingUp size={14} className="text-status-win" />
           <span className="text-[10px] font-bold uppercase tracking-wider">Avg Alpha (Edge)</span>
         </div>
@@ -54,7 +54,7 @@ export const CLVStats: React.FC<Props> = ({ bets }) => {
 
       {/* Expected ROI Card */}
       <div className="bg-ink-panel border border-ink-gray p-4 rounded-xl shadow-sm">
-        <div className="flex items-center gap-2 text-ink-text/40 mb-2">
+        <div className="flex items-center gap-2 text-ink-text/80 mb-2">
           <BarChart3 size={14} className="text-ink-accent" />
           <span className="text-[10px] font-bold uppercase tracking-wider">Expected ROI</span>
         </div>
@@ -72,8 +72,8 @@ export const CLVStats: React.FC<Props> = ({ bets }) => {
       <div className={`p-4 rounded-xl shadow-sm border ${
         isLuckGap ? 'bg-amber-500/5 border-amber-500/30' : 'bg-ink-panel border-ink-gray'
       }`}>
-        <div className="flex items-center gap-2 text-ink-text/40 mb-2">
-          <AlertCircle size={14} className={isLuckGap ? 'text-amber-500' : 'text-ink-gray'} />
+        <div className="flex items-center gap-2 text-ink-text/80 mb-2">
+          <AlertCircle size={14} className={isLuckGap ? 'text-amber-500' : 'text-ink-muted'} />
           <span className="text-[10px] font-bold uppercase tracking-wider">Market Variance</span>
         </div>
         <div className="text-xs font-mono leading-tight">
@@ -82,9 +82,9 @@ export const CLVStats: React.FC<Props> = ({ bets }) => {
               {actualROI > xROI ? 'Running Hot (Luck)' : 'Running Cold (Variance)'}
             </span>
           ) : (
-            <span className="text-ink-text/60 uppercase">Normal Distribution</span>
+            <span className="text-ink-text/80 uppercase">Normal Distribution</span>
           )}
-          <p className="text-[9px] text-ink-text/40 mt-1 uppercase">
+          <p className="text-[9px] text-ink-text/80 mt-1 uppercase">
             Process quality vs results
           </p>
         </div>

@@ -27,7 +27,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ stats })
               <h4 className="text-lg font-bold text-ink-text truncate">{stats.hottestSport.name}</h4>
               <p className="text-status-win font-mono text-xs font-bold">+{formatCurrency(stats.hottestSport.profit)}</p>
             </div>
-          ) : <p className="text-ink-text/20 text-xs">--</p>}
+          ) : <p className="text-ink-text/40 text-xs">--</p>}
         </div>
 
         {/* Worst Sport */}
@@ -41,12 +41,12 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ stats })
               <h4 className="text-lg font-bold text-ink-text truncate">{stats.coldestSport.name}</h4>
               <p className="text-status-loss font-mono text-xs font-bold">{formatCurrency(stats.coldestSport.profit)}</p>
             </div>
-          ) : <p className="text-ink-text/20 text-xs">--</p>}
+          ) : <p className="text-ink-text/40 text-xs">--</p>}
         </div>
       </div>
 
       {/* Mini Book Performance Table */}
-      <div className="bg-ink-paper border border-ink-gray rounded-xl overflow-hidden shadow-sm">
+      <div className="bg-ink-paper border border-ink-gray rounded-xl overflow-hidden shadow-sm min-h-[150px]">
         <div className="px-4 py-2 border-b border-ink-gray bg-ink-base/50">
             <h3 className="font-bold text-ink-text text-xs uppercase tracking-wider">Book Performance</h3>
         </div>

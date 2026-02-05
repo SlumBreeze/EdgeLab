@@ -154,7 +154,7 @@ const QueuedGameCard: React.FC<Props> = ({
   const getEdgeColor = (signal?: string) => {
     if (signal === 'RED') return 'bg-status-loss/10 text-status-loss border-status-loss/30';
     if (signal === 'YELLOW') return 'bg-amber-500/10 text-amber-300 border-amber-500/30';
-    return 'bg-ink-base text-ink-text/60 border-ink-gray';
+    return 'bg-ink-base text-ink-text/80 border-ink-gray';
   };
 
   const getEdgeEmoji = (signal?: string) => {
@@ -167,7 +167,7 @@ const QueuedGameCard: React.FC<Props> = ({
     if (confidence === 'HIGH') return 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30';
     if (confidence === 'MEDIUM') return 'bg-amber-500/10 text-amber-300 border-amber-500/30';
     if (confidence === 'LOW') return 'bg-status-loss/10 text-status-loss border-status-loss/30';
-    return 'bg-ink-base text-ink-text/50 border-ink-gray';
+    return 'bg-ink-base text-ink-text/70 border-ink-gray';
   };
 
   // DraftKings-style line cell component
@@ -184,11 +184,11 @@ const QueuedGameCard: React.FC<Props> = ({
         : 'bg-ink-base border border-ink-gray'
       }
     `}>
-      {label && <span className="text-[9px] text-ink-text/40 uppercase font-medium mb-0.5">{label}</span>}
+      {label && <span className="text-[9px] text-ink-text/80 uppercase font-medium mb-0.5">{label}</span>}
       <span className={`font-bold text-sm ${isHighlighted ? 'text-ink-accent' : 'text-ink-text'}`}>
         {line || 'N/A'}
       </span>
-      <span className={`text-xs ${isHighlighted ? 'text-ink-accent' : 'text-ink-text/50'}`}>
+      <span className={`text-xs ${isHighlighted ? 'text-ink-accent' : 'text-ink-text/70'}`}>
         {odds ? formatOddsForDisplay(odds) : ''}
       </span>
     </div>
@@ -242,13 +242,13 @@ const QueuedGameCard: React.FC<Props> = ({
           <span className="bg-ink-accent/10 text-ink-accent text-[10px] font-bold px-2 py-0.5 rounded-full uppercase border border-ink-accent/30">
             {game.sport}
           </span>
-          <span className="text-ink-text/40 text-xs">#{game.visibleId}</span>
-          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-ink-paper text-ink-text/60 border border-ink-gray">
+          <span className="text-ink-text/80 text-xs">#{game.visibleId}</span>
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-ink-paper text-ink-text/80 border border-ink-gray">
             {windowLabel}
           </span>
-          <span className="text-[10px] text-ink-text/40">{timeLabel}</span>
+          <span className="text-[10px] text-ink-text/80">{timeLabel}</span>
         </div>
-        <button onClick={onRemove} className="text-ink-text/40 hover:text-status-loss transition-colors">
+        <button onClick={onRemove} className="text-ink-text/80 hover:text-status-loss transition-colors">
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
           </svg>
@@ -258,14 +258,14 @@ const QueuedGameCard: React.FC<Props> = ({
       {/* Matchup Title */}
       <div className="px-4 py-3 border-b border-ink-gray">
         <h3 className="font-bold text-ink-text text-lg">
-          {game.awayTeam.name} <span className="text-ink-text/40 font-normal">@</span> {game.homeTeam.name}
+          {game.awayTeam.name} <span className="text-ink-text/80 font-normal">@</span> {game.homeTeam.name}
         </h3>
       </div>
 
       {/* Initial Read / Edge Scan */}
       <div className="px-4 py-3 border-b border-ink-gray bg-ink-base">
         <div className="flex items-center justify-between">
-          <span className="text-xs text-ink-text/40 font-medium uppercase tracking-wide">Initial Read</span>
+          <span className="text-xs text-ink-text/80 font-medium uppercase tracking-wide">Initial Read</span>
           {!game.edgeSignal && (
             <button 
               onClick={onScan} 
@@ -285,20 +285,20 @@ const QueuedGameCard: React.FC<Props> = ({
             {/* Enhanced Context Fields (from v3 scan) */}
             {game.scanResult?.injuryContext && (
               <div className="bg-ink-paper p-2 rounded border border-ink-gray text-[10px]">
-                <span className="text-ink-text/40 font-bold uppercase block mb-1">🩹 Injuries</span>
+                <span className="text-ink-text/80 font-bold uppercase block mb-1">🩹 Injuries</span>
                 <span className="text-ink-text/70">{game.scanResult.injuryContext}</span>
               </div>
             )}
             
             {game.scanResult?.situationalContext && (
               <div className="bg-ink-paper p-2 rounded border border-ink-gray text-[10px]">
-                <span className="text-ink-text/40 font-bold uppercase block mb-1">📅 Spot</span>
+                <span className="text-ink-text/80 font-bold uppercase block mb-1">📅 Spot</span>
                 <span className="text-ink-text/70">{game.scanResult.situationalContext}</span>
               </div>
             )}
           </div>
         ) : (
-          <p className="text-xs text-ink-text/40 mt-1 italic">Run a quick scan to check for injury edges</p>
+          <p className="text-xs text-ink-text/80 mt-1 italic">Run a quick scan to check for injury edges</p>
         )}
       </div>
 
@@ -306,7 +306,7 @@ const QueuedGameCard: React.FC<Props> = ({
       <div className="px-4 py-3">
         {/* Line Shopping Section Header */}
         <div className="flex justify-between items-center mb-3">
-          <span className="text-xs text-ink-text/40 font-medium uppercase tracking-wide">Line Shopping</span>
+          <span className="text-xs text-ink-text/80 font-medium uppercase tracking-wide">Line Shopping</span>
           
           {/* Button Group - Only show if no analysis exists yet */}
           {!game.analysis && (
@@ -356,13 +356,13 @@ const QueuedGameCard: React.FC<Props> = ({
         <div className="flex justify-end gap-2 mb-3">
           <button 
             onClick={() => sharpInputRef.current?.click()} 
-            className="text-[10px] text-ink-text/40 hover:text-ink-text/60 underline"
+            className="text-[10px] text-ink-text/80 hover:text-ink-text/80 underline"
           >
             Upload Sharp Img
           </button>
           <button 
             onClick={() => softInputRef.current?.click()} 
-            className="text-[10px] text-ink-text/40 hover:text-ink-text/60 underline"
+            className="text-[10px] text-ink-text/80 hover:text-ink-text/80 underline"
           >
             Upload Soft Img
           </button>
@@ -391,7 +391,7 @@ const QueuedGameCard: React.FC<Props> = ({
                 <div className="border-t border-amber-700/30 my-1"></div>
                 <div className="flex items-center gap-2 py-2">
                   <div className="flex items-center gap-2 min-w-[140px]">
-                    <span className="font-semibold text-ink-text/40 text-sm italic ml-10">Draw</span>
+                    <span className="font-semibold text-ink-text/80 text-sm italic ml-10">Draw</span>
                   </div>
                   <div className="flex gap-2 flex-1 justify-end">
                     <LineCell line="-" odds="" />
@@ -415,14 +415,14 @@ const QueuedGameCard: React.FC<Props> = ({
           </div>
         ) : (
           <div className="border-2 border-dashed border-ink-gray rounded-xl p-6 text-center mb-3">
-            <p className="text-ink-text/60 text-sm">Fetch lines or upload Pinnacle screenshot</p>
+            <p className="text-ink-text/80 text-sm">Fetch lines or upload Pinnacle screenshot</p>
           </div>
         )}
 
         {/* Fetched Books Checklist */}
         {apiSoftBooks.length > 0 && game.sharpLines && (
           <div className="mb-4 bg-ink-base rounded-xl p-3 border border-ink-gray">
-            <h4 className="text-[10px] font-bold text-ink-text/40 uppercase mb-2">Available Soft Books</h4>
+            <h4 className="text-[10px] font-bold text-ink-text/80 uppercase mb-2">Available Soft Books</h4>
             <div className="grid grid-cols-1 gap-2">
               {apiSoftBooks.map((book) => {
                 const isSelected = game.softLines.some(sl => sl.bookName === book.bookName);
@@ -456,7 +456,7 @@ const QueuedGameCard: React.FC<Props> = ({
                           </span>
                         )}
                       </div>
-                      <div className="text-xs text-ink-text/50 font-mono mt-0.5">
+                      <div className="text-xs text-ink-text/70 font-mono mt-0.5">
                         {game.awayTeam.name}: {book.spreadLineA} ({book.spreadOddsA})
                       </div>
                     </div>
@@ -588,7 +588,7 @@ const QueuedGameCard: React.FC<Props> = ({
             disabled={!game.sharpLines || game.softLines.length === 0}
             className={`w-full py-4 rounded-xl font-bold text-sm transition-all transform hover:scale-[1.02] ${
               !game.sharpLines || game.softLines.length === 0
-                ? 'bg-ink-gray text-ink-text/40 cursor-not-allowed'
+                ? 'bg-ink-gray text-ink-text/80 cursor-not-allowed'
                 : 'bg-ink-accent text-white shadow-sm hover:bg-sky-500'
             }`}
           >

@@ -40,11 +40,11 @@ export default function TrackerNewBet({ draftBet, onBack, onBetAdded }: Props) {
         <header className="mb-6 flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-ink-text mb-1">Confirm Bet</h1>
-            <p className="text-ink-text/60 text-sm">Review analysis and log to bankroll</p>
+            <p className="text-ink-text/80 text-sm">Review analysis and log to bankroll</p>
           </div>
           <button 
             onClick={onBack}
-            className="px-4 py-2 bg-ink-paper border border-ink-gray rounded-xl text-xs font-bold text-ink-text/70 hover:text-ink-text transition-all"
+            className="px-4 py-2 bg-ink-paper border border-ink-gray rounded-xl text-xs font-bold text-ink-text/90 hover:text-ink-text transition-all"
           >
             Cancel
           </button>
@@ -62,7 +62,7 @@ export default function TrackerNewBet({ draftBet, onBack, onBetAdded }: Props) {
                     )}
                 </div>
                 <h3 className="font-bold text-ink-text text-lg mb-1">{draftBet.homeTeam} vs {draftBet.awayTeam}</h3>
-                <p className="text-ink-text/60 text-xs mb-3 italic">"{draftBet.rationale}"</p>
+                <p className="text-ink-text/80 text-xs mb-3 italic">"{draftBet.rationale}"</p>
             </div>
           )}
 

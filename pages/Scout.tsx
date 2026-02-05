@@ -80,6 +80,7 @@ export default function Scout() {
     setLoading(true);
     try {
       const allData = await fetchAllSportsOdds();
+      console.log("[Scout] Slates loaded for:", Object.keys(allData));
       loadSlates(allData); // Save to Context & LocalStorage
       toast.showSuccess(
         `Loaded slates for ${Object.keys(allData).length} sports`,
@@ -114,8 +115,15 @@ export default function Scout() {
     
     // Normalize selected date to YYYY-MM-DD
     const targetDate = selectedDate;
+    const games = allSportsData[sport];
 
-    return allSportsData[sport]
+    if (sport === 'SOCCER' && games.length > 0) {
+      console.log(`[Scout] Analyzing ${games.length} Soccer games for date: ${targetDate}`);
+      const uniqueDates = Array.from(new Set(games.map((g: any) => formatEtDate(new Date(g.commence_time)))));
+      console.log(`[Scout] Soccer dates in cache:`, uniqueDates);
+    }
+
+    return games
       .filter((g: any) => {
         // Robust date comparison using local date component from ET perspective
         const gameDateObj = new Date(g.commence_time);
@@ -484,7 +492,7 @@ export default function Scout() {
     const ref = parseFloat(refA);
     if (isNaN(curr) || isNaN(ref)) return null;
     if (Math.abs(curr - ref) < 0.1)
-      return { icon: "➡️", text: "", color: "text-ink-text/40" };
+      return { icon: "➡️", text: "", color: "text-ink-text/80" };
     if (curr > ref)
       return {
         icon: "⬆️",
@@ -567,7 +575,7 @@ export default function Scout() {
           </button>
         </header>
 
-        <div className="flex-1 flex flex-col justify-center items-center text-ink-text/60 bg-ink-paper rounded-2xl border border-ink-gray p-8 shadow-sm border-dashed">
+        <div className="flex-1 flex flex-col justify-center items-center text-ink-text/80 bg-ink-paper rounded-2xl border border-ink-gray p-8 shadow-sm border-dashed">
           <p className="text-4xl mb-3">📊</p>
           <p className="font-medium text-center">
             Click "Load Today's Slates"
@@ -601,7 +609,7 @@ export default function Scout() {
                 className={`flex-1 px-4 py-3 rounded-xl font-bold text-xs shadow-sm transition-all whitespace-nowrap border flex items-center justify-center gap-2 ${
                   autoPilotEnabled
                     ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30 shadow-[0_0_15px_rgba(16,185,129,0.1)]"
-                    : "bg-ink-base text-ink-text/40 border-ink-gray hover:text-ink-text"
+                    : "bg-ink-base text-ink-text/80 border-ink-gray hover:text-ink-text"
                 }`}
                 title="Automatically scan, analyze and promote games entering Lock windows"
               >
@@ -628,7 +636,7 @@ export default function Scout() {
                 className={`flex-1 px-4 py-3 rounded-xl font-bold text-xs shadow-sm transition-all border flex items-center justify-center gap-2 ${
                   !isBatchProcessing && upcomingGames.length > 0
                     ? "bg-ink-accent text-white border-ink-accent hover:bg-sky-500"
-                    : "bg-ink-base text-ink-text/40 border-ink-gray"
+                    : "bg-ink-base text-ink-text/80 border-ink-gray"
                 }`}
               >
                 {isBatchProcessing ? (
@@ -641,7 +649,7 @@ export default function Scout() {
               <button
                 onClick={handleRefresh}
                 disabled={loading || batchScanning || isBatchProcessing}
-                className="px-4 bg-ink-paper text-ink-text/70 border border-ink-gray hover:text-ink-text rounded-xl font-bold shadow-sm transition-all text-xl"
+                className="px-4 bg-ink-paper text-ink-text/90 border border-ink-gray hover:text-ink-text rounded-xl font-bold shadow-sm transition-all text-xl"
                 title="Refresh Slates"
               >
                 🔄
@@ -650,7 +658,7 @@ export default function Scout() {
               <button
                 onClick={handleClearCache}
                 disabled={loading || batchScanning || isBatchProcessing}
-                className="px-3 bg-ink-paper text-ink-text/40 border border-ink-gray hover:text-red-400 rounded-xl font-bold shadow-sm transition-all text-sm"
+                className="px-3 bg-ink-paper text-ink-text/80 border border-ink-gray hover:text-red-400 rounded-xl font-bold shadow-sm transition-all text-sm"
                 title="Clear Cache"
               >
                 🗑️
@@ -669,7 +677,7 @@ export default function Scout() {
                   className={`flex items-center gap-2 px-3 py-2 rounded-full whitespace-nowrap transition-all shadow-sm border ${
                     selectedWindow === window.key
                       ? "bg-ink-accent text-white font-bold border-ink-accent shadow-sm"
-                      : "bg-ink-paper text-ink-text/70 hover:text-ink-text border-ink-gray"
+                      : "bg-ink-paper text-ink-text/90 hover:text-ink-text border-ink-gray"
                   }`}
                 >
                   <span className="text-xs">{window.label}</span>
@@ -677,7 +685,7 @@ export default function Scout() {
                     className={`text-[10px] px-2 py-0.5 rounded-full ${
                       selectedWindow === window.key
                         ? "bg-white/20 text-white"
-                        : "bg-ink-base text-ink-text/60 border border-ink-gray"
+                        : "bg-ink-base text-ink-text/80 border border-ink-gray"
                     }`}
                   >
                     {window.count}
@@ -690,7 +698,7 @@ export default function Scout() {
               <button
                 onClick={handleAddAllScanned}
                 disabled={scannedCount === 0 || isBatchProcessing}
-                className={`px-3 py-2 rounded-xl font-bold text-[10px] shadow-sm transition-all whitespace-nowrap border ${scannedCount > 0 ? "bg-ink-paper text-ink-accent border-ink-accent hover:bg-ink-accent/10" : "bg-ink-base text-ink-text/40 border-ink-gray"}`}
+                className={`px-3 py-2 rounded-xl font-bold text-[10px] shadow-sm transition-all whitespace-nowrap border ${scannedCount > 0 ? "bg-ink-paper text-ink-accent border-ink-accent hover:bg-ink-accent/10" : "bg-ink-base text-ink-text/80 border-ink-gray"}`}
               >
                 + Add Scanned ({scannedCount})
               </button>
@@ -702,7 +710,7 @@ export default function Scout() {
                   className={`px-3 py-2 rounded-xl font-bold text-[10px] shadow-sm transition-all border ${
                     windowAddCount > 0
                       ? "bg-ink-paper text-ink-accent border-ink-accent hover:bg-ink-accent/10"
-                      : "bg-ink-base text-ink-text/40 border-ink-gray"
+                      : "bg-ink-base text-ink-text/80 border-ink-gray"
                   }`}
                 >
                   + Add Window ({windowAddCount})
@@ -713,7 +721,7 @@ export default function Scout() {
                 <button
                   onClick={handleResetScans}
                   disabled={batchScanning || isBatchProcessing}
-                  className="px-3 bg-ink-base text-ink-text/40 hover:text-red-400 border border-ink-gray rounded-xl font-bold shadow-sm transition-all"
+                  className="px-3 bg-ink-base text-ink-text/80 hover:text-red-400 border border-ink-gray rounded-xl font-bold shadow-sm transition-all"
                   title="Reset Scans"
                 >
                   🗑️
@@ -728,12 +736,12 @@ export default function Scout() {
       <div className="flex-1 overflow-y-auto min-h-0 relative">
         <div className="p-4 pt-2 max-w-7xl mx-auto pb-24">
           {loading ? (
-            <div className="text-center py-10 text-ink-text/60">
+            <div className="text-center py-10 text-ink-text/80">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-ink-accent mx-auto mb-3"></div>
               Searching lines...
             </div>
           ) : filteredGames.length === 0 ? (
-            <div className="text-center py-10 text-ink-text/60 bg-ink-paper rounded-2xl border border-ink-gray">
+            <div className="text-center py-10 text-ink-text/80 bg-ink-paper rounded-2xl border border-ink-gray">
               No games found for {selectedDate}.
             </div>
           ) : (
@@ -748,7 +756,24 @@ export default function Scout() {
                     ),
                 );
 
-                if (sportGames.length === 0) return null;
+                if (sportGames.length === 0) {
+                  const gamesInCache = allSportsData[sport] || [];
+                  const futureGames = gamesInCache.filter(g => new Date(g.commence_time).getTime() > Date.now());
+                  
+                  if (futureGames.length > 0) {
+                    return (
+                      <section key={sportKey} className="opacity-50">
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="text-lg grayscale">{config.icon}</span>
+                          <h2 className="text-sm font-bold text-ink-text/80 italic">
+                            {config.label}: No games for {selectedDate} ({futureGames.length} upcoming in cache)
+                          </h2>
+                        </div>
+                      </section>
+                    );
+                  }
+                  return null;
+                }
 
                 return (
                   <section key={sportKey}>
@@ -759,7 +784,7 @@ export default function Scout() {
                           {config.label}
                         </h2>
                       </div>
-                      <div className="text-[11px] text-ink-text/60">
+                      <div className="text-[11px] text-ink-text/80">
                         {getCadenceLabel(sport, sportGames)}
                       </div>
                     </div>
@@ -817,7 +842,7 @@ export default function Scout() {
                   Batch Processing: {batchProgress.phase}
                 </span>
               </div>
-              <span className="text-[10px] font-mono text-ink-gray">
+              <span className="text-[10px] font-mono text-ink-muted">
                 {batchProgress.current} / {batchProgress.total}
               </span>
             </div>

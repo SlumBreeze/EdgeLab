@@ -15,7 +15,7 @@ const DEFAULT_PERSONA: UserPersona = {
   volume_mode: 'High Action',
   max_odds_american: -175,
   risk_tolerance: 'Balanced',
-  active_sports: ['nba', 'nfl', 'mlb', 'nhl']
+  active_sports: ['NBA', 'NFL', 'MLB', 'NHL', 'SOCCER']
 };
 
 export const PersonaEditor: React.FC<Props> = ({ isOpen, onClose }) => {
@@ -65,7 +65,7 @@ export const PersonaEditor: React.FC<Props> = ({ isOpen, onClose }) => {
           <button 
             onClick={onClose}
             aria-label="Close"
-            className="text-ink-gray hover:text-ink-text transition-colors"
+            className="text-ink-muted hover:text-ink-text transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
@@ -75,7 +75,7 @@ export const PersonaEditor: React.FC<Props> = ({ isOpen, onClose }) => {
         <div className="flex-1 overflow-y-auto p-6 space-y-8 font-mono text-xs">
           <div className="bg-ink-base/50 p-4 border-l-2 border-ink-accent">
             <p className="text-ink-accent font-bold mb-1">STOIC HANDICAPPER v3.0</p>
-            <p className="text-ink-gray leading-relaxed">
+            <p className="text-ink-text/70 leading-relaxed">
               Adjust the core behavioral parameters of the AI agent. These settings directly influence the Veto System and the final daily card generation.
             </p>
           </div>
@@ -94,14 +94,14 @@ export const PersonaEditor: React.FC<Props> = ({ isOpen, onClose }) => {
                   className={`p-3 border transition-all text-center ${
                     localPersona.volume_mode === mode 
                       ? 'bg-ink-accent text-ink-base border-ink-accent font-bold' 
-                      : 'bg-ink-paper text-ink-gray border-ink-gray hover:border-ink-text'
+                      : 'bg-ink-paper text-ink-text/40 border-ink-gray hover:border-ink-accent/50 hover:text-ink-text/60'
                   }`}
                 >
                   {mode.toUpperCase()}
                 </button>
               ))}
             </div>
-            <p className="text-[10px] text-ink-gray italic">
+            <p className="text-[10px] text-ink-text/50 italic">
               * High Action prioritizes identifying the best side in every game.
             </p>
           </section>
@@ -116,7 +116,7 @@ export const PersonaEditor: React.FC<Props> = ({ isOpen, onClose }) => {
             <div className="space-y-4">
               <div className="flex flex-col gap-2">
                 <div className="flex justify-between items-center">
-                  <label htmlFor="min-edge" className="text-ink-gray">MIN EDGE %</label>
+                  <label htmlFor="min-edge" className="text-ink-text/60">MIN EDGE %</label>
                   <span className="text-ink-accent font-bold">{localPersona.min_edge_percentage}%</span>
                 </div>
                 <input
@@ -133,7 +133,7 @@ export const PersonaEditor: React.FC<Props> = ({ isOpen, onClose }) => {
 
               <div className="flex flex-col gap-2">
                 <div className="flex justify-between items-center">
-                  <label htmlFor="max-odds" className="text-ink-gray">MAX ODDS (AMERICAN)</label>
+                  <label htmlFor="max-odds" className="text-ink-text/60">MAX ODDS (AMERICAN)</label>
                   <span className="text-ink-accent font-bold">{localPersona.max_odds_american}</span>
                 </div>
                 <input
@@ -161,7 +161,7 @@ export const PersonaEditor: React.FC<Props> = ({ isOpen, onClose }) => {
                   className={`p-2 border transition-all text-[10px] text-center ${
                     localPersona.risk_tolerance === level 
                       ? 'bg-ink-accent text-ink-base border-ink-accent font-bold' 
-                      : 'bg-ink-paper text-ink-gray border-ink-gray hover:border-ink-text'
+                      : 'bg-ink-paper text-ink-text/40 border-ink-gray hover:border-ink-accent/50 hover:text-ink-text/60'
                   }`}
                 >
                   {level.toUpperCase()}
@@ -174,14 +174,14 @@ export const PersonaEditor: React.FC<Props> = ({ isOpen, onClose }) => {
           <section className="space-y-4">
             <h3 className="uppercase font-bold tracking-wider text-ink-text">Market Surveillance</h3>
             <div className="flex flex-wrap gap-2">
-              {['nba', 'nfl', 'mlb', 'nhl'].map((sport) => (
+              {['NBA', 'NFL', 'MLB', 'NHL', 'SOCCER'].map((sport) => (
                 <button
                   key={sport}
                   onClick={() => toggleSport(sport)}
                   className={`px-3 py-1 border transition-all text-[10px] uppercase ${
                     localPersona.active_sports.includes(sport)
-                      ? 'border-ink-accent text-ink-accent'
-                      : 'border-ink-gray text-ink-gray opacity-50'
+                      ? 'border-ink-accent text-ink-accent bg-ink-accent/5'
+                      : 'border-ink-gray text-ink-text/50 hover:border-ink-text/50'
                   }`}
                 >
                   {sport}

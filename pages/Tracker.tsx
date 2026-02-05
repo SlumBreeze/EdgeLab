@@ -199,7 +199,7 @@ const Tracker: React.FC = () => {
       <div className="min-h-screen bg-ink-base flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="animate-spin text-ink-accent" size={32} />
-          <p className="text-ink-text/60 font-medium font-mono">
+          <p className="text-ink-text/80 font-medium font-mono">
             Loading Performance Data...
           </p>
         </div>
@@ -253,7 +253,7 @@ const Tracker: React.FC = () => {
                 </p>
                 <button
                   onClick={() => setIsBankrollModalOpen(true)}
-                  className="p-1 rounded-md text-ink-text/40 hover:text-ink-accent hover:bg-ink-accent/10 transition-all flex items-center gap-1"
+                  className="p-1 rounded-md text-ink-text/80 hover:text-ink-accent hover:bg-ink-accent/10 transition-all flex items-center gap-1"
                   title="Manage Books"
                 >
                   <Edit2 size={14} />
@@ -266,7 +266,7 @@ const Tracker: React.FC = () => {
             <div className="flex gap-2">
               <button
                 onClick={() => setIsDataModalOpen(true)}
-                className="p-2 rounded-lg bg-ink-paper border border-ink-gray text-ink-text/60 hover:text-ink-accent hover:border-ink-accent transition-all shadow-sm"
+                className="p-2 rounded-lg bg-ink-paper border border-ink-gray text-ink-text/80 hover:text-ink-accent hover:border-ink-accent transition-all shadow-sm"
                 title="Settings & Backup"
               >
                 <Settings size={20} />
@@ -288,7 +288,7 @@ const Tracker: React.FC = () => {
                   <TrendingUp size={18} className="text-ink-accent" />
                   Net Profit Trend
                 </h2>
-                <p className="text-xs text-ink-text/60 font-mono mt-1">
+                <p className="text-xs text-ink-text/80 font-mono mt-1">
                   {contextBankrollStats.totalBets} Bets • Lifetime PnL:{" "}
                   <span
                     className={
@@ -302,7 +302,7 @@ const Tracker: React.FC = () => {
               </div>
               <div className="hidden sm:flex gap-2">
                 <div className="bg-ink-base/50 px-3 py-1 rounded-lg border border-ink-gray">
-                  <span className="text-[10px] text-ink-text/40 block uppercase">
+                  <span className="text-[10px] text-ink-text/80 block uppercase">
                     ROI
                   </span>
                   <span
@@ -327,7 +327,7 @@ const Tracker: React.FC = () => {
               <h3 className="font-bold text-sm text-ink-text">
                 Recent Activity
               </h3>
-              <History size={14} className="text-ink-text/40" />
+              <History size={14} className="text-ink-text/80" />
             </div>
             <div className="flex-1 overflow-y-auto p-0 scrollbar-hide">
               {bets.slice(0, 10).map((bet, i) => (
@@ -339,7 +339,7 @@ const Tracker: React.FC = () => {
                     <p className="text-xs font-bold text-ink-text truncate">
                       {formatBetPickDisplay(bet.pick, bet.matchup)}
                     </p>
-                    <p className="text-[10px] text-ink-text/40 truncate">
+                    <p className="text-[10px] text-ink-text/80 truncate">
                       {bet.matchup}
                     </p>
                   </div>
@@ -350,7 +350,7 @@ const Tracker: React.FC = () => {
                           ? "text-status-win"
                           : bet.status === BetStatus.LOST
                             ? "text-status-loss"
-                            : "text-ink-text/40"
+                            : "text-ink-text/80"
                       }`}
                     >
                       {bet.status === BetStatus.WON
@@ -363,7 +363,7 @@ const Tracker: React.FC = () => {
                 </div>
               ))}
               {bets.length === 0 && (
-                <div className="p-6 text-center text-ink-text/40 text-xs">
+                <div className="p-6 text-center text-ink-text/80 text-xs">
                   No bets logged yet.
                 </div>
               )}
@@ -431,7 +431,7 @@ const Tracker: React.FC = () => {
                 <Percent size={18} className="text-ink-accent" />
                 Market Alpha Analysis (CLV)
               </h2>
-              <p className="text-[10px] text-ink-text/40 uppercase tracking-widest mt-1 font-mono">
+              <p className="text-[10px] text-ink-text/80 uppercase tracking-widest mt-1 font-mono">
                 Validated Against Pinnacle Closing Lines
               </p>
             </div>
@@ -450,7 +450,7 @@ const Tracker: React.FC = () => {
                   </p>
                 </div>
                 <div className="pt-2 border-t border-ink-gray flex justify-between items-center">
-                  <span className="text-ink-text/40 font-mono text-[9px]">ALPHA_ENGINE_v3.0</span>
+                  <span className="text-ink-text/80 font-mono text-[9px]">ALPHA_ENGINE_v3.0</span>
                   <div className="flex gap-1">
                     <div className="w-1 h-1 rounded-full bg-ink-accent animate-pulse" />
                     <div className="w-1 h-1 rounded-full bg-ink-accent animate-pulse delay-75" />
@@ -491,14 +491,14 @@ const Tracker: React.FC = () => {
               <div className="bg-ink-paper border border-ink-gray rounded-lg p-1 flex gap-1">
                 <button
                   onClick={() => setViewMode("list")}
-                  className={`p-1.5 rounded-md transition-all ${viewMode === "list" ? "bg-ink-accent text-white shadow-sm" : "text-ink-text/60 hover:text-ink-text"}`}
+                  className={`p-1.5 rounded-md transition-all ${viewMode === "list" ? "bg-ink-accent text-white shadow-sm" : "text-ink-text/80 hover:text-ink-text"}`}
                   title="List View"
                 >
                   <LayoutList size={16} />
                 </button>
                 <button
                   onClick={() => setViewMode("calendar")}
-                  className={`p-1.5 rounded-md transition-all ${viewMode === "calendar" ? "bg-ink-accent text-white shadow-sm" : "text-ink-text/40 hover:text-ink-text"}`}
+                  className={`p-1.5 rounded-md transition-all ${viewMode === "calendar" ? "bg-ink-accent text-white shadow-sm" : "text-ink-text/80 hover:text-ink-text"}`}
                   title="Calendar View"
                 >
                   <Calendar size={16} />

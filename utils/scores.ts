@@ -8,6 +8,7 @@ const ENDPOINTS: Record<string, string> = {
   MLB: 'https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/scoreboard',
   NHL: 'https://site.api.espn.com/apis/site/v2/sports/hockey/nhl/scoreboard',
   NCAAF: 'https://site.api.espn.com/apis/site/v2/sports/football/college-football/scoreboard',
+  SOCCER: 'https://site.api.espn.com/apis/site/v2/sports/soccer/eng.1/scoreboard',
 };
 
 // Common team name aliases for better matching

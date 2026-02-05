@@ -55,21 +55,21 @@ const ScoutGameCard: React.FC<ScoutGameCardProps> = ({
       <div className="flex justify-between items-center mb-2 pl-2">
         <div className="flex flex-col gap-1">
           <div className="flex items-center gap-2">
-            <div className="text-[10px] font-bold text-ink-text/40 uppercase tracking-wider">{timeLabel}</div>
+            <div className="text-[10px] font-bold text-ink-text/80 uppercase tracking-wider">{timeLabel}</div>
             <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${cadenceColor}`}>
               {cadenceLabel}
             </span>
           </div>
         </div>
-        <button onClick={() => onAddToQueue(game, sport, pinnLines)} disabled={inQueue} className={`px-2 py-1 rounded text-[10px] font-bold transition-colors border ${inQueue ? 'bg-ink-base text-ink-text/40 border-ink-gray' : 'bg-ink-accent/10 text-ink-accent border-ink-accent/30 hover:bg-ink-accent/20'}`}>{inQueue ? '✓ Queue' : '+ Add'}</button>
+        <button onClick={() => onAddToQueue(game, sport, pinnLines)} disabled={inQueue} className={`px-2 py-1 rounded text-[10px] font-bold transition-colors border ${inQueue ? 'bg-ink-base text-ink-text/80 border-ink-gray' : 'bg-ink-accent/10 text-ink-accent border-ink-accent/30 hover:bg-ink-accent/20'}`}>{inQueue ? '✓ Queue' : '+ Add'}</button>
       </div>
       <div className="mb-2 pl-2">
-        <div className="grid grid-cols-[2fr_1fr_1fr_2fr] gap-1 mb-1 text-[9px] text-ink-text/40 uppercase font-bold tracking-wider"><div>Team</div><div className="text-center">{isSoccer ? 'Sharp' : 'Ref'}</div><div className="text-center">Curr</div><div className="text-center">Move</div></div>
+        <div className="grid grid-cols-[2fr_1fr_1fr_2fr] gap-1 mb-1 text-[9px] text-ink-text/80 uppercase font-bold tracking-wider"><div>Team</div><div className="text-center">{isSoccer ? 'Sharp' : 'Ref'}</div><div className="text-center">Curr</div><div className="text-center">Move</div></div>
         
         {/* Away Team */}
         <div className="grid grid-cols-[2fr_1fr_1fr_2fr] gap-1 items-center py-1 border-b border-ink-gray">
           <div className="font-bold text-ink-text truncate text-xs">{game.away_team}</div>
-          <div className="text-center text-ink-text/40 text-[10px] font-mono">
+          <div className="text-center text-ink-text/80 text-[10px] font-mono">
             {isSoccer ? (pinnLines?.mlOddsA || '-') : (ref?.spreadLineA || '-')}
           </div>
           <div className="text-center font-bold text-ink-text bg-ink-base rounded py-0.5 text-[10px] font-mono border border-ink-gray">
@@ -83,8 +83,8 @@ const ScoutGameCard: React.FC<ScoutGameCardProps> = ({
         {/* Draw (Soccer Only) */}
         {showDraw && (
           <div className="grid grid-cols-[2fr_1fr_1fr_2fr] gap-1 items-center py-1 border-b border-ink-gray">
-            <div className="font-bold text-ink-text/40 truncate text-xs italic">Draw</div>
-            <div className="text-center text-ink-text/40 text-[10px] font-mono">{pinnLines?.mlOddsDraw}</div>
+            <div className="font-bold text-ink-text/80 truncate text-xs italic">Draw</div>
+            <div className="text-center text-ink-text/80 text-[10px] font-mono">{pinnLines?.mlOddsDraw}</div>
             <div className="text-center font-bold text-ink-text bg-ink-base rounded py-0.5 text-[10px] font-mono border border-ink-gray">{pinnLines?.mlOddsDraw}</div>
             <div className="text-center"></div>
           </div>
@@ -93,7 +93,7 @@ const ScoutGameCard: React.FC<ScoutGameCardProps> = ({
         {/* Home Team */}
         <div className="grid grid-cols-[2fr_1fr_1fr_2fr] gap-1 items-center py-1">
           <div className="font-bold text-ink-text truncate text-xs">{game.home_team}</div>
-          <div className="text-center text-ink-text/40 text-[10px] font-mono">
+          <div className="text-center text-ink-text/80 text-[10px] font-mono">
             {isSoccer ? (pinnLines?.mlOddsB || '-') : (ref?.spreadLineB || '-')}
           </div>
           <div className="text-center font-bold text-ink-text bg-ink-base rounded py-0.5 text-[10px] font-mono border border-ink-gray">
@@ -112,7 +112,7 @@ const ScoutGameCard: React.FC<ScoutGameCardProps> = ({
               <button
                 onClick={() => onQuickScan(gameObj)}
                 disabled={isScanning || isBatchScanning}
-                className="w-full py-1.5 bg-ink-base hover:bg-ink-gray text-ink-text/60 hover:text-ink-text rounded-lg text-[10px] font-bold transition-colors flex items-center justify-center gap-1 border border-ink-gray"
+                className="w-full py-1.5 bg-ink-base hover:bg-ink-gray text-ink-text/80 hover:text-ink-text rounded-lg text-[10px] font-bold transition-colors flex items-center justify-center gap-1 border border-ink-gray"
               >
                 {isScanning ? (
                   <span className="animate-pulse">Rescanning...</span>
@@ -124,7 +124,7 @@ const ScoutGameCard: React.FC<ScoutGameCardProps> = ({
               </button>
             )}
             {scan.injuryContext && scan.injuryContext !== "No injury data found." && scan.injuryContext !== "Unavailable" && (
-              <div className="text-[9px] text-ink-text/50 line-clamp-2 px-1">
+              <div className="text-[9px] text-ink-text/70 line-clamp-2 px-1">
                 🩹 {scan.injuryContext}
               </div>
             )}
@@ -135,7 +135,7 @@ const ScoutGameCard: React.FC<ScoutGameCardProps> = ({
             )}
           </>
         ) : (
-          <button onClick={() => onQuickScan(gameObj)} disabled={isScanning || isBatchScanning} className="w-full py-1.5 bg-ink-base hover:bg-ink-gray text-ink-text/60 hover:text-ink-text rounded-lg text-[10px] font-bold transition-colors flex items-center justify-center gap-1 border border-ink-gray">{isScanning ? <span className="animate-pulse">Scanning...</span> : <><span className="text-[10px]">⚡</span> Scan Injuries</>}</button>
+          <button onClick={() => onQuickScan(gameObj)} disabled={isScanning || isBatchScanning} className="w-full py-1.5 bg-ink-base hover:bg-ink-gray text-ink-text/80 hover:text-ink-text rounded-lg text-[10px] font-bold transition-colors flex items-center justify-center gap-1 border border-ink-gray">{isScanning ? <span className="animate-pulse">Scanning...</span> : <><span className="text-[10px]">⚡</span> Scan Injuries</>}</button>
         )}
       </div>
     </div>

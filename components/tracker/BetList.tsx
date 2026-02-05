@@ -181,7 +181,7 @@ export const BetList: React.FC<BetListProps> = ({
 
     return (
       <div
-        className={`flex items-center gap-2 text-xs font-mono ${isLive ? "text-ink-text" : "text-ink-text/60"}`}
+        className={`flex items-center gap-2 text-xs font-mono ${isLive ? "text-ink-text" : "text-ink-text/80"}`}
       >
         {isLive && (
           <span className="relative flex h-2 w-2 mr-1">
@@ -190,7 +190,7 @@ export const BetList: React.FC<BetListProps> = ({
           </span>
         )}
         {isFinal && (
-          <span className="text-[10px] font-bold uppercase text-ink-text/40 mr-1">
+          <span className="text-[10px] font-bold uppercase text-ink-text/80 mr-1">
             FINAL
           </span>
         )}
@@ -214,7 +214,7 @@ export const BetList: React.FC<BetListProps> = ({
         <h3 className="text-xl font-bold text-ink-text mb-2">
           No Bets Tracked
         </h3>
-        <p className="text-ink-text/40 max-w-sm mx-auto">
+        <p className="text-ink-text/80 max-w-sm mx-auto">
           Start by adding your first wager above.
         </p>
       </div>
@@ -241,7 +241,7 @@ export const BetList: React.FC<BetListProps> = ({
             </select>
             <ChevronDown
               size={14}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ink-text/40 pointer-events-none"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ink-text/80 pointer-events-none"
             />
           </div>
 
@@ -260,7 +260,7 @@ export const BetList: React.FC<BetListProps> = ({
             </select>
             <ChevronDown
               size={14}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ink-text/40 pointer-events-none"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ink-text/80 pointer-events-none"
             />
           </div>
 
@@ -270,7 +270,7 @@ export const BetList: React.FC<BetListProps> = ({
                 setFilterSport("All");
                 setFilterStatus("All");
               }}
-              className="p-1.5 rounded-lg bg-ink-gray text-ink-text/60 hover:text-white transition-colors"
+              className="p-1.5 rounded-lg bg-ink-gray text-ink-text/80 hover:text-white transition-colors"
             >
               <X size={14} />
             </button>
@@ -288,7 +288,7 @@ export const BetList: React.FC<BetListProps> = ({
           <div className="hidden md:block bg-ink-paper rounded-2xl border border-ink-gray overflow-x-auto shadow-lg">
             <table className="w-full text-left border-collapse min-w-[800px]">
               <thead>
-                <tr className="bg-ink-base border-b border-ink-gray text-xs uppercase text-ink-text/40 font-semibold tracking-wider">
+                <tr className="bg-ink-base border-b border-ink-gray text-xs uppercase text-ink-text/80 font-semibold tracking-wider">
                   <th className="px-5 py-3 w-1/3 md:w-auto">Matchup / Pick</th>
                   <th className="px-4 py-3 hidden lg:table-cell w-32">Score</th>
                   <th className="px-4 py-3 hidden sm:table-cell w-28">
@@ -310,7 +310,7 @@ export const BetList: React.FC<BetListProps> = ({
                     ? "text-status-win"
                     : group.totalProfit < 0
                       ? "text-status-loss"
-                      : "text-ink-text/40";
+                      : "text-ink-text/80";
 
                 return (
                   <tbody
@@ -327,12 +327,12 @@ export const BetList: React.FC<BetListProps> = ({
                             {isExpanded ? (
                               <ChevronDown
                                 size={16}
-                                className="text-ink-text/40"
+                                className="text-ink-text/80"
                               />
                             ) : (
                               <ChevronRight
                                 size={16}
-                                className="text-ink-text/40"
+                                className="text-ink-text/80"
                               />
                             )}
                             <div className="flex items-center gap-2">
@@ -343,7 +343,7 @@ export const BetList: React.FC<BetListProps> = ({
                             </div>
                           </div>
                           <div className="flex items-center gap-4 text-xs font-medium">
-                            <span className="text-ink-text/40 font-mono hidden sm:inline">
+                            <span className="text-ink-text/80 font-mono hidden sm:inline">
                               {group.wins}W - {group.losses}L
                             </span>
                             <span
@@ -419,7 +419,7 @@ export const BetList: React.FC<BetListProps> = ({
                                 </td>
                                 <td className="px-4 py-3 text-right">
                                   <div className="flex flex-col items-end gap-1">
-                                    <label className="text-[8px] text-ink-text/40 uppercase font-bold">Taken</label>
+                                    <label className="text-[8px] text-ink-text/80 uppercase font-bold">Taken</label>
                                     <input
                                       type="number"
                                       value={editForm.odds}
@@ -435,7 +435,7 @@ export const BetList: React.FC<BetListProps> = ({
                                 </td>
                                 <td className="px-4 py-3 text-right">
                                   <div className="flex flex-col items-end gap-1">
-                                    <label className="text-[8px] text-ink-text/40 uppercase font-bold">Closing</label>
+                                    <label className="text-[8px] text-ink-text/80 uppercase font-bold">Closing</label>
                                     <input
                                       type="number"
                                       placeholder="Closing"
@@ -450,7 +450,7 @@ export const BetList: React.FC<BetListProps> = ({
                                     />
                                   </div>
                                 </td>
-                                <td className="px-4 py-3 text-right text-xs text-ink-text/40 italic">
+                                <td className="px-4 py-3 text-right text-xs text-ink-text/80 italic">
                                   Auto
                                 </td>
                                 <td className="px-4 py-3 text-right">
@@ -466,7 +466,7 @@ export const BetList: React.FC<BetListProps> = ({
                                     className="bg-ink-paper border border-ink-gray rounded px-2 py-1 text-ink-text text-xs w-20 text-right"
                                   />
                                 </td>
-                                <td className="px-4 py-3 text-center text-xs text-ink-text/40">
+                                <td className="px-4 py-3 text-center text-xs text-ink-text/80">
                                   Saving...
                                 </td>
                                 <td className="px-4 py-3 text-right">
@@ -479,7 +479,7 @@ export const BetList: React.FC<BetListProps> = ({
                                     </button>
                                     <button
                                       onClick={() => setEditingId(null)}
-                                      className="p-1.5 rounded bg-ink-gray/50 text-ink-text/60"
+                                      className="p-1.5 rounded bg-ink-gray/50 text-ink-text/80"
                                     >
                                       <X size={14} />
                                     </button>
@@ -493,7 +493,7 @@ export const BetList: React.FC<BetListProps> = ({
                                     <span className="text-ink-text font-bold text-sm">
                                       {bet.matchup}
                                     </span>
-                                    <span className="text-ink-text/60 text-[11px] mt-0.5">
+                                    <span className="text-ink-text/80 text-[11px] mt-0.5">
                                       {displayPick}
                                     </span>
                                     {bet.tags && bet.tags.length > 0 && (
@@ -530,12 +530,12 @@ export const BetList: React.FC<BetListProps> = ({
                                 <td className="px-4 py-2 text-right text-[12px] font-mono font-bold text-ink-text align-top">
                                   {bet.odds > 0 ? `+${bet.odds}` : bet.odds}
                                 </td>
-                                <td className="px-4 py-2 text-right text-[12px] font-mono text-ink-text/60 align-top">
+                                <td className="px-4 py-2 text-right text-[12px] font-mono text-ink-text/80 align-top">
                                   {bet.closing_odds_sharp ? (bet.closing_odds_sharp > 0 ? `+${bet.closing_odds_sharp}` : bet.closing_odds_sharp) : '--'}
                                 </td>
                                 <td className={`px-4 py-2 text-right text-[12px] font-mono font-bold align-top ${
                                   (bet.clv_percent || 0) > 0 ? 'text-status-win' : 
-                                  (bet.clv_percent || 0) < 0 ? 'text-status-loss' : 'text-ink-text/40'
+                                  (bet.clv_percent || 0) < 0 ? 'text-status-loss' : 'text-ink-text/80'
                                 }`}>
                                   {bet.clv_percent !== undefined ? `${bet.clv_percent >= 0 ? '+' : ''}${bet.clv_percent.toFixed(1)}%` : '--'}
                                 </td>
@@ -561,7 +561,7 @@ export const BetList: React.FC<BetListProps> = ({
                                               BetStatus.WON,
                                             )
                                           }
-                                          className="p-1 rounded bg-ink-base border border-ink-gray text-ink-text/40 hover:text-status-win hover:border-status-win"
+                                          className="p-1 rounded bg-ink-base border border-ink-gray text-ink-text/80 hover:text-status-win hover:border-status-win"
                                         >
                                           <TrendingUp size={14} />
                                         </button>
@@ -572,7 +572,7 @@ export const BetList: React.FC<BetListProps> = ({
                                               BetStatus.LOST,
                                             )
                                           }
-                                          className="p-1 rounded bg-ink-base border border-ink-gray text-ink-text/40 hover:text-status-loss hover:border-status-loss"
+                                          className="p-1 rounded bg-ink-base border border-ink-gray text-ink-text/80 hover:text-status-loss hover:border-status-loss"
                                         >
                                           <TrendingDown size={14} />
                                         </button>
@@ -583,7 +583,7 @@ export const BetList: React.FC<BetListProps> = ({
                                               BetStatus.PUSH,
                                             )
                                           }
-                                          className="p-1 rounded bg-ink-base border border-ink-gray text-ink-text/40 hover:text-white"
+                                          className="p-1 rounded bg-ink-base border border-ink-gray text-ink-text/80 hover:text-white"
                                         >
                                           <MinusCircle size={14} />
                                         </button>
@@ -596,7 +596,7 @@ export const BetList: React.FC<BetListProps> = ({
                                               ? "bg-status-win/10 text-status-win border-status-win/20"
                                               : bet.status === BetStatus.LOST
                                                 ? "bg-status-loss/10 text-status-loss border-status-loss/20"
-                                                : "bg-ink-gray/20 text-ink-text/60 border-ink-gray"
+                                                : "bg-ink-gray/20 text-ink-text/80 border-ink-gray"
                                           }`}
                                         >
                                           {bet.status}
@@ -608,7 +608,7 @@ export const BetList: React.FC<BetListProps> = ({
                                               BetStatus.PENDING,
                                             )
                                           }
-                                          className="text-[9px] text-ink-text/20 hover:text-ink-text"
+                                          className="text-[9px] text-ink-text/40 hover:text-ink-text"
                                         >
                                           Undo
                                         </button>
@@ -627,7 +627,7 @@ export const BetList: React.FC<BetListProps> = ({
                                       </button>
                                       <button
                                         onClick={() => setDeleteConfirmId(null)}
-                                        className="p-1 rounded bg-ink-gray/50 text-ink-text/60"
+                                        className="p-1 rounded bg-ink-gray/50 text-ink-text/80"
                                       >
                                         <X size={12} />
                                       </button>
@@ -636,7 +636,7 @@ export const BetList: React.FC<BetListProps> = ({
                                     <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                       <button
                                         onClick={() => handleStartEdit(bet)}
-                                        className="text-ink-text/40 hover:text-ink-accent p-1.5"
+                                        className="text-ink-text/80 hover:text-ink-accent p-1.5"
                                       >
                                         <Edit2 size={14} />
                                       </button>
@@ -644,7 +644,7 @@ export const BetList: React.FC<BetListProps> = ({
                                         onClick={() =>
                                           setDeleteConfirmId(bet.id)
                                         }
-                                        className="text-ink-text/40 hover:text-status-loss p-1.5"
+                                        className="text-ink-text/80 hover:text-status-loss p-1.5"
                                       >
                                         <Trash2 size={14} />
                                       </button>
@@ -671,7 +671,7 @@ export const BetList: React.FC<BetListProps> = ({
                   ? "text-status-win"
                   : group.totalProfit < 0
                     ? "text-status-loss"
-                    : "text-ink-text/40";
+                    : "text-ink-text/80";
 
               return (
                 <div key={group.date} className="space-y-2">
@@ -681,9 +681,9 @@ export const BetList: React.FC<BetListProps> = ({
                   >
                     <div className="flex items-center gap-3">
                       {isExpanded ? (
-                        <ChevronDown size={16} className="text-ink-text/40" />
+                        <ChevronDown size={16} className="text-ink-text/80" />
                       ) : (
-                        <ChevronRight size={16} className="text-ink-text/40" />
+                        <ChevronRight size={16} className="text-ink-text/80" />
                       )}
                       <span className="text-sm font-bold text-ink-text">
                         {formatDate(group.date)}
@@ -739,7 +739,7 @@ export const BetList: React.FC<BetListProps> = ({
                                       </button>
                                       <button
                                         onClick={() => setEditingId(null)}
-                                        className="p-1.5 rounded bg-ink-gray/50 text-ink-text/60"
+                                        className="p-1.5 rounded bg-ink-gray/50 text-ink-text/80"
                                       >
                                         <X size={14} />
                                       </button>
@@ -769,7 +769,7 @@ export const BetList: React.FC<BetListProps> = ({
                                   />
                                   <div className="grid grid-cols-2 gap-2">
                                     <div>
-                                      <label className="text-[10px] text-ink-text/40 uppercase font-bold">
+                                      <label className="text-[10px] text-ink-text/80 uppercase font-bold">
                                         Odds
                                       </label>
                                       <input
@@ -786,7 +786,7 @@ export const BetList: React.FC<BetListProps> = ({
                                       />
                                     </div>
                                     <div>
-                                      <label className="text-[10px] text-ink-text/40 uppercase font-bold">
+                                      <label className="text-[10px] text-ink-text/80 uppercase font-bold">
                                         Wager
                                       </label>
                                       <input
@@ -825,13 +825,13 @@ export const BetList: React.FC<BetListProps> = ({
                                 <>
                                   <div className="flex justify-between items-start mb-2">
                                     <div className="flex-1 min-w-0">
-                                      <p className="text-[10px] font-bold text-ink-text/40 uppercase mb-1">
+                                      <p className="text-[10px] font-bold text-ink-text/80 uppercase mb-1">
                                         {bet.sport} • {bet.sportsbook}
                                       </p>
                                       <h4 className="font-bold text-ink-text text-sm">
                                         {bet.matchup}
                                       </h4>
-                                      <p className="text-[11px] text-ink-text/60 mt-0.5">
+                                      <p className="text-[11px] text-ink-text/80 mt-0.5">
                                         {displayPick}
                                       </p>
                                       <div className="mt-2">
@@ -850,7 +850,7 @@ export const BetList: React.FC<BetListProps> = ({
                                             isMenuOpen ? null : bet.id,
                                           )
                                         }
-                                        className="p-1 rounded text-ink-text/40 hover:text-ink-text"
+                                        className="p-1 rounded text-ink-text/80 hover:text-ink-text"
                                       >
                                         <MoreVertical size={16} />
                                       </button>
@@ -878,7 +878,7 @@ export const BetList: React.FC<BetListProps> = ({
                                             onClick={() =>
                                               setDeleteConfirmId(null)
                                             }
-                                            className="px-2 py-1 rounded bg-ink-gray/50 text-ink-text/60 text-xs font-bold"
+                                            className="px-2 py-1 rounded bg-ink-gray/50 text-ink-text/80 text-xs font-bold"
                                           >
                                             No
                                           </button>
@@ -937,7 +937,7 @@ export const BetList: React.FC<BetListProps> = ({
                                                 BetStatus.PUSH,
                                               )
                                             }
-                                            className="p-1 rounded bg-ink-base text-ink-text/60 border border-ink-gray/50"
+                                            className="p-1 rounded bg-ink-base text-ink-text/80 border border-ink-gray/50"
                                           >
                                             <MinusCircle size={14} />
                                           </button>
@@ -945,7 +945,7 @@ export const BetList: React.FC<BetListProps> = ({
                                       ) : (
                                         <div className="flex items-center gap-2">
                                           <span
-                                            className={`text-xs font-bold uppercase ${bet.status === BetStatus.WON ? "text-status-win" : bet.status === BetStatus.LOST ? "text-status-loss" : "text-ink-text/40"}`}
+                                            className={`text-xs font-bold uppercase ${bet.status === BetStatus.WON ? "text-status-win" : bet.status === BetStatus.LOST ? "text-status-loss" : "text-ink-text/80"}`}
                                           >
                                             {bet.status}
                                           </span>
@@ -956,7 +956,7 @@ export const BetList: React.FC<BetListProps> = ({
                                                 BetStatus.PENDING,
                                               )
                                             }
-                                            className="text-[10px] text-ink-text/20 hover:text-ink-text"
+                                            className="text-[10px] text-ink-text/40 hover:text-ink-text"
                                           >
                                             Undo
                                           </button>
@@ -964,7 +964,7 @@ export const BetList: React.FC<BetListProps> = ({
                                       )}
                                     </div>
                                     <div className="text-right">
-                                      <p className="text-xs text-ink-text/40 uppercase font-bold">
+                                      <p className="text-xs text-ink-text/80 uppercase font-bold">
                                         Wager
                                       </p>
                                       <p className="font-mono font-bold text-ink-text">

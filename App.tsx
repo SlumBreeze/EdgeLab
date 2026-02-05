@@ -25,7 +25,7 @@ const HeaderActions: React.FC<{
   // Dynamic styles for the glowing cloud effect
   let containerStyles =
     "bg-ink-paper border-2 transition-all duration-700 shadow-sm";
-  let iconColor = "text-ink-gray";
+  let iconColor = "text-ink-muted";
 
   if (syncStatus === "saving") {
     // Pulsing Blue Cloud
@@ -45,7 +45,7 @@ const HeaderActions: React.FC<{
   } else {
     // Idle Slate Cloud
     containerStyles = "bg-ink-paper/80 border-ink-gray";
-    iconColor = "text-ink-gray";
+    iconColor = "text-ink-muted";
   }
 
   return (
@@ -170,7 +170,7 @@ const AppContent: React.FC = () => {
             className={`flex flex-col items-center justify-center w-full h-full transition-colors ${
               activeTab === "scout"
                 ? "text-ink-accent"
-                : "text-ink-text opacity-40"
+                : "text-ink-text opacity-60"
             }`}
           >
             <span className="text-2xl mb-1">🔍</span>
@@ -182,7 +182,7 @@ const AppContent: React.FC = () => {
             className={`flex flex-col items-center justify-center w-full h-full transition-colors ${
               activeTab === "queue"
                 ? "text-ink-accent"
-                : "text-ink-text opacity-40"
+                : "text-ink-text opacity-60"
             }`}
           >
             <span className="text-2xl mb-1">📋</span>
@@ -194,7 +194,7 @@ const AppContent: React.FC = () => {
             className={`flex flex-col items-center justify-center w-full h-full transition-colors ${
               activeTab === "card"
                 ? "text-ink-accent"
-                : "text-ink-text opacity-40"
+                : "text-ink-text opacity-60"
             }`}
           >
             <span className="text-2xl mb-1">🏆</span>
@@ -206,7 +206,7 @@ const AppContent: React.FC = () => {
             className={`flex flex-col items-center justify-center w-full h-full transition-colors ${
               activeTab === "tracker"
                 ? "text-ink-accent"
-                : "text-ink-text opacity-40"
+                : "text-ink-text opacity-60"
             }`}
           >
             <span className="text-2xl mb-1">📊</span>

@@ -56,7 +56,7 @@ export const StickyCardSummary: React.FC<StickyCardSummaryProps> = ({
 
           {/* Passed Count (smaller, muted) */}
           {passedCount > 0 && (
-            <div className="text-xs text-ink-text/60 font-medium">
+            <div className="text-xs text-ink-text/80 font-medium">
               {passedCount} passed
             </div>
           )}
@@ -78,9 +78,9 @@ export const StickyCardSummary: React.FC<StickyCardSummaryProps> = ({
 
         {/* Right: P&L Summary */}
         {analytics.totalWagered > 0 && (
-          <div className="flex items-center gap-3 text-xs text-ink-text/70">
+          <div className="flex items-center gap-3 text-xs text-ink-text/90">
             {/* Total Wagered */}
-            <div className="text-ink-text/70">
+            <div className="text-ink-text/90">
               <span className="font-mono font-bold text-ink-text">
                 ${analytics.totalWagered.toFixed(0)}
               </span>
@@ -92,7 +92,7 @@ export const StickyCardSummary: React.FC<StickyCardSummaryProps> = ({
               <span className="text-status-win font-mono font-bold">
                 +{analytics.maxProfit.toFixed(0)}
               </span>
-              <span className="text-ink-text/40">/</span>
+              <span className="text-ink-text/60">/</span>
               <span className="text-status-loss font-mono font-bold">
                 {analytics.maxLoss.toFixed(0)}
               </span>

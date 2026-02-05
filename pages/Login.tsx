@@ -64,7 +64,7 @@ const Login: React.FC = () => {
         </div>
 
         {/* Footer */}
-        <p className="text-xs text-ink-text/30">
+        <p className="text-xs text-ink-text/50">
           Restricted Access &bull; Authorized Personnel Only
         </p>
       </div>

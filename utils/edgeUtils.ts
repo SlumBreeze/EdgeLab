@@ -22,11 +22,13 @@ export const isPremiumEdge = (
     if (sport === 'NBA') return absPoints >= 1.5;
     if (sport === 'NFL') return absPoints >= 1.0;
     if (sport === 'NHL' || sport === 'MLB') return absPoints >= 0.5;
+    if (sport === 'SOCCER') return absPoints >= 0.5;
   } else {
     // Spreads
     if (sport === 'NFL') return absPoints >= 0.5;
     if (sport === 'NBA') return absPoints >= 1.0;
     if (sport === 'NHL' || sport === 'MLB') return absPoints >= 0.5;
+    if (sport === 'SOCCER') return absPoints >= 0.25;
   }
 
   // Default fallback
@@ -45,10 +47,12 @@ export const isStandardEdge = (
   if (market === 'Total') {
      if (sport === 'NBA') return absPoints >= 1.0;
      if (sport === 'NFL') return absPoints >= 0.5;
+     if (sport === 'SOCCER') return absPoints >= 0.25;
      return absPoints >= 0.5;
   } else {
      if (sport === 'NFL') return absPoints > 0;
      if (sport === 'NBA') return absPoints >= 0.5;
+     if (sport === 'SOCCER') return absPoints > 0;
      return absPoints >= 0.5;
   }
 };

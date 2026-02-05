@@ -234,6 +234,11 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({
         // Fetch Persona
         const remotePersona = await personaService.getPersona(userId);
         if (remotePersona) {
+          // Fixup: Ensure SOCCER is in active_sports if missing
+          if (!remotePersona.active_sports.map(s => s.toUpperCase()).includes('SOCCER')) {
+            remotePersona.active_sports.push('SOCCER');
+            await personaService.savePersona(remotePersona);
+          }
           setPersona(remotePersona);
         }
 

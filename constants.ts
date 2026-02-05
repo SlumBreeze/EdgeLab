@@ -17,8 +17,10 @@ export const SPORTS_CONFIG: Record<string, { label: string, espnSlug: string, ic
   NBA: { label: 'NBA', espnSlug: 'basketball/nba', icon: '🏀' },
   NFL: { label: 'NFL', espnSlug: 'football/nfl', icon: '🏈' },
   NHL: { label: 'NHL', espnSlug: 'hockey/nhl', icon: '🏒' },
+  MLB: { label: 'MLB', espnSlug: 'baseball/mlb', icon: '⚾' },
   NCAAB: { label: 'NCAAB', espnSlug: 'basketball/mens-college-basketball', icon: '🏫' },
-  SOCCER: { label: 'SOCCER', espnSlug: 'soccer/eng.1', icon: '⚽' },
+  NCAAF: { label: 'NCAAF', espnSlug: 'football/college-football', icon: '🏈' },
+  SOCCER: { label: 'Soccer', espnSlug: 'soccer/eng.1', icon: '⚽' },
 };
 
 export const COMMON_BOOKS = [
@@ -29,7 +31,7 @@ export const COMMON_BOOKS = [
 export const SPORTSBOOKS = Object.values(Sportsbook);
 
 export const SPORTS = [
-  'NFL', 'NBA', 'MLB', 'NHL', 'NCAAF', 'NCAAB', 'UFC', 'Tennis', 'Soccer', 'Golf', 'F1', 'Esports', 'Other'
+  'NFL', 'NBA', 'MLB', 'NHL', 'NCAAF', 'NCAAB', 'SOCCER', 'UFC', 'Tennis', 'Golf', 'F1', 'Esports', 'Other'
 ];
 
 export const CHART_COLORS = {

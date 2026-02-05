@@ -11,6 +11,7 @@ import {
 } from "../types";
 import { EXTRACTION_PROMPT } from "../constants";
 import { getRecommendedBook } from "../utils/calculations";
+import { calculateNoVig3Way } from "../utils/edgeUtils";
 
 export const getAiClient = () =>
   new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
@@ -345,7 +346,7 @@ const isOddsWithinFloor = (
 // ============================================
 
 interface SideValue {
-  side: "AWAY" | "HOME" | "OVER" | "UNDER";
+  side: "AWAY" | "HOME" | "OVER" | "UNDER" | "DRAW";
   market: "Spread" | "Moneyline" | "Total";
   sharpLine: string;
   sharpOdds: string;
@@ -472,6 +473,19 @@ const analyzeAllSides = (
     () => "ML",
     (s) => s.mlOddsB,
   );
+
+  // Soccer Draw Support
+  if (sharp.mlOddsDraw) {
+    checkSide(
+      "DRAW",
+      "Moneyline",
+      "ML",
+      sharp.mlOddsDraw,
+      () => "ML",
+      (s) => s.mlOddsDraw || "N/A",
+    );
+  }
+
   checkSide(
     "OVER",
     "Total",
@@ -634,6 +648,14 @@ const confidenceToLabel = (score: number): "HIGH" | "MEDIUM" | "LOW" => {
 
 const getNoVigForMarket = (market: SideValue["market"], sharp: BookLines) => {
   if (market === "Moneyline") {
+    if (sharp.mlOddsDraw) {
+      const { probA, probB, probDraw } = calculateNoVig3Way(
+        normalizeToAmerican(sharp.mlOddsA),
+        normalizeToAmerican(sharp.mlOddsB),
+        normalizeToAmerican(sharp.mlOddsDraw)
+      );
+      return { probA: probA * 100, probB: probB * 100, probDraw: probDraw * 100 };
+    }
     return calculateNoVigProb(sharp.mlOddsA, sharp.mlOddsB);
   }
   if (market === "Spread") {
@@ -647,10 +669,11 @@ const getTrueProbability = (
   side: SideValue["side"],
   sharp: BookLines,
 ) => {
-  const noVig = getNoVigForMarket(market, sharp);
+  const noVig = getNoVigForMarket(market, sharp) as any;
   if (market === "Total") {
     return side === "OVER" ? noVig.probA : noVig.probB;
   }
+  if (side === "DRAW") return noVig.probDraw;
   return side === "AWAY" ? noVig.probA : noVig.probB;
 };
 

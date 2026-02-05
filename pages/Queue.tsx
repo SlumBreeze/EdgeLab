@@ -380,7 +380,7 @@ export default function Queue() {
         <header className="mb-6 flex flex-col gap-3">
           <div className="flex justify-between items-center">
             <h1 className="text-2xl font-bold text-ink-text">Analysis Queue</h1>
-            <span className="bg-ink-base text-ink-text/70 text-xs px-3 py-1.5 rounded-full font-bold border border-ink-gray">
+            <span className="bg-ink-base text-ink-text/90 text-xs px-3 py-1.5 rounded-full font-bold border border-ink-gray">
               {queue.length} Games
             </span>
           </div>
@@ -420,7 +420,7 @@ export default function Queue() {
                     className={`flex items-center gap-2 px-3 py-2 rounded-full whitespace-nowrap transition-all shadow-sm border ${
                       selectedWindow === window.key
                         ? "bg-ink-accent text-white font-bold border-ink-accent shadow-sm"
-                        : "bg-ink-paper text-ink-text/70 hover:text-ink-text border-ink-gray"
+                        : "bg-ink-paper text-ink-text/90 hover:text-ink-text border-ink-gray"
                     }`}
                   >
                     <span className="text-xs">{window.label}</span>
@@ -428,7 +428,7 @@ export default function Queue() {
                       className={`text-[10px] px-2 py-0.5 rounded-full ${
                         selectedWindow === window.key
                           ? "bg-white/20 text-white"
-                          : "bg-ink-base text-ink-text/60 border border-ink-gray"
+                          : "bg-ink-base text-ink-text/80 border border-ink-gray"
                       }`}
                     >
                       {window.count}
@@ -442,8 +442,8 @@ export default function Queue() {
                 disabled={filteredQueue.length === 0}
                 className={`flex items-center gap-2 px-4 py-2 rounded-full whitespace-nowrap transition-all shadow-sm border ${
                   filteredQueue.length > 0
-                    ? "bg-ink-panel text-ink-text/60 hover:text-red-400 border-ink-gray hover:border-red-400/30"
-                    : "bg-ink-base text-ink-text/20 border-ink-gray/50 cursor-not-allowed"
+                    ? "bg-ink-panel text-ink-text/80 hover:text-red-400 border-ink-gray hover:border-red-400/30"
+                    : "bg-ink-base text-ink-text/40 border-ink-gray/50 cursor-not-allowed"
                 }`}
                 title={`Clear all ${getTimeWindowLabel(selectedWindow)} games`}
               >
@@ -453,12 +453,12 @@ export default function Queue() {
               </button>
             </div>
             {selectedWindow !== "ALL" && (
-              <div className="text-[10px] text-ink-text/50">
+              <div className="text-[10px] text-ink-text/90">
                 Showing {getTimeWindowLabel(selectedWindow)} window —{" "}
                 {filteredQueue.length} of {queue.length}
               </div>
             )}
-            <div className="mt-2 p-3 bg-ink-paper/70 rounded-xl border border-ink-gray text-[11px] text-ink-text/70">
+            <div className="mt-2 p-3 bg-ink-paper/70 rounded-xl border border-ink-gray text-[11px] text-ink-text/90">
               <div className="font-semibold text-ink-text/80 mb-1">
                 Scan cadence (ET)
               </div>
@@ -473,7 +473,7 @@ export default function Queue() {
 
         {/* Swipe Hint */}
         {queue.length > 0 && (
-          <div className="text-center text-[10px] text-ink-text/50 italic mb-2 animate-pulse">
+          <div className="text-center text-[10px] text-ink-text/90 italic mb-2 animate-pulse">
             ← Swipe left on cards to remove
           </div>
         )}
@@ -481,8 +481,8 @@ export default function Queue() {
         {queue.length === 0 ? (
           <div className="text-center py-20 bg-ink-paper rounded-2xl border border-ink-gray shadow-sm">
             <p className="mb-2 text-5xl">📋</p>
-            <p className="text-ink-text/70 font-medium">Your queue is empty.</p>
-            <p className="text-sm text-ink-text/50 mt-1">
+            <p className="text-ink-text/90 font-medium">Your queue is empty.</p>
+            <p className="text-sm text-ink-text/90 mt-1">
               Go to Scout to add games.
             </p>
           </div>
