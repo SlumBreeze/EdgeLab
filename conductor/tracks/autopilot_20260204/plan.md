@@ -9,12 +9,12 @@
     - [x] Refactor the automation effect in `Scout.tsx` to use `upcomingGames` instead of `filteredGames`
 - [ ] Task: Conductor - User Manual Verification 'End-to-End Pipeline' (Protocol in workflow.md)
 
-## Phase 2: UI Rebranding & Feedback
-- [ ] Task: Rebrand Auto-scan to Auto-Pilot
-    - [ ] Update labels and icons in `Scout.tsx` and `App.tsx`
-    - [ ] Implement a more descriptive "Auto-Pilot" status indicator (e.g., "Auto-Pilot: Monitoring 12 Games")
-- [ ] Task: Refine Batch Progress for Auto-Pilot
-    - [ ] Ensure background tasks provide subtle, non-intrusive progress updates
+## Phase 2: UI Rebranding & Feedback [checkpoint: 31fc156]
+- [x] Task: Rebrand Auto-scan to Auto-Pilot [31fc156]
+    - [x] Update labels and icons in `Scout.tsx` and `App.tsx`
+    - [x] Implement a more descriptive "Auto-Pilot" status indicator (e.g., "Auto-Pilot: Monitoring 12 Games")
+- [x] Task: Refine Batch Progress for Auto-Pilot [31fc156]
+    - [x] Ensure background tasks provide subtle, non-intrusive progress updates
 - [ ] Task: Conductor - User Manual Verification 'UI Rebranding' (Protocol in workflow.md)
 
 ## Phase 3: Freshness & Rate Limits
