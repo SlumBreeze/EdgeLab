@@ -32,13 +32,34 @@ import { calculateCLV } from "../utils/clvUtils";
 
 const GameContext = createContext<AnalysisState | undefined>(undefined);
 
-const FIXED_USER_ID = "edgelab-primary";
 const getTodayKey = () => new Date().toLocaleDateString("en-CA");
+const formatEtDate = (date: Date) =>
+  new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/New_York",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+
+const slateHasEtDate = (data: Record<string, any[]>, etDate: string) => {
+  if (!data || Object.keys(data).length === 0) return false;
+  for (const sportKey of Object.keys(data)) {
+    const games = data[sportKey] || [];
+    for (const g of games) {
+      if (!g?.commence_time) continue;
+      const d = new Date(g.commence_time);
+      if (!Number.isFinite(d.getTime())) continue;
+      if (formatEtDate(d) === etDate) return true;
+    }
+  }
+  return false;
+};
 
 export const GameProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
   const today = getTodayKey();
+  const etToday = formatEtDate(new Date());
   const { user } = useAuth();
   const [isSyncEnabled, setIsSyncEnabled] = useState(isSupabaseConfigured);
   const [syncStatus, setSyncStatus] = useState<
@@ -75,7 +96,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({
   }, [bookBalances]);
 
   // User ID for Database Persistence
-  const [userId, setUserIdState] = useState(user?.id || FIXED_USER_ID);
+  const [userId, setUserIdState] = useState(user?.id || "");
 
   useEffect(() => {
     if (user?.id) {
@@ -145,7 +166,13 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({
     () => {
       try {
         const saved = localStorage.getItem("edgelab_raw_slate");
-        return saved ? JSON.parse(saved) : {};
+        if (!saved) return {};
+        const parsed = JSON.parse(saved);
+        if (!slateHasEtDate(parsed, etToday)) {
+          localStorage.removeItem("edgelab_raw_slate");
+          return {};
+        }
+        return parsed;
       } catch {
         return {};
       }
@@ -288,11 +315,19 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({
           if (finalData.reference_lines)
             setReferenceLines(finalData.reference_lines);
           if (finalData.all_sports_data) {
-            setAllSportsData(finalData.all_sports_data);
-            localStorage.setItem(
-              "edgelab_raw_slate",
-              JSON.stringify(finalData.all_sports_data),
-            );
+            if (slateHasEtDate(finalData.all_sports_data, etToday)) {
+              setAllSportsData(finalData.all_sports_data);
+              localStorage.setItem(
+                "edgelab_raw_slate",
+                JSON.stringify(finalData.all_sports_data),
+              );
+            } else {
+              console.warn(
+                "[Supabase] Stale slate detected. Ignoring all_sports_data for today.",
+              );
+              localStorage.removeItem("edgelab_raw_slate");
+              setAllSportsData({});
+            }
           }
 
           localStorage.setItem(
@@ -400,6 +435,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({
   useEffect(() => {
     // DO NOT sync if empty (prevents wiping DB on fresh load)
     if (Object.keys(allSportsData).length === 0) return;
+    if (!slateHasEtDate(allSportsData, etToday)) return;
 
     // Always update local storage
     localStorage.setItem("edgelab_raw_slate", JSON.stringify(allSportsData));

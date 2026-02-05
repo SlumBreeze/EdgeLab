@@ -2,9 +2,10 @@ import React, { useState, useEffect, useRef } from "react";
 
 import { Sport, Game, BookLines } from "../types";
 import { SPORTS_CONFIG } from "../constants";
-import {
+import { 
   getBookmakerLines,
   fetchAllSportsOdds,
+  clearOddsCache,
 } from "../services/oddsService";
 import { quickScanGame } from "../services/geminiService";
 import { useGameContext } from "../hooks/useGameContext";
@@ -71,6 +72,7 @@ export default function Scout() {
     return localStorage.getItem(AUTO_PILOT_STORAGE_KEY) === "true";
   });
   const lastAutoPilotAt = useRef(0);
+  const autoRefreshAttemptedRef = useRef<Record<string, boolean>>({});
 
   const slatesLoaded = Object.keys(allSportsData).length > 0;
 
@@ -101,12 +103,25 @@ export default function Scout() {
     }
   };
 
+  const handleClearCache = () => {
+    clearOddsCache();
+    loadSlates({}); // Clear context state
+    toast.showInfo("Local odds cache cleared.");
+  };
+
   const getGamesForSport = (sport: Sport) => {
     if (!slatesLoaded || !allSportsData[sport]) return [];
+    
+    // Normalize selected date to YYYY-MM-DD
+    const targetDate = selectedDate;
+
     return allSportsData[sport]
       .filter((g: any) => {
-        const gameDate = formatEtDate(new Date(g.commence_time));
-        return gameDate === selectedDate;
+        // Robust date comparison using local date component from ET perspective
+        const gameDateObj = new Date(g.commence_time);
+        const gameEtDate = formatEtDate(gameDateObj);
+        
+        return gameEtDate === targetDate;
       })
       .map((g: any) => ({ ...g, _sport: sport }));
   };
@@ -114,6 +129,32 @@ export default function Scout() {
   const allGames = Object.keys(SPORTS_CONFIG).flatMap((sportKey) =>
     getGamesForSport(sportKey as Sport),
   );
+
+  useEffect(() => {
+    if (!slatesLoaded) return;
+    if (loading) return;
+    if (allGames.length > 0) return;
+
+    const key = selectedDate;
+    if (autoRefreshAttemptedRef.current[key]) return;
+    autoRefreshAttemptedRef.current[key] = true;
+
+    const refreshIfStale = async () => {
+      setLoading(true);
+      try {
+        const allData = await fetchAllSportsOdds(true);
+        loadSlates(allData);
+        toast.showSuccess("Refreshed slates & Checked for movement");
+      } catch (e) {
+        console.error("Auto refresh failed:", e);
+        toast.showError("Failed to refresh slates");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    refreshIfStale();
+  }, [slatesLoaded, loading, allGames.length, selectedDate, loadSlates, toast]);
 
   // Synchronize reference lines when new games are loaded
   useEffect(() => {
@@ -604,6 +645,15 @@ export default function Scout() {
                 title="Refresh Slates"
               >
                 🔄
+              </button>
+
+              <button
+                onClick={handleClearCache}
+                disabled={loading || batchScanning || isBatchProcessing}
+                className="px-3 bg-ink-paper text-ink-text/40 border border-ink-gray hover:text-red-400 rounded-xl font-bold shadow-sm transition-all text-sm"
+                title="Clear Cache"
+              >
+                🗑️
               </button>
             </div>
           )}
