@@ -18,8 +18,8 @@
     - [x] Implement a minimalist, Bloomberg-style progress bar/indicator
 - [ ] Task: Conductor - User Manual Verification 'Scout UI Integration' (Protocol in workflow.md)
 
-## Phase 3: Auto-Card Promotion
-- [ ] Task: Integrate Auto-Promotion
-    - [ ] Write tests for triggering `autoPickBestGames` after batch completion
-    - [ ] Implement the callback to run smart-pick once the last game in a batch is analyzed
+## Phase 3: Auto-Card Promotion [checkpoint: b0bdd9d]
+- [x] Task: Integrate Auto-Promotion [b0bdd9d]
+    - [x] Write tests for triggering `autoPickBestGames` after batch completion
+    - [x] Implement the callback to run smart-pick once the last game in a batch is analyzed
 - [ ] Task: Conductor - User Manual Verification 'Auto-Card Promotion' (Protocol in workflow.md)
