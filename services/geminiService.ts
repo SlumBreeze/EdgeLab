@@ -1065,7 +1065,8 @@ export const quickScanGame = async (
     Research:
     1. Injuries: Who is OUT or Questionable?
     2. Situational Spot: Is this a back-to-back? Rest advantage? Travel fatigue?
-    3. Game Script: How is the game likely to play out based on matchups?
+    3. Expert Sentiment: What is the consensus from reputable beat writers and sharp handicappers? Are there any "trap" warnings?
+    4. Game Script: How is the game likely to play out based on matchups?
     
     Return JSON only:
     {
@@ -1073,6 +1074,7 @@ export const quickScanGame = async (
       "description": "Short summary (10 words)",
       "injuryContext": "Detailed injury info",
       "situationalContext": "Rest/Travel context",
+      "expertSentiment": "Expert consensus/warnings",
       "gameScript": "Expected game flow"
     }
   `;
@@ -1095,6 +1097,7 @@ export const quickScanGame = async (
       description: "Scan completed",
       injuryContext: "No injury data found.",
       situationalContext: "Standard rest.",
+      expertSentiment: "No expert consensus found.",
       gameScript: "No specific script detected."
     });
   } catch (e: any) {
@@ -1118,6 +1121,7 @@ export const quickScanGame = async (
         description: "Scan completed (fallback)",
         injuryContext: "No injury data found.",
         situationalContext: "Standard rest.",
+        expertSentiment: "Sentiment unavailable.",
         gameScript: "No specific script detected."
       });
     } catch (fallbackError: any) {
@@ -1129,6 +1133,7 @@ export const quickScanGame = async (
         description: `Scan unavailable: ${message}`,
         injuryContext: "Unavailable",
         situationalContext: "Unavailable",
+        expertSentiment: "Unavailable",
         gameScript: "Unavailable"
       };
     }

@@ -138,6 +138,7 @@ export interface ScanResult {
   description: string;
   injuryContext?: string;
   situationalContext?: string;
+  expertSentiment?: string;
   gameScript?: string;
 }
 
