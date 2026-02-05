@@ -9,7 +9,7 @@
 ## AI & Data
 - **LLM:** Google Gemini 3 Flash & Pro (Preview)
 - **SDK:** `@google/genai`
-- **Real-time Data:** The Odds API
+- **Real-time Data:** The Odds API (NBA, NFL, NHL, NCAAB, SOCCER)
 - **External Services:** ESPN (via internal service)
 
 ## Backend & Persistence

@@ -13,6 +13,8 @@ EdgeLab acts as a specialized "operating system" for handicappers. It replaces e
 ## Key Features & Functional Requirements
 - **Rigorous Veto System:**
     - **Price Veto:** Automated rejection of lines with excessive juice (e.g., > -160) to protect long-term ROI.
+    - **3-Way Market Support:** Full support for soccer 1X2 markets, including specialized no-vig and EV logic for the "Draw" outcome.
+    - **Audit-First Soccer Narrative Screen:** Specialized AI logic to flag "Derby" and "Must-Win" overreactions, requiring concrete tactical or lineup justification for soccer edges.
     - **Narrative Audits & Trap Detection:** Advanced AI logic that cross-references public betting trends (Reverse Line Movement) and expert sentiment to flag "Public Darling" traps with high-visibility alerts.
     - **Sharp/Soft Delta Analysis:** Mandatory price comparison between sharp market-makers (Pinnacle) and retail books to identify mathematical inefficiencies.
 - **Custom AI Personas:** An interface allowing advanced users to configure the "Stoic Handicapper" agent's parameters, including risk tolerance, edge requirements, and sport-specific focus.
