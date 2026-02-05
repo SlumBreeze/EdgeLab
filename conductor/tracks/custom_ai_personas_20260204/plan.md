@@ -21,13 +21,15 @@
 ## Phase 2: Core Logic Integration (Action-Oriented) [checkpoint: f0f36a4]
 
 ## Phase 3: Bloomberg-Terminal UI
-- [ ] Task: Create Persona Editor Shell
-    - [ ] Write tests for `PersonaEditor` component rendering
-    - [ ] Implement the minimalist, data-dense layout for settings
-- [ ] Task: Implement Individual Setting Components
-    - [ ] Write tests for `ParameterInput` (validation, change handling)
-    - [ ] Implement input components for odds, edge, and sport toggles
-- [ ] Task: Connect UI to Persistence
-    - [ ] Write integration tests for loading and saving settings from the UI
-    - [ ] Connect `PersonaEditor` to `personaService`
+- [x] Task: Create Persona Editor Shell [c94a0a4]
+    - [x] Write tests for `PersonaEditor` component rendering
+    - [x] Implement the minimalist, data-dense layout for settings
+- [x] Task: Implement Individual Setting Components [c94a0a4]
+    - [x] Write tests for `ParameterInput` (validation, change handling)
+    - [x] Implement input components for odds, edge, and sport toggles
+- [x] Task: Connect UI to Persistence [c94a0a4]
+    - [x] Write integration tests for loading and saving settings from the UI
+    - [x] Connect `PersonaEditor` to `personaService`
 - [ ] Task: Conductor - User Manual Verification 'Bloomberg-Terminal UI' (Protocol in workflow.md)
+
+## Phase 3: Bloomberg-Terminal UI [checkpoint: beb9d47]
