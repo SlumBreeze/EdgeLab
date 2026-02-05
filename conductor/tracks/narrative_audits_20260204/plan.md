@@ -9,10 +9,10 @@
     - [x] Create `utils/narrativeUtils.ts` to calculate RLM based on ticket % vs line movement
 - [ ] Task: Conductor - User Manual Verification 'Logic & Prompt Engineering' (Protocol in workflow.md)
 
-## Phase 2: AI Search Integration
-- [ ] Task: Enhance quickScan with Sentiment Search
-    - [ ] Write tests for sentiment extraction from search results
-    - [ ] Update `quickScanGame` to explicitly query for beat writer reports and "sharp" sentiment
+## Phase 2: AI Search Integration [checkpoint: 8555539]
+- [x] Task: Enhance quickScan with Sentiment Search [8555539]
+    - [x] Write tests for sentiment extraction from search results
+    - [x] Update `quickScanGame` to explicitly query for beat writer reports and "sharp" sentiment
 - [ ] Task: Conductor - User Manual Verification 'AI Search Integration' (Protocol in workflow.md)
 
 ## Phase 3: Trap Alert UI
