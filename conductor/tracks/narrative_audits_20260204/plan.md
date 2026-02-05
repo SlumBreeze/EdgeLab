@@ -1,12 +1,12 @@
 # Implementation Plan: Enhanced Narrative Audits
 
-## Phase 1: Logic & Prompt Engineering
-- [ ] Task: Update analyzeGame Prompt for Trap Detection
-    - [ ] Write tests for RLM and Sentiment detection logic (mocked AI responses)
-    - [ ] Refactor `SYSTEM_PROMPT` and `analyzeGame` prompt to prioritize "Public vs Sharps" and "Expert Sentiment"
-- [ ] Task: Implement RLM Helper Logic
-    - [ ] Write unit tests for RLM mathematical detection
-    - [ ] Create `utils/narrativeUtils.ts` to calculate RLM based on ticket % vs line movement
+## Phase 1: Logic & Prompt Engineering [checkpoint: 7a81cd2]
+- [x] Task: Update analyzeGame Prompt for Trap Detection [7a81cd2]
+    - [x] Write tests for RLM and Sentiment detection logic (mocked AI responses)
+    - [x] Refactor `SYSTEM_PROMPT` and `analyzeGame` prompt to prioritize "Public vs Sharps" and "Expert Sentiment"
+- [x] Task: Implement RLM Helper Logic [7a81cd2]
+    - [x] Write unit tests for RLM mathematical detection
+    - [x] Create `utils/narrativeUtils.ts` to calculate RLM based on ticket % vs line movement
 - [ ] Task: Conductor - User Manual Verification 'Logic & Prompt Engineering' (Protocol in workflow.md)
 
 ## Phase 2: AI Search Integration
