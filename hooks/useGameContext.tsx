@@ -430,7 +430,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({
 
   // v2.9 Auto-Snapshot Closing Lines
   useEffect(() => {
-    if (!slatesLoaded) return;
+    if (Object.keys(allSportsData).length === 0) return;
 
     const interval = setInterval(() => {
       queue.forEach(game => {
