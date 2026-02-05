@@ -97,6 +97,11 @@ const ScoutGameCard: React.FC<ScoutGameCardProps> = ({
                 🩹 {scan.injuryContext}
               </div>
             )}
+            {scan.expertSentiment && scan.expertSentiment !== "No expert consensus found." && scan.expertSentiment !== "Sentiment unavailable." && (
+              <div className="text-[9px] text-ink-accent/70 line-clamp-2 px-1 italic">
+                💬 {scan.expertSentiment}
+              </div>
+            )}
           </>
         ) : (
           <button onClick={() => onQuickScan(gameObj)} disabled={isScanning || isBatchScanning} className="w-full py-1.5 bg-ink-base hover:bg-ink-gray text-ink-text/60 hover:text-ink-text rounded-lg text-[10px] font-bold transition-colors flex items-center justify-center gap-1 border border-ink-gray">{isScanning ? <span className="animate-pulse">Scanning...</span> : <><span className="text-[10px]">⚡</span> Scan Injuries</>}</button>

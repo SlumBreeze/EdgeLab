@@ -7,6 +7,7 @@ import { fetchOddsForGame, getBookmakerLines, SOFT_BOOK_KEYS } from '../services
 import { useGameContext } from '../hooks/useGameContext';
 import { CompactSoftLines } from './CompactSoftLines';
 import { formatEtTime, getTimeWindow, getTimeWindowLabel } from '../utils/timeWindow';
+import { TrapAlert } from './TrapAlert';
 
 interface Props {
   game: QueuedGame;
@@ -459,6 +460,13 @@ const QueuedGameCard: React.FC<Props> = ({
 
       {/* Analysis Result / Action */}
       <div className="px-4 py-4 bg-ink-base border-t border-ink-gray">
+        {game.analysis && (
+          <TrapAlert 
+            alert={game.analysis.trapAlert} 
+            sentiment={game.analysis.expertSentiment} 
+          />
+        )}
+        
         {game.analysis ? (
           <div className={`rounded-xl overflow-hidden border border-ink-gray ${
             game.analysis.decision === 'PLAYABLE' 
