@@ -384,6 +384,24 @@ const QueuedGameCard: React.FC<Props> = ({
               mlOdds={game.sharpLines.mlOddsA}
               isAway
             />
+            
+            {/* Soccer Draw Row */}
+            {game.sport === 'SOCCER' && game.sharpLines.mlOddsDraw && (
+              <>
+                <div className="border-t border-amber-700/30 my-1"></div>
+                <div className="flex items-center gap-2 py-2">
+                  <div className="flex items-center gap-2 min-w-[140px]">
+                    <span className="font-semibold text-ink-text/40 text-sm italic ml-10">Draw</span>
+                  </div>
+                  <div className="flex gap-2 flex-1 justify-end">
+                    <LineCell line="-" odds="" />
+                    <LineCell line="-" odds="" />
+                    <LineCell line={formatOddsForDisplay(game.sharpLines.mlOddsDraw)} odds="" />
+                  </div>
+                </div>
+              </>
+            )}
+
             <div className="border-t border-amber-700/30 my-1"></div>
             <TeamRow
               team={game.homeTeam}

@@ -1,4 +1,4 @@
-export type Sport = "NBA" | "NFL" | "NHL" | "NCAAB" | "Other";
+export type Sport = "NBA" | "NFL" | "NHL" | "NCAAB" | "SOCCER" | "Other";
 export type TimeWindow = "EARLY" | "AFTERNOON" | "EVENING";
 export type TimeWindowFilter = "ALL" | TimeWindow;
 
@@ -15,6 +15,7 @@ export interface Game {
     spread?: string;
     total?: number;
     details?: string;
+    draw?: string;
   };
 }
 
@@ -29,6 +30,7 @@ export interface BookLines {
   totalOddsUnder: string;
   mlOddsA: string;
   mlOddsB: string;
+  mlOddsDraw?: string;
 }
 
 export type FactSourceType = "NBA_INJURY_REPORT" | "BOX_SCORE" | "ODDS_API";

@@ -13,8 +13,18 @@ const SPORT_KEYS: Record<Sport, string> = {
   'NFL': 'americanfootball_nfl',
   'NHL': 'icehockey_nhl',
   'NCAAB': 'basketball_ncaab',
+  'SOCCER': 'soccer_epl', // Base key for soccer, fetchOddsForSport will handle multiples
   'Other': 'basketball_nba' // Default to something safe
 };
+
+export const SOCCER_LEAGUE_KEYS = [
+  'soccer_epl',
+  'soccer_spain_la_liga',
+  'soccer_germany_bundesliga',
+  'soccer_italy_serie_a',
+  'soccer_france_ligue_one',
+  'soccer_uefa_champions_league'
+];
 
 // Filtered list based on user preference
 export const SOFT_BOOK_KEYS = [
@@ -59,19 +69,15 @@ const formatOdds = (price: number): string => {
 // Helper to access localStorage safely
 const getStorageKey = (sportKey: string) => `edgelab_odds_cache_${sportKey}`;
 
-export const fetchOddsForSport = async (sport: Sport, forceRefresh = false): Promise<any[]> => {
-  const sportKey = SPORT_KEYS[sport];
-  if (!sportKey) {
-    console.warn(`Sport ${sport} not supported by Odds API`);
-    return [];
-  }
+const fetchOddsByLeagueKey = async (sportKey: string, forceRefresh = false): Promise<any[]> => {
+  if (!sportKey) return [];
 
   const now = Date.now();
   const storageKey = getStorageKey(sportKey);
 
   // 1. Check In-Memory Cache (Fastest) - Skip if forced
   if (!forceRefresh && memoryCache[sportKey] && (now - memoryCache[sportKey].timestamp < CACHE_DURATION)) {
-    console.log(`[OddsService] Using memory cache for ${sport}`);
+    console.log(`[OddsService] Using memory cache for ${sportKey}`);
     return memoryCache[sportKey].data;
   }
 
@@ -84,12 +90,12 @@ export const fetchOddsForSport = async (sport: Sport, forceRefresh = false): Pro
         const age = now - parsed.timestamp;
         
         if (age < CACHE_DURATION) {
-          console.log(`[OddsService] Restoring ${sport} from LocalStorage (${Math.round(age/1000/60)}m old)`);
+          console.log(`[OddsService] Restoring ${sportKey} from LocalStorage (${Math.round(age/1000/60)}m old)`);
           // Hydrate memory cache
           memoryCache[sportKey] = parsed;
           return parsed.data;
         } else {
-          console.log(`[OddsService] Expired LocalStorage for ${sport}`);
+          console.log(`[OddsService] Expired LocalStorage for ${sportKey}`);
           localStorage.removeItem(storageKey);
         }
       }
@@ -103,7 +109,7 @@ export const fetchOddsForSport = async (sport: Sport, forceRefresh = false): Pro
     return [];
   }
 
-  console.log(`[OddsService] Fetching fresh API data for ${sport}... (Key ends in ...${API_KEY.slice(-4)})`);
+  console.log(`[OddsService] Fetching fresh API data for ${sportKey}... (Key ends in ...${API_KEY.slice(-4)})`);
   
   // Request US, US2 (offshore), and EU regions to cover all requested books
   const url = `${BASE_URL}/${sportKey}/odds?apiKey=${API_KEY}&regions=us,us2,eu,au&markets=h2h,spreads,totals&oddsFormat=american`;
@@ -132,6 +138,23 @@ export const fetchOddsForSport = async (sport: Sport, forceRefresh = false): Pro
     console.error("Failed to fetch odds:", error);
     return [];
   }
+};
+
+export const fetchOddsForSport = async (sport: Sport, forceRefresh = false): Promise<any[]> => {
+  if (sport === 'SOCCER') {
+    const allSoccerOdds = await Promise.all(
+      SOCCER_LEAGUE_KEYS.map(key => fetchOddsByLeagueKey(key, forceRefresh))
+    );
+    return allSoccerOdds.flat();
+  }
+
+  const sportKey = SPORT_KEYS[sport];
+  if (!sportKey) {
+    console.warn(`Sport ${sport} not supported by Odds API`);
+    return [];
+  }
+
+  return fetchOddsByLeagueKey(sportKey, forceRefresh);
 };
 
 export const fetchOddsForGame = async (sport: Sport, gameId: string): Promise<any> => {
@@ -164,7 +187,7 @@ export const fetchOddsForGame = async (sport: Sport, gameId: string): Promise<an
 // New function to batch load all sports
 export const fetchAllSportsOdds = async (forceRefresh = false): Promise<Record<Sport, any[]>> => {
   const results: Record<string, any[]> = {};
-  const sports: Sport[] = ['NBA', 'NFL', 'NHL', 'NCAAB'];
+  const sports: Sport[] = ['NBA', 'NFL', 'NHL', 'NCAAB', 'SOCCER'];
   
   console.log(`[OddsService] Batch loading all sports (Force: ${forceRefresh})...`);
   
@@ -205,14 +228,18 @@ export const getBookmakerLines = (gameData: any, bookmakerKey: string): BookLine
   let totalOddsUnder = 'N/A';
   let mlOddsA = 'N/A';
   let mlOddsB = 'N/A';
+  let mlOddsDraw = undefined;
 
   // Moneyline (h2h)
   const h2hMarket = bookmaker.markets.find((m: any) => m.key === 'h2h');
   if (h2hMarket) {
     const outcomeA = h2hMarket.outcomes.find((o: any) => o.name === awayTeam);
     const outcomeB = h2hMarket.outcomes.find((o: any) => o.name === homeTeam);
+    const outcomeDraw = h2hMarket.outcomes.find((o: any) => o.name === 'Draw');
+    
     if (outcomeA) mlOddsA = formatOdds(outcomeA.price);
     if (outcomeB) mlOddsB = formatOdds(outcomeB.price);
+    if (outcomeDraw) mlOddsDraw = formatOdds(outcomeDraw.price);
   }
 
   // Spreads
@@ -257,6 +284,7 @@ export const getBookmakerLines = (gameData: any, bookmakerKey: string): BookLine
     totalOddsOver,
     totalOddsUnder,
     mlOddsA,
-    mlOddsB
+    mlOddsB,
+    mlOddsDraw
   };
 };

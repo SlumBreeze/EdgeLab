@@ -7,6 +7,7 @@ import {
   AnalysisResult,
   UserPersona,
   BookBalanceDisplay,
+  ScanResult,
 } from "../types";
 import { EXTRACTION_PROMPT } from "../constants";
 import { getRecommendedBook } from "../utils/calculations";
@@ -25,6 +26,7 @@ ${persona?.volume_mode === "High Action" ? "- VOLUME MODE ENABLED: Prioritize fi
 
 STRATEGIES:
 - **Narrative Audit (Trap Detection):** Cross-reference public betting data and social sentiment. 
+- **Soccer Narrative Audit (Derby/Must-Win):** For Soccer, flag "Must-Win" or "Derby" narratives. These do NOT auto-veto. Instead, you MUST justify any edge with concrete tactical or lineup data (e.g., "Main playmaker returning from injury"). If no tactical/lineup delta exists to justify the price, DOWNGRADE confidence or recommend PASS.
 - **The Public Darling:** Detect if >75% of public is on one side. If line doesn't move or moves opposite, flag as "TRAP: Reverse Line Movement."
 - **Expert Sentiment:** Search for consensus from reputable beat writers and sharp handicappers. 
 - Market Overreaction: Detect recency bias (e.g., a blowout last game) and avoid overreacting.

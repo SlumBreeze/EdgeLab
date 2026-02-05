@@ -46,6 +46,9 @@ const ScoutGameCard: React.FC<ScoutGameCardProps> = ({
   const isUnavailableScan = scan?.description?.toLowerCase().includes('scan unavailable');
   const showRescan = !!scan && (isWhiteScan || isUnavailableScan);
 
+  const isSoccer = sport === 'SOCCER';
+  const showDraw = isSoccer && pinnLines?.mlOddsDraw;
+
   return (
     <div className="bg-ink-paper border border-ink-gray rounded-xl p-3 shadow-sm transition-shadow relative overflow-hidden">
       {scan && <div className={`absolute top-0 left-0 bottom-0 w-1.5 ${scan.signal === 'RED' ? 'bg-status-loss' : scan.signal === 'YELLOW' ? 'bg-amber-400' : 'bg-ink-gray'}`} />}
@@ -61,14 +64,42 @@ const ScoutGameCard: React.FC<ScoutGameCardProps> = ({
         <button onClick={() => onAddToQueue(game, sport, pinnLines)} disabled={inQueue} className={`px-2 py-1 rounded text-[10px] font-bold transition-colors border ${inQueue ? 'bg-ink-base text-ink-text/40 border-ink-gray' : 'bg-ink-accent/10 text-ink-accent border-ink-accent/30 hover:bg-ink-accent/20'}`}>{inQueue ? '✓ Queue' : '+ Add'}</button>
       </div>
       <div className="mb-2 pl-2">
-        <div className="grid grid-cols-[2fr_1fr_1fr_2fr] gap-1 mb-1 text-[9px] text-ink-text/40 uppercase font-bold tracking-wider"><div>Team</div><div className="text-center">Ref</div><div className="text-center">Curr</div><div className="text-center">Move</div></div>
+        <div className="grid grid-cols-[2fr_1fr_1fr_2fr] gap-1 mb-1 text-[9px] text-ink-text/40 uppercase font-bold tracking-wider"><div>Team</div><div className="text-center">{isSoccer ? 'Sharp' : 'Ref'}</div><div className="text-center">Curr</div><div className="text-center">Move</div></div>
+        
+        {/* Away Team */}
         <div className="grid grid-cols-[2fr_1fr_1fr_2fr] gap-1 items-center py-1 border-b border-ink-gray">
           <div className="font-bold text-ink-text truncate text-xs">{game.away_team}</div>
-          <div className="text-center text-ink-text/40 text-[10px] font-mono">{ref?.spreadLineA || '-'}</div>
-          <div className="text-center font-bold text-ink-text bg-ink-base rounded py-0.5 text-[10px] font-mono border border-ink-gray">{pinnLines?.spreadLineA || '-'}</div>
-          <div className="row-span-2 flex flex-col items-center justify-center h-full">{movement && <><span className="text-sm leading-none mb-0.5">{movement.icon}</span><span className={`text-[8px] font-bold leading-none text-center ${movement.color}`}>{movement.text}</span></>}</div>
+          <div className="text-center text-ink-text/40 text-[10px] font-mono">
+            {isSoccer ? (pinnLines?.mlOddsA || '-') : (ref?.spreadLineA || '-')}
+          </div>
+          <div className="text-center font-bold text-ink-text bg-ink-base rounded py-0.5 text-[10px] font-mono border border-ink-gray">
+            {isSoccer ? (pinnLines?.mlOddsA || '-') : (pinnLines?.spreadLineA || '-')}
+          </div>
+          <div className="row-span-2 flex flex-col items-center justify-center h-full">
+            {movement && <><span className="text-sm leading-none mb-0.5">{movement.icon}</span><span className={`text-[8px] font-bold leading-none text-center ${movement.color}`}>{movement.text}</span></>}
+          </div>
         </div>
-        <div className="grid grid-cols-[2fr_1fr_1fr_2fr] gap-1 items-center py-1"><div className="font-bold text-ink-text truncate text-xs">{game.home_team}</div><div className="text-center text-ink-text/40 text-[10px] font-mono">{ref?.spreadLineB || '-'}</div><div className="text-center font-bold text-ink-text bg-ink-base rounded py-0.5 text-[10px] font-mono border border-ink-gray">{pinnLines?.spreadLineB || '-'}</div></div>
+
+        {/* Draw (Soccer Only) */}
+        {showDraw && (
+          <div className="grid grid-cols-[2fr_1fr_1fr_2fr] gap-1 items-center py-1 border-b border-ink-gray">
+            <div className="font-bold text-ink-text/40 truncate text-xs italic">Draw</div>
+            <div className="text-center text-ink-text/40 text-[10px] font-mono">{pinnLines?.mlOddsDraw}</div>
+            <div className="text-center font-bold text-ink-text bg-ink-base rounded py-0.5 text-[10px] font-mono border border-ink-gray">{pinnLines?.mlOddsDraw}</div>
+            <div className="text-center"></div>
+          </div>
+        )}
+
+        {/* Home Team */}
+        <div className="grid grid-cols-[2fr_1fr_1fr_2fr] gap-1 items-center py-1">
+          <div className="font-bold text-ink-text truncate text-xs">{game.home_team}</div>
+          <div className="text-center text-ink-text/40 text-[10px] font-mono">
+            {isSoccer ? (pinnLines?.mlOddsB || '-') : (ref?.spreadLineB || '-')}
+          </div>
+          <div className="text-center font-bold text-ink-text bg-ink-base rounded py-0.5 text-[10px] font-mono border border-ink-gray">
+            {isSoccer ? (pinnLines?.mlOddsB || '-') : (pinnLines?.spreadLineB || '-')}
+          </div>
+        </div>
       </div>
       <div className="pl-2 space-y-1.5">
         {scan ? (

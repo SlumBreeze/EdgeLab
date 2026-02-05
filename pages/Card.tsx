@@ -6,6 +6,7 @@ import {
   SportsbookAccount,
   AutoPickResult,
   BookLines,
+  UserPersona,
 } from "../types";
 import { MAX_DAILY_PLAYS } from "../constants";
 import {

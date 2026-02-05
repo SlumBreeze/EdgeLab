@@ -74,6 +74,31 @@ export const calculateEV = (trueProbabilityPercent: number, decimalOdds: number)
   return (((trueProbabilityPercent / 100) * decimalOdds) - 1) * 100;
 };
 
+/**
+ * Calculates Fair (No-Vig) Probabilities for a 3-way market (e.g. Soccer 1X2).
+ */
+export const calculateNoVig3Way = (
+  oddsA: number,
+  oddsB: number,
+  oddsDraw: number
+): { probA: number; probB: number; probDraw: number } => {
+  const decA = americanToDecimal(oddsA);
+  const decB = americanToDecimal(oddsB);
+  const decDraw = americanToDecimal(oddsDraw);
+
+  const impA = 1 / decA;
+  const impB = 1 / decB;
+  const impDraw = 1 / decDraw;
+
+  const totalImplied = impA + impB + impDraw;
+
+  return {
+    probA: impA / totalImplied,
+    probB: impB / totalImplied,
+    probDraw: impDraw / totalImplied
+  };
+};
+
 export const calculateUnitSize = (
   bankroll: number, 
   confidence: number, // 0-100

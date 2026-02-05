@@ -176,6 +176,17 @@ export const validateAnalysis = (input: ValidationInput): ValidationResult => {
   if (dominanceRatio < thresholds.ok && adjustedConfidence === 'HIGH') {
     adjustedConfidence = 'MEDIUM';
   }
+
+  // Soccer specific: Audit-First Derby/Must-Win
+  if (input.sport === 'SOCCER') {
+    const isDerbyHype = /\b(derby|must-win|rivalry|desperate|revenge)\b/i.test(narrative);
+    const hasTacticalJustification = /\b(tactical|formation|lineup change|returning from injury|missing starter|key player|rotation|lineup|starting XI|stats|xG)\b/i.test(narrative);
+    
+    if (isDerbyHype && !hasTacticalJustification && adjustedConfidence === 'HIGH') {
+      adjustedConfidence = 'MEDIUM';
+    }
+  }
+
   const factConfidence =
     input.factsUsed.length === 0 ? 'LOW' :
     dominanceRatio < thresholds.ok ? 'MEDIUM' :

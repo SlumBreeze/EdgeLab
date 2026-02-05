@@ -19,6 +19,8 @@ import {
   BookBalanceDisplay,
   TimeWindowFilter,
   UserPersona,
+  BatchProgress,
+  Bet,
 } from "../types";
 import { MAX_DAILY_PLAYS, SPORTSBOOK_THEME } from "../constants";
 import { supabase, isSupabaseConfigured } from "../services/supabaseClient";
