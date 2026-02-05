@@ -20,7 +20,8 @@
 - [ ] Task: Conductor - User Manual Verification 'Analytics UI' (Protocol in workflow.md)
 
 ## Phase 3: Bet Settlement & Manual Entry
-- [ ] Task: Update Bet Logging Workflow
-    - [ ] Add "Closing Price" input field to the Bet settlement/edit form
-    - [ ] Ensure `clv_percent` is automatically calculated and saved when closing price is entered
+## Phase 3: Bet Settlement & Manual Entry [checkpoint: f3e6314]
+- [x] Task: Update Bet Logging Workflow [f3e6314]
+    - [x] Add "Closing Price" input field to the Bet settlement/edit form
+    - [x] Ensure `clv_percent` is automatically calculated and saved when closing price is entered
 - [ ] Task: Conductor - User Manual Verification 'Bet Settlement Workflow' (Protocol in workflow.md)
