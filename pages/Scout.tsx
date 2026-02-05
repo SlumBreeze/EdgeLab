@@ -21,6 +21,7 @@ import {
   isScanWindowActive, 
   SPORT_CADENCE_OFFSETS 
 } from "../utils/cadence";
+import { useBatchProcessor } from "../hooks/useBatchProcessor";
 
 export default function Scout() {
   const formatEtDate = (date: Date) =>
@@ -56,7 +57,11 @@ export default function Scout() {
     setReferenceLine,
     allSportsData,
     loadSlates,
+    isBatchProcessing,
+    batchProgress,
   } = useGameContext();
+
+  const { processBatch } = useBatchProcessor();
 
   const [scanningIds, setScanningIds] = useState<Set<string>>(new Set());
   const [batchScanning, setBatchScanning] = useState(false);
@@ -220,6 +225,22 @@ export default function Scout() {
   const windowAddCount = filteredGames.filter((g) => !isInQueue(g.id)).length;
 
   // --- HANDLERS ---
+
+  const handleProcessBatch = async () => {
+    if (selectedWindow === "ALL") return;
+    
+    // Process all games in window that aren't already in queue or scanned
+    const gamesToProcess = filteredGames.filter(g => !isInQueue(g.id) && !scanResults[g.id]);
+    
+    if (gamesToProcess.length === 0) {
+      toast.showInfo(`All games in ${getTimeWindowLabel(selectedWindow)} window are already processed.`);
+      return;
+    }
+
+    if (window.confirm(`Process all ${gamesToProcess.length} games in ${getTimeWindowLabel(selectedWindow)} window? (Scan + Analyze + Card)`)) {
+      await processBatch(gamesToProcess, selectedWindow);
+    }
+  };
 
   const handleScanAll = async () => {
     setBatchScanning(true);
@@ -604,18 +625,32 @@ export default function Scout() {
             </div>
 
             {selectedWindow !== "ALL" && (
-              <button
-                onClick={handleAddWindow}
-                disabled={windowAddCount === 0}
-                className={`w-full mb-2 py-2 rounded-xl font-bold text-xs shadow-sm transition-all border ${
-                  windowAddCount > 0
-                    ? "bg-ink-paper text-ink-accent border-ink-accent hover:bg-ink-accent/10"
-                    : "bg-ink-base text-ink-text/40 border-ink-gray"
-                }`}
-              >
-                + Add {getTimeWindowLabel(selectedWindow)} Window (
-                {windowAddCount})
-              </button>
+              <div className="flex gap-2 mb-2">
+                <button
+                  onClick={handleAddWindow}
+                  disabled={windowAddCount === 0 || isBatchProcessing}
+                  className={`flex-1 py-2 rounded-xl font-bold text-xs shadow-sm transition-all border ${
+                    windowAddCount > 0 && !isBatchProcessing
+                      ? "bg-ink-paper text-ink-accent border-ink-accent hover:bg-ink-accent/10"
+                      : "bg-ink-base text-ink-text/40 border-ink-gray"
+                  }`}
+                >
+                  + Add {getTimeWindowLabel(selectedWindow)} Window (
+                  {windowAddCount})
+                </button>
+                <button
+                  onClick={handleProcessBatch}
+                  disabled={isBatchProcessing || filteredGames.length === 0}
+                  className={`flex-1 py-2 rounded-xl font-bold text-xs shadow-sm transition-all border ${
+                    !isBatchProcessing && filteredGames.length > 0
+                      ? "bg-ink-accent text-white border-ink-accent hover:bg-sky-500"
+                      : "bg-ink-base text-ink-text/40 border-ink-gray"
+                  }`}
+                  title="Scan, Analyze, and Add all games in this window to Card"
+                >
+                  ⚡ Process {getTimeWindowLabel(selectedWindow)} Batch
+                </button>
+              </div>
             )}
           </>
         )}
@@ -703,6 +738,35 @@ export default function Scout() {
           )}
         </div>
       </div>
+
+      {isBatchProcessing && (
+        <div className="fixed bottom-20 left-4 right-4 z-50 animate-in fade-in slide-in-from-bottom-4 duration-300">
+          <div className="max-w-lg mx-auto bg-ink-panel border border-ink-accent shadow-[0_0_30px_rgba(56,189,248,0.2)] p-4 rounded-2xl">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-ink-accent animate-pulse" />
+                <span className="text-xs font-mono font-bold tracking-widest uppercase text-ink-accent">
+                  Batch Processing: {batchProgress.phase}
+                </span>
+              </div>
+              <span className="text-[10px] font-mono text-ink-gray">
+                {batchProgress.current} / {batchProgress.total}
+              </span>
+            </div>
+            
+            <div className="w-full bg-ink-base h-1.5 rounded-full overflow-hidden mb-3">
+              <div 
+                className="bg-ink-accent h-full transition-all duration-500 ease-out"
+                style={{ width: `${(batchProgress.current / batchProgress.total) * 100}%` }}
+              />
+            </div>
+            
+            <p className="text-[11px] font-mono text-ink-text leading-tight truncate">
+              {batchProgress.statusText}
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
