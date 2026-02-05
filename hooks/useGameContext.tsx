@@ -26,6 +26,7 @@ import { isPremiumEdge, isStandardEdge } from "../utils/edgeUtils";
 import { useBankroll } from "./useBankroll";
 import { isInTimeWindow } from "../utils/timeWindow";
 import { personaService } from "../services/personaService";
+import { useAuth } from "../components/AuthContext";
 
 const GameContext = createContext<AnalysisState | undefined>(undefined);
 
@@ -36,6 +37,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
   const today = getTodayKey();
+  const { user } = useAuth();
   const [isSyncEnabled, setIsSyncEnabled] = useState(isSupabaseConfigured);
   const [syncStatus, setSyncStatus] = useState<
     "idle" | "saving" | "saved" | "error"
@@ -70,45 +72,32 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({
     });
   }, [bookBalances]);
 
+  // User ID for Database Persistence
+  const [userId, setUserIdState] = useState(user?.id || FIXED_USER_ID);
+
+  useEffect(() => {
+    if (user?.id) {
+      setUserIdState(user.id);
+      localStorage.setItem("edgelab_user_id", user.id);
+    }
+  }, [user]);
+
   // Compatibility Layer: updateBankroll wrapper
   const updateBankrollCompat = async (bookName: string, balance: number) => {
-    // In legacy, we set balance directly. In new system, we update deposit.
-    // New Balance = Deposited - Withdrawn + Profit
-    // We want to set New Balance.
-    // Delta = NewBalance - CurrentBalance
-    // NewDeposited = Deposited + Delta
-
     const account = bookBalances.find((b) => b.sportsbook === bookName);
     if (account) {
       const delta = balance - account.currentBalance;
       const newDeposit = account.deposited + delta;
-      // We only update deposit, leaving withdrawals as is for this legacy compat
       await updateBookBalance(bookName, { deposited: newDeposit });
     } else {
-      // If not found, assume 0 profit/withdrawn
       await updateBookBalance(bookName, { deposited: balance });
     }
   };
 
-  // User ID for Database Persistence (Legacy Auth)
-  const [userId, setUserIdState] = useState(() => {
-    try {
-      const existingId = localStorage.getItem("edgelab_user_id");
-      if (existingId && existingId !== FIXED_USER_ID) {
-        legacyUserIdRef.current = existingId;
-      }
-      localStorage.setItem("edgelab_user_id", FIXED_USER_ID);
-      return FIXED_USER_ID;
-    } catch {
-      return FIXED_USER_ID;
-    }
-  });
-
   const setUserIdManual = (newId: string) => {
     if (!newId || newId.length < 5) return;
-    setUserIdState(FIXED_USER_ID);
-    localStorage.setItem("edgelab_user_id", FIXED_USER_ID);
-    console.log("[Auth] Using fixed User ID:", FIXED_USER_ID);
+    setUserIdState(newId);
+    localStorage.setItem("edgelab_user_id", newId);
   };
 
   // State
