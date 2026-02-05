@@ -32,7 +32,7 @@ export default function Scout() {
       day: "2-digit",
     }).format(date);
 
-  const AUTO_SCAN_STORAGE_KEY = "edgelab_auto_scan_enabled";
+  const AUTO_PILOT_STORAGE_KEY = "edgelab_auto_pilot_enabled";
 
   // Use ET for slate date alignment with sports schedules
   const [selectedDate, setSelectedDate] = useState(() =>
@@ -66,11 +66,11 @@ export default function Scout() {
   const [scanningIds, setScanningIds] = useState<Set<string>>(new Set());
   const [batchScanning, setBatchScanning] = useState(false);
   const [progressText, setProgressText] = useState("");
-  const [autoScanEnabled, setAutoScanEnabled] = useState(() => {
+  const [autoPilotEnabled, setAutoPilotEnabled] = useState(() => {
     if (typeof window === "undefined") return false;
-    return localStorage.getItem(AUTO_SCAN_STORAGE_KEY) === "true";
+    return localStorage.getItem(AUTO_PILOT_STORAGE_KEY) === "true";
   });
-  const lastAutoScanAt = useRef(0);
+  const lastAutoPilotAt = useRef(0);
 
   const slatesLoaded = Object.keys(allSportsData).length > 0;
 
@@ -296,24 +296,24 @@ export default function Scout() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    localStorage.setItem(AUTO_SCAN_STORAGE_KEY, autoScanEnabled ? "true" : "false");
-  }, [autoScanEnabled]);
+    localStorage.setItem(AUTO_PILOT_STORAGE_KEY, autoPilotEnabled ? "true" : "false");
+  }, [autoPilotEnabled]);
 
   useEffect(() => {
-    if (!autoScanEnabled) return;
+    if (!autoPilotEnabled) return;
     if (!slatesLoaded) return;
 
     const interval = setInterval(() => {
       if (batchScanning) return;
       if (gamesReadyToScan.length === 0) return;
       const now = Date.now();
-      if (now - lastAutoScanAt.current < 60_000) return; // throttle
-      lastAutoScanAt.current = now;
+      if (now - lastAutoPilotAt.current < 60_000) return; // throttle
+      lastAutoPilotAt.current = now;
       handleScanAll();
     }, 30_000);
 
     return () => clearInterval(interval);
-  }, [autoScanEnabled, slatesLoaded, batchScanning, gamesReadyToScan.length, handleScanAll]);
+  }, [autoPilotEnabled, slatesLoaded, batchScanning, gamesReadyToScan.length, handleScanAll]);
 
   const handleResetScans = () => {
     const gamesToReset = allGames.filter((g) =>
@@ -558,15 +558,18 @@ export default function Scout() {
               </button>
 
               <button
-                onClick={() => setAutoScanEnabled((v) => !v)}
+                onClick={() => setAutoPilotEnabled((v) => !v)}
                 className={`px-3 rounded-xl font-bold text-[11px] shadow-sm transition-all whitespace-nowrap border ${
-                  autoScanEnabled
+                  autoPilotEnabled
                     ? "bg-ink-accent/10 text-ink-accent border-ink-accent/30 hover:bg-ink-accent/20"
                     : "bg-ink-base text-ink-text/50 border-ink-gray hover:text-ink-text"
                 }`}
-                title="Auto-scan when First/Second/Lock windows open"
+                title="Automatically scan, analyze and promote games entering Lock windows"
               >
-                Auto-scan: {autoScanEnabled ? "On" : "Off"}
+                Auto-Pilot: {autoPilotEnabled ? "ON" : "OFF"}
+                {autoPilotEnabled && upcomingGames.length > 0 && (
+                  <span className="ml-1 opacity-60">({upcomingGames.length}m)</span>
+                )}
               </button>
 
               <button
