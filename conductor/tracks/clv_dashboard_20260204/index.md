@@ -1,4 +1,4 @@
-# Track bankroll_sync_20260204 Context
+# Track clv_dashboard_20260204 Context
 
 - [Specification](./spec.md)
 - [Implementation Plan](./plan.md)
