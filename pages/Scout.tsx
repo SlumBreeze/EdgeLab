@@ -303,17 +303,32 @@ export default function Scout() {
     if (!autoPilotEnabled) return;
     if (!slatesLoaded) return;
 
+    // AUTO-PILOT: Efficient Global Monitoring
     const interval = setInterval(() => {
       if (batchScanning) return;
-      if (gamesReadyToScan.length === 0) return;
+      
       const now = Date.now();
-      if (now - lastAutoPilotAt.current < 60_000) return; // throttle
-      lastAutoPilotAt.current = now;
-      handleScanAll();
-    }, 30_000);
+      if (now - lastAutoPilotAt.current < 45_000) return; // Increased throttle to 45s
+
+      // Logic: Only trigger if there are games in active windows
+      // Priority 1: LOCK Window (High Freshness Required)
+      // Priority 2: Other Windows (FIRST, SECOND)
+      const gamesInLock = upcomingGames.filter(g => 
+        !scanResults[g.id] && 
+        getCadenceStatus(g.commence_time, (g._sport as Sport) || 'NBA') === 'LOCK'
+      );
+
+      const anyReadyToScan = gamesReadyToScan.length > 0;
+
+      if (gamesInLock.length > 0 || anyReadyToScan) {
+        console.log(`[Auto-Pilot] Triggering scan for ${gamesInLock.length} Lock games / ${gamesReadyToScan.length} Total ready.`);
+        lastAutoPilotAt.current = now;
+        handleScanAll();
+      }
+    }, 15_000); // Check status every 15s, but throttle execution
 
     return () => clearInterval(interval);
-  }, [autoPilotEnabled, slatesLoaded, batchScanning, gamesReadyToScan.length, handleScanAll]);
+  }, [autoPilotEnabled, slatesLoaded, batchScanning, gamesReadyToScan.length, upcomingGames, handleScanAll, scanResults]);
 
   const handleResetScans = () => {
     const gamesToReset = allGames.filter((g) =>
