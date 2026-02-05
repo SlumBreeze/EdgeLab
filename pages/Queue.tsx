@@ -452,13 +452,6 @@ export default function Queue() {
                 </span>
               </button>
             </div>
-                    }`}
-                  >
-                    {window.count}
-                  </span>
-                </button>
-              ))}
-            </div>
             {selectedWindow !== "ALL" && (
               <div className="text-[10px] text-ink-text/50">
                 Showing {getTimeWindowLabel(selectedWindow)} window —{" "}
