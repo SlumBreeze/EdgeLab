@@ -11,6 +11,7 @@ import { quickScanGame } from "../services/geminiService";
 import { useGameContext } from "../hooks/useGameContext";
 import { useToast, createToastHelpers } from "../components/Toast";
 import ScoutGameCard from "../components/ScoutGameCard";
+import ScoutSportHeader from "../components/ScoutSportHeader";
 import {
   TIME_WINDOW_FILTERS,
   TimeWindowFilter,
@@ -60,6 +61,7 @@ export default function Scout() {
     loadSlates,
     isBatchProcessing,
     batchProgress,
+    getSportBatchProgress,
   } = useGameContext();
 
   const { processBatch } = useBatchProcessor();
@@ -289,6 +291,31 @@ export default function Scout() {
 
     if (window.confirm(`Process all ${gamesToProcess.length} games in ${getTimeWindowLabel(selectedWindow)} window? (Scan + Analyze + Card)`)) {
       await processBatch(gamesToProcess, selectedWindow);
+    }
+  };
+
+  const getProcessableGamesForSport = (sport: Sport) => {
+    return getGamesForSport(sport)
+      .filter(isUpcomingGame)
+      .filter((g) => isInTimeWindow(g.commence_time, selectedWindow))
+      .filter((g) => !isInQueue(g.id) && !scanResults[g.id]);
+  };
+
+  const handleProcessSport = async (sport: Sport) => {
+    const gamesToProcess = getProcessableGamesForSport(sport);
+    if (gamesToProcess.length === 0) {
+      toast.showInfo(
+        `All ${SPORTS_CONFIG[sport].label} games in ${getTimeWindowLabel(selectedWindow)} are already processed.`,
+      );
+      return;
+    }
+
+    if (
+      window.confirm(
+        `Process ${gamesToProcess.length} ${SPORTS_CONFIG[sport].label} games in ${getTimeWindowLabel(selectedWindow)}? (Scan + Analyze + Card)`,
+      )
+    ) {
+      await processBatch(gamesToProcess, selectedWindow, sport);
     }
   };
 
@@ -777,17 +804,15 @@ export default function Scout() {
 
                 return (
                   <section key={sportKey}>
-                    <div className="flex flex-col gap-1 mb-3">
-                      <div className="flex items-center gap-2">
-                        <span className="text-lg">{config.icon}</span>
-                        <h2 className="text-lg font-bold text-ink-text">
-                          {config.label}
-                        </h2>
-                      </div>
-                      <div className="text-[11px] text-ink-text/80">
-                        {getCadenceLabel(sport, sportGames)}
-                      </div>
-                    </div>
+                    <ScoutSportHeader
+                      sport={sport}
+                      icon={config.icon}
+                      label={config.label}
+                      cadenceLabel={getCadenceLabel(sport, sportGames)}
+                      canProcessSport={getProcessableGamesForSport(sport).length > 0}
+                      isProcessingSport={getSportBatchProgress(sport).isProcessing}
+                      onProcessSport={handleProcessSport}
+                    />
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                       {sportGames.map((game) => {
                         const pinnLines = getBookmakerLines(game, "pinnacle");

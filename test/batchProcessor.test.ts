@@ -26,8 +26,8 @@ vi.mock('../services/oddsService', () => ({
 describe('useBatchProcessor', () => {
   const mockSetIsBatchProcessing = vi.fn();
   const mockSetBatchProgress = vi.fn();
+  const mockSetScanResult = vi.fn();
   const mockAddToQueue = vi.fn();
-  const mockUpdateGame = vi.fn();
   const mockAutoPickBestGames = vi.fn();
 
   beforeEach(() => {
@@ -35,12 +35,12 @@ describe('useBatchProcessor', () => {
     (useGameContext as any).mockReturnValue({
       setIsBatchProcessing: mockSetIsBatchProcessing,
       setBatchProgress: mockSetBatchProgress,
+      setScanResult: mockSetScanResult,
       addToQueue: mockAddToQueue,
-      updateGame: mockUpdateGame,
       autoPickBestGames: mockAutoPickBestGames,
-      userId: 'user123',
       activeBookNames: ['DraftKings'],
-      queue: []
+      persona: undefined,
+      bookBalances: [],
     });
   });
 
@@ -52,7 +52,7 @@ describe('useBatchProcessor', () => {
       { id: 'g1', home_team: 'Team A', away_team: 'Team B', commence_time: '2026-02-04T20:00:00Z', _sport: 'NBA' }
     ];
 
-    (geminiService.quickScanGame as any).mockResolvedValue({ signal: 'WHITE', description: 'Scan ok' });
+    (geminiService.quickScanGame as any).mockResolvedValue({ signal: 'YELLOW', description: 'Scan ok' });
     (fetchOddsForGame as any).mockResolvedValue({ id: 'g1' });
     (getBookmakerLines as any).mockImplementation((data, book) => {
       if (book === 'pinnacle') return { bookName: 'Pinnacle', mlOddsA: '-110', mlOddsB: '-110' };
@@ -69,8 +69,8 @@ describe('useBatchProcessor', () => {
     });
 
     expect(mockSetIsBatchProcessing).toHaveBeenCalledWith(true);
+    expect(mockSetScanResult).toHaveBeenCalledWith('g1', { signal: 'YELLOW', description: 'Scan ok' });
     expect(mockAddToQueue).toHaveBeenCalled();
-    expect(mockUpdateGame).toHaveBeenCalled();
     expect(mockSetIsBatchProcessing).toHaveBeenCalledWith(false);
     expect(mockAutoPickBestGames).toHaveBeenCalledWith('EVENING');
     vi.useRealTimers();

@@ -231,6 +231,11 @@ export interface AnalysisState {
   // v2.8 Batch Processing
   isBatchProcessing: boolean;
   batchProgress: BatchProgress;
+  getSportBatchProgress: (sport: Sport) => {
+    isProcessing: boolean;
+    total: number;
+    current: number;
+  };
   setIsBatchProcessing: (isProcessing: boolean) => void;
   setBatchProgress: (progress: BatchProgress) => void;
 }
@@ -240,6 +245,7 @@ export interface BatchProgress {
   current: number;
   phase: "SCANNING" | "ANALYZING" | "COMPLETED" | "IDLE";
   statusText: string;
+  sport?: Sport;
 }
 
 // --- ProBet Tracker Types ---

@@ -8,16 +8,15 @@ export const useBatchProcessor = () => {
   const {
     setIsBatchProcessing,
     setBatchProgress,
+    setScanResult,
     addToQueue,
-    updateGame,
     autoPickBestGames,
     activeBookNames,
     persona,
-    userId,
     bookBalances,
   } = useGameContext();
 
-  const processBatch = useCallback(async (games: any[], windowFilter: TimeWindowFilter) => {
+  const processBatch = useCallback(async (games: any[], windowFilter: TimeWindowFilter, targetSport?: Sport) => {
     if (games.length === 0) return;
 
     setIsBatchProcessing(true);
@@ -25,7 +24,8 @@ export const useBatchProcessor = () => {
       total: games.length,
       current: 0,
       phase: 'SCANNING',
-      statusText: `Starting batch process for ${games.length} games...`
+      statusText: `Starting batch process for ${games.length} games...`,
+      sport: targetSport,
     });
 
     const processedGames: QueuedGame[] = [];
@@ -39,7 +39,8 @@ export const useBatchProcessor = () => {
         total: games.length,
         current: i + 1,
         phase: 'SCANNING',
-        statusText: `Scanning ${i + 1}/${games.length}: ${apiGame.away_team} @ ${apiGame.home_team}`
+        statusText: `Scanning ${i + 1}/${games.length}: ${apiGame.away_team} @ ${apiGame.home_team}`,
+        sport: targetSport,
       });
 
       const gameObj: Game = {
@@ -53,6 +54,13 @@ export const useBatchProcessor = () => {
 
       try {
         const scanResult = await geminiService.quickScanGame(gameObj);
+        setScanResult(gameObj.id, scanResult);
+
+        if (scanResult.signal !== 'RED' && scanResult.signal !== 'YELLOW') {
+          await new Promise(resolve => setTimeout(resolve, 500));
+          continue;
+        }
+
         const gameWithScan: QueuedGame = {
           ...gameObj,
           visibleId: (i + 1).toString(), // Temporary visible ID
@@ -61,10 +69,9 @@ export const useBatchProcessor = () => {
           edgeDescription: scanResult.description,
           scanResult: scanResult,
           softLines: [],
-          autoAnalyze: false // We will handle analysis manually in the next step
+          autoAnalyze: false, // We will handle analysis manually in the next step
         };
-        
-        addToQueue(gameWithScan);
+
         processedGames.push(gameWithScan);
       } catch (error) {
         console.error(`Scan failed for ${apiGame.id}:`, error);
@@ -79,7 +86,8 @@ export const useBatchProcessor = () => {
       total: games.length,
       current: 0,
       phase: 'ANALYZING',
-      statusText: `Analyzing scanned games...`
+      statusText: `Analyzing scanned games...`,
+      sport: targetSport,
     });
 
     for (let i = 0; i < processedGames.length; i++) {
@@ -89,10 +97,12 @@ export const useBatchProcessor = () => {
         total: games.length,
         current: i + 1,
         phase: 'ANALYZING',
-        statusText: `Analyzing ${i + 1}/${processedGames.length}: ${game.awayTeam.name} @ ${game.homeTeam.name}`
+        statusText: `Analyzing ${i + 1}/${processedGames.length}: ${game.awayTeam.name} @ ${game.homeTeam.name}`,
+        sport: targetSport,
       });
 
       try {
+        let finalizedGame: QueuedGame = { ...game };
         const oddsData = await fetchOddsForGame(game.sport, game.id);
         if (oddsData) {
           const pinnacle = getBookmakerLines(oddsData, 'pinnacle');
@@ -116,15 +126,19 @@ export const useBatchProcessor = () => {
               softLines: matchedSoftLines
             }, persona, bookBalances);
 
-            updateGame(game.id, {
+            finalizedGame = {
+              ...finalizedGame,
               sharpLines: pinnacle,
               softLines: matchedSoftLines,
               analysis: analysisResult
-            });
+            };
           }
         }
+
+        addToQueue(finalizedGame);
       } catch (error) {
         console.error(`Analysis failed for ${game.id}:`, error);
+        addToQueue(game);
       }
 
       await new Promise(resolve => setTimeout(resolve, 1000));
@@ -135,7 +149,8 @@ export const useBatchProcessor = () => {
       total: games.length,
       current: games.length,
       phase: 'COMPLETED',
-      statusText: 'Batch complete! Generating smart card...'
+      statusText: 'Batch complete! Generating smart card...',
+      sport: targetSport,
     });
 
     // Small delay to ensure last updateGame has propagated
@@ -149,11 +164,12 @@ export const useBatchProcessor = () => {
         total: 0,
         current: 0,
         phase: 'IDLE',
-        statusText: ''
+        statusText: '',
+        sport: undefined,
       });
     }, 3000);
 
-  }, [setIsBatchProcessing, setBatchProgress, addToQueue, updateGame, autoPickBestGames, activeBookNames, persona, userId]);
+  }, [setIsBatchProcessing, setBatchProgress, setScanResult, addToQueue, autoPickBestGames, activeBookNames, persona, bookBalances]);
 
   return { processBatch };
 };

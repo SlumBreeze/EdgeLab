@@ -21,6 +21,7 @@ import {
   UserPersona,
   BatchProgress,
   Bet,
+  Sport,
 } from "../types";
 import { MAX_DAILY_PLAYS, SPORTSBOOK_THEME } from "../constants";
 import { supabase, isSupabaseConfigured } from "../services/supabaseClient";
@@ -147,6 +148,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({
     current: 0,
     phase: "IDLE",
     statusText: "",
+    sport: undefined,
   });
 
   const [dailyPlays, setDailyPlays] = useState<DailyPlayTracker>({
@@ -742,6 +744,18 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({
     setReferenceLines((prev) => ({ ...prev, [gameId]: data }));
   };
 
+  const getSportBatchProgress = (sport: Sport) => {
+    const isProcessing =
+      isBatchProcessing &&
+      batchProgress.sport === sport &&
+      batchProgress.phase !== "IDLE";
+    return {
+      isProcessing,
+      total: isProcessing ? batchProgress.total : 0,
+      current: isProcessing ? batchProgress.current : 0,
+    };
+  };
+
   const loadSlates = (data: Record<string, any[]>) => {
     setAllSportsData(data);
     localStorage.setItem("edgelab_raw_slate", JSON.stringify(data));
@@ -799,6 +813,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({
         setPersona,
         isBatchProcessing,
         batchProgress,
+        getSportBatchProgress,
         setIsBatchProcessing,
         setBatchProgress,
       }}
