@@ -1,0 +1,8 @@
+{
+  "track_id": "individual_scan_reset_20260208",
+  "type": "feature",
+  "status": "new",
+  "created_at": "2026-02-08T09:33:00Z",
+  "updated_at": "2026-02-08T09:33:00Z",
+  "description": "Mechanism to individually reset scan results on the Scout page via a small 'x' button on game cards."
+}
