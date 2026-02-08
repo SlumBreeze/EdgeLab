@@ -1,0 +1,8 @@
+{
+  "track_id": "liquidity_aware_recommendations_20260208",
+  "type": "feature",
+  "status": "new",
+  "created_at": "2026-02-08T10:08:00Z",
+  "updated_at": "2026-02-08T10:08:00Z",
+  "description": "Ensure playables only recommend sportsbooks where the user has active funds (> $0.00), pivoting to the next best funded +EV book or vetoing if none exist."
+}
