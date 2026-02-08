@@ -17,11 +17,10 @@ EdgeLab acts as a specialized "operating system" for handicappers. It replaces e
     - **Audit-First Soccer Narrative Screen:** Specialized AI logic to flag "Derby" and "Must-Win" overreactions, requiring concrete tactical or lineup justification for soccer edges.
     - **Narrative Audits & Trap Detection:** Advanced AI logic that cross-references public betting trends (Reverse Line Movement) and expert sentiment to flag "Public Darling" traps with high-visibility alerts.
     - **Sharp/Soft Delta Analysis:** Mandatory price comparison between sharp market-makers (Pinnacle) and retail books to identify mathematical inefficiencies.
-- **Custom AI Personas:** An interface allowing advanced users to configure the "Stoic Handicapper" agent's parameters, including risk tolerance, edge requirements, and sport-specific focus.
-- **Batch Window Processing:** A specialized workflow to scan, analyze, and generate a daily "Battle Plan" for entire game windows (Early/Afternoon/Evening) in one automated sequence.
-- **Bankroll Management:** Automated unit sizing via Kelly Criterion, integrated with multi-book balance tracking and liquidity-aware recommendations.
-- **Liquidity-Aware Recommendations:** Automatically pivots recommendations to funded books (> $0.00) or vetoes plays if no funded books provide a positive edge (+EV).
-
+    - **Custom AI Personas:** An interface allowing advanced users to configure the "Stoic Handicapper" agent's parameters, including risk tolerance, edge requirements, and sport-specific focus.
+    - **Batch Window Processing:** A robust, throttled workflow to scan and analyze entire game windows (Early/Afternoon/Evening) in one automated sequence, utilizing per-game error isolation and model fallbacks.
+    - **Bankroll Management:** Automated unit sizing via Kelly Criterion, integrated with multi-book balance tracking and liquidity-aware recommendations.
+    - **Liquidity-Aware Recommendations:** Automatically pivots recommendations to funded books (> $0.00) or vetoes plays if no funded books provide a positive edge (+EV).
 ## Success Metrics
 - **ROI (Return on Investment):** The primary measure of the platform's ability to identify profitable opportunities.
 - **Veto Accuracy:** Monitoring the effectiveness of the AI in correctly flagging losing scenarios ("Pass" recommendations) and identifying "traps."

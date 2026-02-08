@@ -7,9 +7,10 @@
 - **Styling:** Tailwind CSS (Dark Mode / Bloomberg-Terminal aesthetic)
 
 ## AI & Data
-- **LLM:** Google Gemini 3 Flash & Pro (Preview)
+- **LLM:** Google Gemini 3 Pro (with 30s timeout and Flash fallback)
 - **SDK:** `@google/genai`
 - **Real-time Data:** The Odds API (NBA, NFL, NHL, NCAAB, SOCCER)
+- **Ground Truth Data:** TheSportsDB v1 API (with lazy-loading cache)
 - **External Services:** ESPN (via internal service)
 
 ## Backend & Persistence
