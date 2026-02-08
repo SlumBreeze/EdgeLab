@@ -9,7 +9,7 @@
 ## Information Design & UI Principles
 - **Aesthetic:** Adhere to a **Bloomberg/Terminal Inspired** layout—minimalist, data-dense, and monochromatic.
 - **Density:** Prioritize **Density Over Whitespace**. Maximize visible data points on a single screen to facilitate rapid cross-referencing for professional users.
-- **Alerts:** Critical events like Vetoes must use a **Data-Dense Minimalist** style. State the specific metric violation directly (e.g., "PRICE VETO: -175") rather than using generic icons.
+- **Alerts:** Critical events like Vetoes must use a **Data-Dense Minimalist** style. State the specific metric violation directly (e.g., "PRICE VETO: -175", "LIQUIDITY VETO: $0.00") rather than using generic icons.
 - **Edge Visualization:** Use **Strength Indicators** (e.g., discrete levels or confidence bars) to represent the quality of a play. This balances mathematical precision with the need for rapid mental parsing.
 
 ## Decision Logic & AI Ethics

@@ -19,7 +19,8 @@ EdgeLab acts as a specialized "operating system" for handicappers. It replaces e
     - **Sharp/Soft Delta Analysis:** Mandatory price comparison between sharp market-makers (Pinnacle) and retail books to identify mathematical inefficiencies.
 - **Custom AI Personas:** An interface allowing advanced users to configure the "Stoic Handicapper" agent's parameters, including risk tolerance, edge requirements, and sport-specific focus.
 - **Batch Window Processing:** A specialized workflow to scan, analyze, and generate a daily "Battle Plan" for entire game windows (Early/Afternoon/Evening) in one automated sequence.
-- **Bankroll Management:** Automated unit sizing via Kelly Criterion, integrated with multi-book balance tracking.
+- **Bankroll Management:** Automated unit sizing via Kelly Criterion, integrated with multi-book balance tracking and liquidity-aware recommendations.
+- **Liquidity-Aware Recommendations:** Automatically pivots recommendations to funded books (> $0.00) or vetoes plays if no funded books provide a positive edge (+EV).
 
 ## Success Metrics
 - **ROI (Return on Investment):** The primary measure of the platform's ability to identify profitable opportunities.
