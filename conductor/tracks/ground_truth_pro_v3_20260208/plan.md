@@ -2,7 +2,7 @@
 
 This plan outlines the integration of TheSportsDB v1 API for "Ground Truth" data and the upgrade to Gemini Pro 3 for professional-grade handicapping analysis.
 
-## Phase 1: Data Integrity & Ground Truth Layer
+## Phase 1: Data Integrity & Ground Truth Layer [checkpoint: 8113e1e]
 Goal: Establish a reliable, rate-limited connection to TheSportsDB for roster and player data.
 
 - [x] Task: Create `services/sportsDbService.ts` to handle v1 API calls (Search Teams, List Players).
