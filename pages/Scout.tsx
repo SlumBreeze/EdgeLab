@@ -74,7 +74,7 @@ export default function Scout() {
     return localStorage.getItem(AUTO_PILOT_STORAGE_KEY) === "true";
   });
   const lastAutoPilotAt = useRef(0);
-  const autoRefreshAttemptedRef = useRef<Record<string, boolean>>({});
+  const autoRefreshAttemptedRef = useRef<Record<string, number>>({});
 
   const slatesLoaded = Object.keys(allSportsData).length > 0;
 
@@ -146,8 +146,9 @@ export default function Scout() {
     if (allGames.length > 0) return;
 
     const key = selectedDate;
-    if (autoRefreshAttemptedRef.current[key]) return;
-    autoRefreshAttemptedRef.current[key] = true;
+    const lastAttempt = autoRefreshAttemptedRef.current[key] || 0;
+    if (Date.now() - lastAttempt < 10 * 60 * 1000) return;
+    autoRefreshAttemptedRef.current[key] = Date.now();
 
     const refreshIfStale = async () => {
       setLoading(true);
@@ -209,6 +210,15 @@ export default function Scout() {
     if (scanningIds.has(game.id)) return;
     setScanningIds((prev) => new Set(prev).add(game.id));
     const result = await quickScanGame(game);
+    if (result.deferred) {
+      toast.showWarning("Scan deferred (AI timeout). Will retry later.");
+      setScanningIds((prev) => {
+        const next = new Set(prev);
+        next.delete(game.id);
+        return next;
+      });
+      return;
+    }
     setScanResult(game.id, result);
     if ((result.signal === "RED" || result.signal === "YELLOW") && !isInQueue(game.id)) {
       const gameWithScan = {
@@ -344,6 +354,10 @@ export default function Scout() {
         const gameObj = mapToGameObject(apiGame, sport, null);
         try {
           const result = await quickScanGame(gameObj);
+          if (result.deferred) {
+            toast.showWarning("Scan deferred (AI timeout).");
+            continue;
+          }
           setScanResult(apiGame.id, result);
           if (
             (result.signal === "RED" || result.signal === "YELLOW") &&
@@ -818,7 +832,7 @@ export default function Scout() {
                       isProcessingSport={getSportBatchProgress(sport).isProcessing}
                       onProcessSport={handleProcessSport}
                     />
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                    <div className="grid [grid-template-columns:repeat(auto-fit,minmax(280px,320px))] justify-center gap-4">
                       {sportGames.map((game) => {
                         const pinnLines = getBookmakerLines(game, "pinnacle");
                         const ref = referenceLines[game.id];

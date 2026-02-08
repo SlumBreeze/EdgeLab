@@ -1,7 +1,4 @@
-import React from 'react';
-import { QueuedGame, BookLines } from '../types';
-import { COMMON_BOOKS } from '../constants';
-import { formatOddsForDisplay } from '../services/geminiService';
+import { formatOddsForDisplay, americanToImpliedProb, calculateNoVigProb } from '../services/geminiService';
 
 interface Props {
   game: QueuedGame;
@@ -9,6 +6,17 @@ interface Props {
   setEditingLineIndex: (index: number | null) => void;
   onUpdateSoftBook: (index: number, name: string) => void;
 }
+
+/**
+ * HELPER: Simple point adjustment for UI display.
+ * Matches geminiService.ts logic for NBA/NFL defaults.
+ */
+const getAdjustedProb = (baseProb: number, pointDiff: number, sport: string, market: string) => {
+  let pointValue = 3.0;
+  if (sport === 'NBA') pointValue = market === 'Total' ? 1.5 : 2.5;
+  else if (sport === 'NFL') pointValue = market === 'Total' ? 1.0 : 4.0;
+  return Math.max(1, Math.min(99, baseProb + (pointDiff * pointValue)));
+};
 
 export const CompactSoftLines: React.FC<Props> = ({ 
   game, 
@@ -44,57 +52,54 @@ export const CompactSoftLines: React.FC<Props> = ({
             let edgeColor = 'text-ink-text/60';
 
             if (sharp) {
-                // Spreads (Higher value is better for the bettor)
-                const sA = parseFloat(line.spreadLineA);
+                const results: { edge: number, label: string }[] = [];
+
+                // 1. Check Away Spread
                 const pA = parseFloat(sharp.spreadLineA);
-                if (!isNaN(sA) && !isNaN(pA) && sA > pA) {
-                    awayBetter = true;
-                    edgeLabel = `+${Math.round((sA - pA)*10)/10}`;
-                    edgeColor = 'text-status-win font-bold bg-status-win/10 px-1.5 py-0.5 rounded';
+                const sA = parseFloat(line.spreadLineA);
+                if (!isNaN(pA) && !isNaN(sA)) {
+                  const noVig = calculateNoVigProb(sharp.spreadOddsA, sharp.spreadOddsB);
+                  const adjProb = getAdjustedProb(noVig.probA, sA - pA, game.sport, 'Spread');
+                  const edge = adjProb - americanToImpliedProb(line.spreadOddsA);
+                  if (edge > 0) results.push({ edge, label: `+${Math.round((sA - pA)*10)/10}` });
+                  if (sA > pA) awayBetter = true;
                 }
 
-                const sB = parseFloat(line.spreadLineB);
+                // 2. Check Home Spread
                 const pB = parseFloat(sharp.spreadLineB);
-                if (!isNaN(sB) && !isNaN(pB) && sB > pB) {
-                    homeBetter = true;
-                    edgeLabel = `+${Math.round((sB - pB)*10)/10}`;
-                    edgeColor = 'text-status-win font-bold bg-status-win/10 px-1.5 py-0.5 rounded';
-                }
-                
-                // Total Edge Check
-                const sTotal = parseFloat(line.totalLine);
-                const pTotal = parseFloat(sharp.totalLine);
-                
-                if (!isNaN(sTotal) && !isNaN(pTotal)) {
-                    if (sTotal !== pTotal) {
-                        totalBetter = true;
-                        const diff = Math.round(Math.abs(sTotal - pTotal) * 10) / 10;
-                        
-                        // Determine if beneficial
-                        // OVER: lower line is better. UNDER: higher line is better.
-                        // For display, we highlight if there is ANY point diff, 
-                        // but we label it more clearly.
-                        edgeLabel = `+${diff}`;
-                        edgeColor = 'text-status-win font-bold bg-status-win/10 px-1.5 py-0.5 rounded';
-                    }
+                const sB = parseFloat(line.spreadLineB);
+                if (!isNaN(pB) && !isNaN(sB)) {
+                  const noVig = calculateNoVigProb(sharp.spreadOddsA, sharp.spreadOddsB);
+                  const adjProb = getAdjustedProb(noVig.probB, sB - pB, game.sport, 'Spread');
+                  const edge = adjProb - americanToImpliedProb(line.spreadOddsB);
+                  if (edge > 0) results.push({ edge, label: `+${Math.round((sB - pB)*10)/10}` });
+                  if (sB > pB) homeBetter = true;
                 }
 
-                // Juice Check if no point edge
-                if (edgeLabel === '—') {
-                     const sOA = parseFloat(line.spreadOddsA);
-                     const pOA = parseFloat(sharp.spreadOddsA);
-                     const sOB = parseFloat(line.spreadOddsB);
-                     const pOB = parseFloat(sharp.spreadOddsB);
-                     
-                     if ((!isNaN(sOA) && !isNaN(pOA) && sOA > pOA) || (!isNaN(sOB) && !isNaN(pOB) && sOB > pOB)) {
-                         const diffA = sOA - pOA;
-                         const diffB = sOB - pOB;
-                         const maxDiff = Math.max(isNaN(diffA) ? -999 : diffA, isNaN(diffB) ? -999 : diffB);
-                         if (maxDiff > 0) {
-                            edgeLabel = `+${Math.round(maxDiff)}¢`;
-                            edgeColor = 'text-ink-accent bg-ink-accent/10 px-1.5 py-0.5 rounded';
-                         }
-                     }
+                // 3. Check Total
+                const pT = parseFloat(sharp.totalLine);
+                const sT = parseFloat(line.totalLine);
+                if (!isNaN(pT) && !isNaN(sT)) {
+                  const noVig = calculateNoVigProb(sharp.totalOddsOver, sharp.totalOddsUnder);
+                  // Check OVER
+                  const adjOver = getAdjustedProb(noVig.probA, pT - sT, game.sport, 'Total');
+                  const edgeOver = adjOver - americanToImpliedProb(line.totalOddsOver);
+                  // Check UNDER
+                  const adjUnder = getAdjustedProb(noVig.probB, sT - pT, game.sport, 'Total');
+                  const edgeUnder = adjUnder - americanToImpliedProb(line.totalOddsUnder);
+                  
+                  const bestTotalEdge = Math.max(edgeOver, edgeUnder);
+                  if (bestTotalEdge > 0) {
+                    results.push({ edge: bestTotalEdge, label: `+${Math.round(Math.abs(sT - pT)*10)/10}` });
+                  }
+                  if (sT !== pT) totalBetter = true;
+                }
+
+                // Pick the best mathematical edge for the label
+                const best = results.sort((a, b) => b.edge - a.edge)[0];
+                if (best && best.edge > 0.1) {
+                  edgeLabel = best.label === '+0' ? `+${Math.round(best.edge)}¢` : best.label;
+                  edgeColor = 'text-status-win font-bold bg-status-win/10 px-1.5 py-0.5 rounded';
                 }
             }
 

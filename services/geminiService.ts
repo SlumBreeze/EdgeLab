@@ -17,32 +17,101 @@ import { calculateNoVig3Way } from "../utils/edgeUtils";
 export const getAiClient = () =>
   new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
 
+type AiTaskType = "scan" | "analysis";
+const MAX_AI_CALL_TIMEOUT_MS = 90000;
+const MIN_NEXT_MATCHUP_DELAY_MS = 2000;
+const MAX_NEXT_MATCHUP_DELAY_MS = 5000;
+
+const aiQueue: Array<{
+  type: AiTaskType;
+  run: () => Promise<any>;
+  resolve: (value: any) => void;
+  reject: (reason?: any) => void;
+}> = [];
+
+let aiWorkerRunning = false;
+let aiStatus: "idle" | "scanning" | "analyzing" = "idle";
+let aiTaskExecutionDepth = 0;
+
+const getAiStatus = () => aiStatus;
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const getNextMatchupDelayMs = () =>
+  Math.floor(
+    MIN_NEXT_MATCHUP_DELAY_MS +
+      Math.random() * (MAX_NEXT_MATCHUP_DELAY_MS - MIN_NEXT_MATCHUP_DELAY_MS + 1),
+  );
+
+const enqueueAiTask = <T>(type: AiTaskType, run: () => Promise<T>): Promise<T> => {
+  // Prevent deadlock: if we're already executing an AI task, run nested work inline.
+  if (aiTaskExecutionDepth > 0) {
+    return run();
+  }
+
+  return new Promise<T>((resolve, reject) => {
+    aiQueue.push({ type, run, resolve, reject });
+    void processAiQueue();
+  });
+};
+
+const processAiQueue = async () => {
+  if (aiWorkerRunning) return;
+  aiWorkerRunning = true;
+  try {
+    while (aiQueue.length > 0) {
+      // Prioritize scans ahead of analysis
+      const nextIndex = aiQueue.findIndex((task) => task.type === "scan");
+      const task = nextIndex >= 0 ? aiQueue.splice(nextIndex, 1)[0] : aiQueue.shift()!;
+      aiStatus = task.type === "scan" ? "scanning" : "analyzing";
+      try {
+        aiTaskExecutionDepth += 1;
+        const result = await task.run();
+        task.resolve(result);
+      } catch (err) {
+        task.reject(err);
+      } finally {
+        aiTaskExecutionDepth = Math.max(0, aiTaskExecutionDepth - 1);
+      }
+
+      // Throttle between matchups to reduce provider rate spikes.
+      if (task.type === "analysis" && aiQueue.length > 0) {
+        const delayMs = getNextMatchupDelayMs();
+        console.log(`[Gemini Queue] Cooling down ${delayMs}ms before next matchup.`);
+        await sleep(delayMs);
+      }
+    }
+  } finally {
+    aiWorkerRunning = false;
+    aiStatus = "idle";
+  }
+};
+
 export const getSystemPrompt = (persona?: UserPersona) => `
-You are the Professional AI Handicapper. You analyze sports games with the rigor of a seasoned pro, treating mathematical edge (EV) as your floor and qualitative data (stats, rosters, news) as your ceiling.
+You are the Professional AI Handicapper. Your goal is to identify the BEST side of every game. You treat mathematical edge (EV) as a key signal, but you prioritize finding a winning play using the full synthesis of stats, rosters, and news.
 
 PERSONA SETTINGS:
-- **Operational Mode:** ${persona?.volume_mode || 'Standard'} (If High Action, prioritize finding the best side. If High Precision, be extremely selective).
+- **Operational Mode:** ${persona?.volume_mode || 'Standard'} (If High Action, you MUST find a side for every game. If High Precision, be slightly more selective but aim for maximum slate coverage).
 - **Risk Tolerance:** ${persona?.risk_tolerance || 'Balanced'} (Influences unit sizing and confidence).
 - **Mathematical Thresholds:** Min Edge: ${persona?.min_edge_percentage || 0.1}%, Max Odds: ${persona?.max_odds_american || -175}.
+- **Decision Mode:** ${persona?.decision_mode || 'MATH_STRICT'} (MATH_STRICT respects EV; HYBRID_PRO and QUALITATIVE_PRO prioritize situational/narrative edges over raw juice).
 
 CORE PRINCIPLES:
-- **Math & Logic Synthesis:** A bet is only "Playable" if it has a mathematical edge OR a high-probability justification based on verified data.
+- **Always Find a Play:** There is a "best" side to every game. Unless there is literally NO data available, do not return PASS. Use stats, matchups, and roster integrity to determine who has the higher probability of winning or covering.
+- **Math & Logic Synthesis:** Use the provided rosters and situational data to find edges that the market (Pinnacle) might be missing. If math is negative but rosters are dominant, it's a "Playable" side.
 - **Ground Truth Dominance:** You MUST use the provided roster and player data to verify your claims. Never hallucinate player/team pairings.
 - **Favorite Evaluation:** Respect the user's Max Odds threshold (${persona?.max_odds_american || -175}). If a favorite is within this price, has a dominant statistical matchup, and verified roster integrity, they are "Playable."
-- **Narrative vs. Data:** Distinguish between media hype ("must-win") and data-backed advantages (rest disparity, tactical matchups).
 
 STRATEGIES:
-- **Roster Audit:** Check if impact players are active. A favorite missing their playmaker is a PASS.
+- **Roster Audit:** Use the verified rosters to identify mismatch opportunities.
 - **Matchup Dominance:** Look for statistical outliers (e.g., #1 Offense vs. #30 Defense).
 - **Situational Spots:** Flag travel fatigue, back-to-backs, and "Look Ahead" games.
 - **Trap Detection:** Call out "Reverse Line Movement" (RLM) where public volume doesn't match the price action.
 
 OUTPUT:
 Return strict JSON with:
-recommendation (BET | PASS | LEAN)
+recommendation (BET | LEAN | PASS) - Use PASS only if data is missing.
 confidence (0-100)
 reasoning (max 2 sentences; blunt, data-only)
-handicapper_logic (1-2 sentences; explain WHY this is playable using rosters/stats/situational data)
+handicapper_logic (1-2 sentences; explain WHY this side is the best play using rosters/stats/situational data)
 trueProbability (number, win %)
 impliedProbability (number, % from odds)
 edge (number, true - implied)
@@ -275,30 +344,83 @@ const fileToBase64 = (file: File): Promise<string> => {
 export const generateWithFallback = async (
   models: string[],
   paramsWithoutModel: any,
+  options?: { disableFallback?: boolean; timeoutMs?: number }
 ) => {
-  const ai = getAiClient();
-  // FORCE Gemini Pro 3 if specified in models or as a mandate
-  const targetModels = models.includes("gemini-3-pro-preview") 
-    ? ["gemini-3-pro-preview"] 
-    : models;
+  const ai = geminiService.getAiClient();
+  
+  const disableFallback = options?.disableFallback === true;
+
+  // MANDATE: Strict Gemini 3 Pro -> Gemini 3 Flash fallback (unless disabled)
+  const mandateModels = ["gemini-3-pro-preview", "gemini-3-flash-preview"];
+  
+  // Use mandate models if the requested list contains a Pro or Flash variant
+  const targetModels = disableFallback
+    ? [models[0]]
+    : (models.some(m => m.includes("pro") || m.includes("flash"))
+        ? mandateModels
+        : models);
+
+  const timeoutFromOptions = options?.timeoutMs;
+  const TIMEOUT_MS =
+    Number.isFinite(timeoutFromOptions) && (timeoutFromOptions as number) > 0
+      ? Math.min(timeoutFromOptions as number, MAX_AI_CALL_TIMEOUT_MS)
+      : 45000;
 
   for (const model of targetModels) {
     try {
-      console.log(`[Gemini] Attempting generation with ${model}...`);
-      const resp = await ai.models.generateContent({
+      console.log(`[Gemini] Attempting generation with ${model}... (Timeout: ${TIMEOUT_MS}ms)`);
+      
+      const generationPromise = ai.models.generateContent({
         model: model,
         ...paramsWithoutModel,
       });
-      if (resp.text) return resp;
+
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error(`Timeout: ${model} failed to respond within ${TIMEOUT_MS}ms`)), TIMEOUT_MS)
+      );
+
+      const resp = await Promise.race([generationPromise, timeoutPromise]) as any;
+
+      // Robust response text extraction
+      let text = "";
+      if (typeof resp.text === "function") {
+        text = resp.text();
+      } else if (resp.text) {
+        text = resp.text;
+      } else if (resp.candidates?.[0]?.content?.parts?.[0]?.text) {
+        text = resp.candidates[0].content.parts[0].text;
+      }
+
+      if (text) {
+        console.log(`[Gemini] ${model} succeeded.`);
+        return { text };
+      }
+      
       console.warn(`[Gemini] ${model} returned empty text.`);
     } catch (e: any) {
-      console.warn(`[Gemini] ${model} failed:`, e.message || e);
-      // If it's the last model, throw
-      if (model === targetModels[targetModels.length - 1]) throw e;
+      const isTimeout = e?.message?.includes("Timeout");
+      if (isTimeout) {
+        e.code = "AI_TIMEOUT";
+      }
+      console.error(`[Gemini] ${model} ${isTimeout ? 'TIMED OUT' : 'FAILED'}:`, e.message || e);
+      
+      if (model === targetModels[targetModels.length - 1]) {
+        if (targetModels.length === 1) {
+          console.error(`[Gemini] ${model} failed. Aborting.`);
+        } else {
+          console.error(`[Gemini] All models failed. Aborting.`);
+        }
+        throw e;
+      }
+      
+      console.log(`[Gemini] Falling back to next available model...`);
     }
   }
   return { text: undefined };
 };
+
+export const isTimeoutError = (error: any) =>
+  error?.code === "AI_TIMEOUT" || error?.message?.includes("Timeout");
 
 const getReferenceLines = (gameId: string) => {
   if (typeof window === "undefined") return null;
@@ -523,7 +645,7 @@ export const extractLinesFromScreenshot = async (
   const base64 = await fileToBase64(file);
 
   const response = await geminiService.generateWithFallback(
-    ["gemini-3-flash-preview", "gemini-2.0-flash-exp"],
+    ["gemini-3-flash-preview"],
     {
       contents: {
         parts: [
@@ -709,7 +831,9 @@ export const analyzeGame = async (
     homeRoster?: SportsDbPlayer[];
   }
 ): Promise<AnalysisResult> => {
+  return enqueueAiTask("analysis", async () => {
   const edgeThreshold = persona?.min_edge_percentage ?? DEFAULT_EDGE_THRESHOLD;
+  const decisionMode = persona?.decision_mode || "MATH_STRICT";
 
   if (!game.sharpLines || game.softLines.length === 0) {
     return {
@@ -728,10 +852,10 @@ export const analyzeGame = async (
     return {
       decision: "PASS",
       vetoTriggered: true,
-      vetoReason: "NO_MARKET_DATA: No valid lines found.",
+      vetoReason: game.softLines.length === 0 ? "DATA_MISSING: Soft lines missing." : "NO_MARKET_DATA: No valid lines found.",
       recommendation: "PASS",
-      reasoning: "No valid market lines available.",
-      researchSummary: "No valid market lines available.",
+      reasoning: "Insufficient pricing data.",
+      researchSummary: "Insufficient pricing data.",
       confidenceScore: 0,
     };
   }
@@ -758,20 +882,24 @@ export const analyzeGame = async (
     return { ...s, trueProbability, impliedProbability, edge };
   });
 
-  const positiveEdgeCandidates = candidates
-    .filter((c) => c.edge > edgeThreshold)
-    .sort((a, b) => b.edge - a.edge);
+  const candidatePool = [...candidates]
+    .sort((a, b) => {
+    const lineDiff = Math.abs(b.lineValue) - Math.abs(a.lineValue);
+    if (lineDiff !== 0) return lineDiff;
+    const priceDiff = b.priceValue - a.priceValue;
+    if (priceDiff !== 0) return priceDiff;
+    return b.trueProbability - a.trueProbability;
+  });
 
-  if (positiveEdgeCandidates.length === 0) {
-    // Check if the overall best candidate had an edge <= threshold
-    const bestOverall = candidates.sort((a, b) => b.edge - a.edge)[0];
+  if (candidatePool.length === 0) {
+    const bestOverall = [...candidates].sort((a, b) => b.edge - a.edge)[0];
     return {
       decision: "PASS",
       vetoTriggered: true,
-      vetoReason: "NO_EDGE: No positive EV.",
+      vetoReason: "NO_MARKET_DATA: No valid lines found.",
       recommendation: "PASS",
-      reasoning: `Edge <= ${edgeThreshold}%.`,
-      researchSummary: `Edge <= ${edgeThreshold}%.`,
+      reasoning: "No valid lines found.",
+      researchSummary: "No valid lines found.",
       confidenceScore: 0,
       trueProbability: bestOverall?.trueProbability ?? 0,
       impliedProbability: bestOverall?.impliedProbability ?? 0,
@@ -781,11 +909,11 @@ export const analyzeGame = async (
   }
 
   // LIQUIDITY FILTER: Find the best candidate that actually has funds
-  let best = positiveEdgeCandidates[0];
+  let best = candidatePool[0];
   let fundedCandidate = null;
 
   if (balances) {
-    for (const cand of positiveEdgeCandidates) {
+    for (const cand of candidatePool) {
       const rec = getRecommendedBook([cand.bestSoftBook], balances);
       if (rec.book) {
         fundedCandidate = cand;
@@ -802,10 +930,10 @@ export const analyzeGame = async (
     return {
       decision: "PASS",
       vetoTriggered: true,
-      vetoReason: "INSUFFICIENT_FUNDS_FOR_EDGE: No funded books have +EV.",
+      vetoReason: "INSUFFICIENT_FUNDS: No funded books available for candidate plays.",
       recommendation: "PASS",
-      reasoning: "No funded books available with positive EV.",
-      researchSummary: "Liquidity Veto: All +EV books have $0.00 balance.",
+      reasoning: "No funded books available for available lines.",
+      researchSummary: "Liquidity Veto: Candidate books have insufficient balance.",
       confidenceScore: 0,
       trueProbability: best.trueProbability,
       impliedProbability: best.impliedProbability,
@@ -857,14 +985,15 @@ export const analyzeGame = async (
   }
 
   // Fetch qualitative context for AI context + UI display (no hard veto)
-  const context = await geminiService.quickScanGame(game);
+  // OPTIMIZATION: Skip redundant scan if already performed (e.g. from manual scan button)
+  const context = game.scanResult || await geminiService.quickScanGame(game, groundTruth);
 
-  const awayRosterStr = groundTruth?.awayRoster 
+  const awayRosterStr = (groundTruth?.awayRoster && groundTruth.awayRoster.length > 0)
     ? groundTruth.awayRoster.slice(0, 15).map(p => `${p.strPlayer} (${p.strPosition})`).join(", ")
-    : "Not provided.";
-  const homeRosterStr = groundTruth?.homeRoster 
+    : "NO VERIFIED ROSTER DATA AVAILABLE. DO NOT NAME SPECIFIC PLAYERS FOR THIS TEAM UNLESS YOU ARE CERTAIN FROM LIVE SEARCH.";
+  const homeRosterStr = (groundTruth?.homeRoster && groundTruth.homeRoster.length > 0)
     ? groundTruth.homeRoster.slice(0, 15).map(p => `${p.strPlayer} (${p.strPosition})`).join(", ")
-    : "Not provided.";
+    : "NO VERIFIED ROSTER DATA AVAILABLE. DO NOT NAME SPECIFIC PLAYERS FOR THIS TEAM UNLESS YOU ARE CERTAIN FROM LIVE SEARCH.";
 
   const prompt = `
 Matchup: ${game.awayTeam.name} at ${game.homeTeam.name}
@@ -873,6 +1002,8 @@ Sport: ${game.sport}
 Ground Truth Rosters (Verified):
 - ${game.awayTeam.name}: ${awayRosterStr}
 - ${game.homeTeam.name}: ${homeRosterStr}
+
+CRITICAL: Use the verified rosters above. If a team has "NO VERIFIED ROSTER DATA AVAILABLE", do not assume or invent player/team pairings. 
 
 Market: ${best.market}
 Side: ${best.side}
@@ -891,8 +1022,7 @@ Situational Context:
 Line Movement: ${lineMovement}
 
 Tasks:
-- Use search to find public betting % and line movement. If >80% public on one side and line moves opposite, call "Reverse Line Movement."
-- Cross-reference Situational Context with Ground Truth rosters to ensure the impact of injuries is correctly weighted.
+- Synthesize the provided Situational Context with Ground Truth rosters to ensure the impact of injuries is correctly weighted.
 - If Ground Truth rosters show a key player is active/present who was previously reported as doubtful, prioritize the Ground Truth data.
 - Reasoning max 2 sentences, blunt and data-only.
 - Handicapper Logic: 1-2 sentences synthesising math + ground truth + situational data.
@@ -907,12 +1037,12 @@ Return JSON only.
         contents: prompt,
         config: {
           systemInstruction: getSystemPrompt(persona),
-          tools: [{ googleSearch: {} }],
           responseMimeType: "application/json",
           responseSchema: stoicResponseSchema,
           temperature: 0.1,
         },
       },
+      { disableFallback: true, timeoutMs: 60000 },
     );
     analysis = cleanAndParseJson(response.text, {
       recommendation: "PASS",
@@ -924,20 +1054,68 @@ Return JSON only.
       wagerType: best.market,
       riskFactors: [],
     });
-  } catch (error) {
-    return {
-      decision: "PASS",
-      vetoTriggered: true,
-      vetoReason: "AI_ERROR: Stoic analysis failed.",
-      recommendation: "PASS",
-      reasoning: "AI error.",
-      researchSummary: "AI error.",
-      confidenceScore: 0,
-      trueProbability: best.trueProbability,
-      impliedProbability: best.impliedProbability,
-      edge: best.edge,
-      wagerType: best.market,
-    };
+  } catch (error: any) {
+    if (isTimeoutError(error)) {
+      try {
+        const retryResponse = await geminiService.generateWithFallback(
+          ["gemini-3-pro-preview"],
+          {
+            contents: prompt,
+            config: {
+              systemInstruction: getSystemPrompt(persona),
+              responseMimeType: "application/json",
+              responseSchema: stoicResponseSchema,
+              temperature: 0.1,
+            },
+          },
+          { disableFallback: true, timeoutMs: 30000 },
+        );
+        analysis = cleanAndParseJson(retryResponse.text, {
+          recommendation: "PASS",
+          confidence: 0,
+          reasoning: "No actionable edge.",
+          trueProbability: best.trueProbability,
+          impliedProbability: best.impliedProbability,
+          edge: best.edge,
+          wagerType: best.market,
+          riskFactors: [],
+        });
+      } catch (retryError: any) {
+        if (isTimeoutError(retryError)) {
+          const timeoutError = new Error("AI_TIMEOUT");
+          (timeoutError as any).code = "AI_TIMEOUT";
+          throw timeoutError;
+        }
+        return {
+          decision: "PASS",
+          vetoTriggered: true,
+          vetoReason: "AI_ERROR: Stoic analysis failed.",
+          recommendation: "PASS",
+          reasoning: "AI error.",
+          researchSummary: "AI error.",
+          confidenceScore: 0,
+          trueProbability: best.trueProbability,
+          impliedProbability: best.impliedProbability,
+          edge: best.edge,
+          wagerType: best.market,
+        };
+      }
+      // Retry succeeded, continue flow with parsed `analysis`.
+    } else {
+      return {
+        decision: "PASS",
+        vetoTriggered: true,
+        vetoReason: "AI_ERROR: Stoic analysis failed.",
+        recommendation: "PASS",
+        reasoning: "AI error.",
+        researchSummary: "AI error.",
+        confidenceScore: 0,
+        trueProbability: best.trueProbability,
+        impliedProbability: best.impliedProbability,
+        edge: best.edge,
+        wagerType: best.market,
+      };
+    }
   }
 
   // DATA QUALITY VETO: Cross-reference AI reasoning with Ground Truth
@@ -983,61 +1161,143 @@ Return JSON only.
     }
   }
 
-  const normalizedRec = normalizeRecommendation(analysis.recommendation);
-  const normalizedWagerType = normalizeWagerType(analysis.wagerType);
-  const confidenceScore = clampConfidence(analysis.confidence);
-  const reasoning = trimToTwoSentences(analysis.reasoning || "");
+    const normalizedRec = normalizeRecommendation(analysis.recommendation);
 
-  const finalRecommendation =
-    best.edge <= edgeThreshold || normalizedWagerType !== best.market
-      ? "PASS"
-      : normalizedRec;
+    const normalizedWagerType = normalizeWagerType(analysis.wagerType);
 
-  if (finalRecommendation === "PASS") {
-    console.log(`[DEBUG] analyzeGame returned PASS. Reasons:`, {
-      edgeBelowThreshold: best.edge <= edgeThreshold,
-      edge: best.edge,
-      threshold: edgeThreshold,
-      wagerTypeMismatch: normalizedWagerType !== best.market,
-      aiWagerType: normalizedWagerType,
-      bestMarket: best.market,
-      normalizedRec
-    });
-  }
+    const confidenceScore = clampConfidence(analysis.confidence);
 
-  const decision = finalRecommendation === "BET" ? "PLAYABLE" : "PASS";
-  const unitTier =
-    finalRecommendation === "BET"
-      ? getUnitTier(best.trueProbability, best.edge)
-      : null;
-  const summary = appendUnitNote(
-    reasoning || "Stoic: No narrative, math only.",
-    unitTier,
-  );
+    const reasoning = trimToTwoSentences(analysis.reasoning || "");
 
-  // Smart Wallet: Calculate recommended book based on liquidity
-  let recommendedBook: string | undefined;
-  let balanceStatus: "SUFFICIENT" | "LOW" | "CRITICAL" | undefined;
+    const maxOdds = persona?.max_odds_american ?? -160;
 
-  if (balances && finalRecommendation === "BET") {
-    const candidateBooks = [best.bestSoftBook];
-    const rec = getRecommendedBook(candidateBooks, balances);
-    if (rec.book) {
-      recommendedBook = rec.book;
-      balanceStatus = rec.status || undefined;
+    const bestOddsVal = normalizeToAmerican(best.bestSoftOdds);
+
+  
+
+    let finalRecommendation = normalizedRec;
+
+    
+
+    // LOGIC VETO 1: Max Odds (Hard Price Cap)
+
+    if (Number.isFinite(bestOddsVal) && bestOddsVal < maxOdds) {
+
+      finalRecommendation = "PASS";
+
     }
-  }
 
-  return {
-    decision,
-    vetoTriggered: finalRecommendation !== "BET",
-    vetoReason:
-      finalRecommendation === "PASS"
-        ? best.edge <= edgeThreshold
-          ? "NO_EDGE: No positive EV."
-          : "STOIC_PASS: No bet."
-        : undefined,
-    caution:
+  
+
+    if (finalRecommendation === "PASS" && normalizedRec !== "PASS") {
+
+      console.log(`[DEBUG] analyzeGame vetoed result. Reasons:`, {
+
+        oddsBelowLimit: Number.isFinite(bestOddsVal) ? bestOddsVal < maxOdds : false,
+
+        bestOddsVal,
+
+        maxOdds,
+
+        aiRecommendation: normalizedRec
+
+      });
+
+    }
+
+  
+
+    const decision = (finalRecommendation === "BET" || finalRecommendation === "LEAN") ? "PLAYABLE" : "PASS";
+
+    const unitTier =
+
+      finalRecommendation === "BET"
+
+        ? getUnitTier(best.trueProbability, best.edge)
+
+        : null;
+
+  
+
+    const summary = appendUnitNote(
+
+      reasoning || "Stoic: No narrative, math only.",
+
+      unitTier,
+
+    );
+
+  
+
+    // Smart Wallet: Calculate recommended book based on liquidity
+
+    let recommendedBook: string | undefined;
+
+    let balanceStatus: "SUFFICIENT" | "LOW" | "CRITICAL" | undefined;
+
+  
+
+    if (balances && finalRecommendation === "BET") {
+
+      const candidateBooks = [best.bestSoftBook];
+
+      const rec = getRecommendedBook(candidateBooks, balances);
+
+      if (rec.book) {
+
+        recommendedBook = rec.book;
+
+        balanceStatus = rec.status || undefined;
+
+      }
+
+    }
+
+  
+
+      return {
+
+  
+
+        decision,
+
+  
+
+        vetoTriggered: finalRecommendation === "PASS",
+
+  
+
+        vetoReason:
+
+  
+
+          finalRecommendation === "PASS"
+
+  
+
+            ? (Number.isFinite(bestOddsVal) && bestOddsVal < maxOdds)
+
+  
+
+              ? `JUICE_VETO: Recommended odds ${formatOddsForDisplay(bestOddsVal)} are worse than ${formatOddsForDisplay(maxOdds)} limit.`
+
+  
+
+              : "AI_PASS: AI did not find a playable side."
+
+  
+
+            : undefined,
+
+  
+
+        caution:
+
+  
+
+    
+
+  
       finalRecommendation === "LEAN" ? "Lean only: marginal edge." : undefined,
     recommendation: finalRecommendation,
     pick,
@@ -1070,6 +1330,7 @@ Return JSON only.
     recommendedBook,
     balanceStatus,
   };
+  });
 };
 
 export const refreshAnalysisMathOnly = (
@@ -1077,8 +1338,6 @@ export const refreshAnalysisMathOnly = (
   persona?: UserPersona,
   balances?: BookBalanceDisplay[],
 ): HighHitAnalysis => {
-  const edgeThreshold = persona?.min_edge_percentage ?? DEFAULT_EDGE_THRESHOLD;
-
   const prior = game.analysis;
   if (!prior) {
     return {
@@ -1126,16 +1385,22 @@ export const refreshAnalysisMathOnly = (
     return { ...s, trueProbability, impliedProbability, edge };
   });
 
-  const positiveEdgeCandidates = candidates
-    .filter((c) => c.edge > edgeThreshold)
-    .sort((a, b) => b.edge - a.edge);
+  const rankedCandidates = [...candidates]
+    .sort((a, b) => {
+    const lineDiff = Math.abs(b.lineValue) - Math.abs(a.lineValue);
+    if (lineDiff !== 0) return lineDiff;
+    const priceDiff = b.priceValue - a.priceValue;
+    if (priceDiff !== 0) return priceDiff;
+    return b.trueProbability - a.trueProbability;
+  });
 
-  if (positiveEdgeCandidates.length === 0) {
+  if (rankedCandidates.length === 0) {
     return {
       ...prior,
       decision: "PASS",
       vetoTriggered: true,
-      vetoReason: "NO_EDGE: No positive EV.",
+      vetoReason: "NO_MARKET_DATA: No valid lines found in refresh.",
+      recommendation: "PASS",
     };
   }
 
@@ -1143,7 +1408,7 @@ export const refreshAnalysisMathOnly = (
   let best = null;
 
   if (balances) {
-    for (const cand of positiveEdgeCandidates) {
+    for (const cand of rankedCandidates) {
       const rec = getRecommendedBook([cand.bestSoftBook], balances);
       if (rec.book) {
         best = cand;
@@ -1151,7 +1416,7 @@ export const refreshAnalysisMathOnly = (
       }
     }
   } else {
-    best = positiveEdgeCandidates[0];
+    best = rankedCandidates[0];
   }
 
   if (!best) {
@@ -1159,7 +1424,7 @@ export const refreshAnalysisMathOnly = (
       ...prior,
       decision: "PASS",
       vetoTriggered: true,
-      vetoReason: "INSUFFICIENT_FUNDS_FOR_EDGE: No funded books have +EV.",
+      vetoReason: "INSUFFICIENT_FUNDS: No funded books available for candidate plays.",
     };
   }
 
@@ -1256,7 +1521,12 @@ export const refreshAnalysisMathOnly = (
 
 export const quickScanGame = async (
   game: Game,
+  groundTruth?: {
+    awayRoster?: SportsDbPlayer[];
+    homeRoster?: SportsDbPlayer[];
+  }
 ): Promise<ScanResult> => {
+  return enqueueAiTask("scan", async () => {
   const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
   if (!apiKey) {
     return {
@@ -1275,11 +1545,24 @@ export const quickScanGame = async (
     day: "numeric",
   });
 
+  const awayRosterStr = (groundTruth?.awayRoster && groundTruth.awayRoster.length > 0)
+    ? groundTruth.awayRoster.slice(0, 15).map(p => `${p.strPlayer} (${p.strPosition})`).join(", ")
+    : "NO VERIFIED ROSTER DATA AVAILABLE. DO NOT NAME SPECIFIC PLAYERS FOR THIS TEAM UNLESS YOU ARE CERTAIN FROM LIVE SEARCH.";
+  const homeRosterStr = (groundTruth?.homeRoster && groundTruth.homeRoster.length > 0)
+    ? groundTruth.homeRoster.slice(0, 15).map(p => `${p.strPlayer} (${p.strPosition})`).join(", ")
+    : "NO VERIFIED ROSTER DATA AVAILABLE. DO NOT NAME SPECIFIC PLAYERS FOR THIS TEAM UNLESS YOU ARE CERTAIN FROM LIVE SEARCH.";
+
   const prompt = `
     Conduct a deep situational scan for ${game.awayTeam.name} vs ${game.homeTeam.name} (${game.sport}) on ${readableDate}.
     
+    Ground Truth Rosters (Verified):
+    - ${game.awayTeam.name}: ${awayRosterStr}
+    - ${game.homeTeam.name}: ${homeRosterStr}
+
+    CRITICAL: Use the verified rosters above. If a team has "NO VERIFIED ROSTER DATA AVAILABLE", do not assume or invent player/team pairings.
+
     Research:
-    1. Injuries: Who is OUT or Questionable?
+    1. Injuries: Who is OUT or Questionable? Cross-reference with Ground Truth rosters to ensure impact players are correctly identified.
     2. Situational Spot: Is this a back-to-back? Rest advantage? Travel fatigue?
     3. Expert Sentiment: What is the consensus from reputable beat writers and sharp handicappers? Are there any "trap" warnings?
     4. Game Script: How is the game likely to play out based on matchups?
@@ -1297,7 +1580,7 @@ export const quickScanGame = async (
 
   try {
     const response = await geminiService.generateWithFallback(
-      ["gemini-3-pro-preview"],
+      ["gemini-3-flash-preview"],
       {
         contents: prompt,
         config: {
@@ -1306,6 +1589,7 @@ export const quickScanGame = async (
           temperature: 0.2,
         },
       },
+      { disableFallback: true, timeoutMs: 45000 },
     );
 
     return cleanAndParseJson(response.text, {
@@ -1318,11 +1602,10 @@ export const quickScanGame = async (
     });
   } catch (e: any) {
     console.error("Quick scan failed (with search tool)", e);
-
-    // Fallback: try without googleSearch tool
+    // Fallback: retry without external tools
     try {
       const response = await geminiService.generateWithFallback(
-        ["gemini-3-pro-preview"],
+        ["gemini-3-flash-preview"],
         {
           contents: prompt,
           config: {
@@ -1330,18 +1613,31 @@ export const quickScanGame = async (
             temperature: 0.2,
           },
         },
+        { disableFallback: true, timeoutMs: 30000 },
       );
 
       return cleanAndParseJson(response.text, {
-        signal: "WHITE",
-        description: "Scan completed (fallback)",
+        signal: "WHITE", 
+        description: "Scan completed (retry)",
         injuryContext: "No injury data found.",
         situationalContext: "Standard rest.",
-        expertSentiment: "Sentiment unavailable.",
+        expertSentiment: "No expert consensus found.",
         gameScript: "No specific script detected."
       });
     } catch (fallbackError: any) {
-      console.error("Quick scan failed (fallback)", fallbackError);
+      console.error("Quick scan failed (retry)", fallbackError);
+      if (isTimeoutError(fallbackError)) {
+        return {
+          signal: "WHITE",
+          description: "Scan deferred: AI timeout",
+          injuryContext: "Unavailable",
+          situationalContext: "Unavailable",
+          expertSentiment: "Unavailable",
+          gameScript: "Unavailable",
+          deferred: true,
+          error: "AI_TIMEOUT"
+        };
+      }
       const message =
         (fallbackError?.message || e?.message || "Unknown error").slice(0, 120);
       return { 
@@ -1354,6 +1650,7 @@ export const quickScanGame = async (
       };
     }
   }
+  });
 };
 
 export const detectMarketDiff = (
@@ -1380,6 +1677,7 @@ export const detectMarketDiff = (
 // Create a named export object for internal spying
 export const geminiService = {
   getAiClient,
+  getAiStatus,
   getSystemPrompt,
   generateWithFallback,
   analyzeGame,

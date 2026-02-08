@@ -1,9 +1,7 @@
 import React, { useState } from "react";
 import { GameProvider, useGameContext } from "./hooks/useGameContext";
 import { ToastProvider } from "./components/Toast";
-import Scout from "./pages/Scout";
-import Queue from "./pages/Queue";
-import Card from "./pages/Card";
+import Main from "./pages/Main";
 import Tracker from "./pages/Tracker";
 import TrackerNewBet from "./pages/TrackerNewBet";
 import { BankrollModal } from "./components/BankrollModal";
@@ -91,9 +89,7 @@ const HeaderActions: React.FC<{
 
 const AppContent: React.FC = () => {
   const { addBet } = useGameContext();
-  const [activeTab, setActiveTab] = useState<
-    "scout" | "queue" | "card" | "tracker" | "tracker-new"
-  >("scout");
+  const [activeTab, setActiveTab] = useState<"main" | "tracker" | "tracker-new">("main");
   const [isBankrollOpen, setIsBankrollOpen] = useState(false);
   const [isPersonaOpen, setIsPersonaOpen] = useState(false);
   const [draftBet, setDraftBet] = useState<DraftBet | null>(null);
@@ -106,7 +102,7 @@ const AppContent: React.FC = () => {
   const handleBetAdded = async (bet: Bet) => {
     // Persist to Supabase via unified hook
     await addBet(bet);
-    setActiveTab("card"); // Return to Card page after logging bet
+    setActiveTab("main"); // Return to Main page after logging bet
     setDraftBet(null);
   };
 
@@ -120,19 +116,9 @@ const AppContent: React.FC = () => {
       {/* Main Content - All tabs stay mounted to preserve analysis queue state */}
       <main className="flex-1 pb-20 pt-20 relative">
         <div
-          className={activeTab === "scout" ? "block h-full" : "hidden h-full"}
+          className={activeTab === "main" ? "block h-full" : "hidden h-full"}
         >
-          <Scout />
-        </div>
-        <div
-          className={activeTab === "queue" ? "block h-full" : "hidden h-full"}
-        >
-          <Queue />
-        </div>
-        <div
-          className={activeTab === "card" ? "block h-full" : "hidden h-full"}
-        >
-          <Card onLogBet={handleLogBet} />
+          <Main onLogBet={handleLogBet} />
         </div>
         <div
           className={activeTab === "tracker" ? "block h-full" : "hidden h-full"}
@@ -146,7 +132,7 @@ const AppContent: React.FC = () => {
         >
           <TrackerNewBet
             draftBet={draftBet}
-            onBack={() => setActiveTab("card")}
+            onBack={() => setActiveTab("main")}
             onBetAdded={handleBetAdded}
           />
         </div>
@@ -164,46 +150,22 @@ const AppContent: React.FC = () => {
 
       {/* Bottom Navigation */}
       <nav className="fixed bottom-0 left-0 right-0 bg-ink-panel border-t border-ink-gray z-50 shadow-lg">
-        <div className="flex justify-around items-center h-16 max-w-lg mx-auto">
+        <div className="flex justify-center items-center gap-2 h-16 max-w-lg mx-auto">
           <button
-            onClick={() => setActiveTab("scout")}
-            className={`flex flex-col items-center justify-center w-full h-full transition-colors ${
-              activeTab === "scout"
+            onClick={() => setActiveTab("main")}
+            className={`flex flex-col items-center justify-center w-28 h-full transition-colors ${
+              activeTab === "main"
                 ? "text-ink-accent"
                 : "text-ink-text opacity-60"
             }`}
           >
             <span className="text-2xl mb-1">🔍</span>
-            <span className="text-xs font-medium">Scout</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab("queue")}
-            className={`flex flex-col items-center justify-center w-full h-full transition-colors ${
-              activeTab === "queue"
-                ? "text-ink-accent"
-                : "text-ink-text opacity-60"
-            }`}
-          >
-            <span className="text-2xl mb-1">📋</span>
-            <span className="text-xs font-medium">Queue</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab("card")}
-            className={`flex flex-col items-center justify-center w-full h-full transition-colors ${
-              activeTab === "card"
-                ? "text-ink-accent"
-                : "text-ink-text opacity-60"
-            }`}
-          >
-            <span className="text-2xl mb-1">🏆</span>
-            <span className="text-xs font-medium">Card</span>
+            <span className="text-xs font-medium">Main</span>
           </button>
 
           <button
             onClick={() => setActiveTab("tracker")}
-            className={`flex flex-col items-center justify-center w-full h-full transition-colors ${
+            className={`flex flex-col items-center justify-center w-28 h-full transition-colors ${
               activeTab === "tracker"
                 ? "text-ink-accent"
                 : "text-ink-text opacity-60"

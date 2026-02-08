@@ -27,8 +27,8 @@ describe('Hallucination Audit', () => {
     softLines: [
       {
         bookName: 'FanDuel',
-        mlOddsA: '+110',
-        mlOddsB: '-130',
+        mlOddsA: '+150', // Huge Edge
+        mlOddsB: '-180',
         spreadLineA: '+2',
         spreadOddsA: '-110',
         spreadLineB: '-2',

@@ -140,7 +140,7 @@ describe('analyzeGame with Liquidity Filter', () => {
     
     expect(result.decision).toBe('PASS');
     expect(result.vetoTriggered).toBe(true);
-    expect(result.vetoReason).toContain('INSUFFICIENT_FUNDS_FOR_EDGE');
+    expect(result.vetoReason).toContain('INSUFFICIENT_FUNDS: No funded books available');
   });
 });
 
@@ -197,7 +197,7 @@ describe('refreshAnalysisMathOnly with Liquidity Filter', () => {
     const result = geminiService.refreshAnalysisMathOnly(mockGame, undefined, unfundedBalances);
     
     expect(result.decision).toBe('PASS');
-    expect(result.vetoReason).toContain('INSUFFICIENT_FUNDS_FOR_EDGE');
+    expect(result.vetoReason).toContain('INSUFFICIENT_FUNDS: No funded books available');
   });
 
   it('should pivot in refresh to a funded +EV book', () => {

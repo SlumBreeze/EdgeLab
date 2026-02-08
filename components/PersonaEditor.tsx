@@ -15,7 +15,8 @@ const DEFAULT_PERSONA: UserPersona = {
   volume_mode: 'High Action',
   max_odds_american: -175,
   risk_tolerance: 'Balanced',
-  active_sports: ['NBA', 'NFL', 'MLB', 'NHL', 'SOCCER']
+  active_sports: ['NBA', 'NFL', 'MLB', 'NHL', 'SOCCER'],
+  decision_mode: 'MATH_STRICT'
 };
 
 export const PersonaEditor: React.FC<Props> = ({ isOpen, onClose }) => {
@@ -34,13 +35,23 @@ export const PersonaEditor: React.FC<Props> = ({ isOpen, onClose }) => {
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      const saved = await personaService.savePersona({ ...localPersona, user_id: userId });
+      const payload = { ...localPersona, user_id: userId };
+      const saved = await personaService.savePersona(payload);
       if (saved) {
         setPersona(saved);
-        onClose();
+      } else {
+        // Fallback: save locally even if Supabase fails or userId missing
+        setPersona(payload as UserPersona);
+        localStorage.setItem("edgelab_persona", JSON.stringify(payload));
       }
+      onClose();
     } catch (error) {
       console.error('Failed to save persona:', error);
+      // Local fallback to avoid blocking UX
+      const payload = { ...localPersona, user_id: userId };
+      setPersona(payload as UserPersona);
+      localStorage.setItem("edgelab_persona", JSON.stringify(payload));
+      onClose();
     } finally {
       setIsSaving(false);
     }
@@ -145,6 +156,36 @@ export const PersonaEditor: React.FC<Props> = ({ isOpen, onClose }) => {
                 />
               </div>
             </div>
+          </section>
+
+          {/* Decision Mode */}
+          <section className="space-y-4">
+            <div className="flex items-center gap-2 mb-2">
+              <Shield className="w-4 h-4 text-ink-accent" />
+              <h3 className="uppercase font-bold tracking-wider text-ink-text">Decision Mode</h3>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { key: 'MATH_STRICT', label: 'Math Strict' },
+                { key: 'HYBRID_PRO', label: 'Hybrid Pro' },
+                { key: 'QUALITATIVE_PRO', label: 'Qualitative Pro' }
+              ].map((mode) => (
+                <button
+                  key={mode.key}
+                  onClick={() => setLocalPersona({ ...localPersona, decision_mode: mode.key as UserPersona['decision_mode'] })}
+                  className={`p-2 border transition-all text-[10px] text-center ${
+                    (localPersona.decision_mode || 'MATH_STRICT') === mode.key
+                      ? 'bg-ink-accent text-ink-base border-ink-accent font-bold'
+                      : 'bg-ink-paper text-ink-text/40 border-ink-gray hover:border-ink-accent/50 hover:text-ink-text/60'
+                  }`}
+                >
+                  {mode.label.toUpperCase()}
+                </button>
+              ))}
+            </div>
+            <p className="text-[10px] text-ink-text/50 italic">
+              * Hybrid/Qualitative modes allow AI conviction to override strict EV gating.
+            </p>
           </section>
 
           {/* Risk Tolerance */}

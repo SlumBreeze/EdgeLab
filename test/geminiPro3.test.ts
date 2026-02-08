@@ -39,8 +39,8 @@ describe('Gemini Pro 3 Analysis', () => {
     addedAt: Date.now(),
     sharpLines: {
       bookName: 'Pinnacle',
-      mlOddsA: '+120',
-      mlOddsB: '-140',
+      mlOddsA: '+100',
+      mlOddsB: '-120',
       spreadLineA: '+3',
       spreadOddsA: '-110',
       spreadLineB: '-3',
@@ -52,8 +52,8 @@ describe('Gemini Pro 3 Analysis', () => {
     softLines: [
       {
         bookName: 'FanDuel',
-        mlOddsA: '+140',
-        mlOddsB: '-150',
+        mlOddsA: '+150', // Massive edge vs +100
+        mlOddsB: '-180',
         spreadLineA: '+3.5',
         spreadOddsA: '-110',
         spreadLineB: '-3.5',
@@ -74,7 +74,7 @@ describe('Gemini Pro 3 Analysis', () => {
     expect(result.decision).toBe('PLAYABLE');
     expect(result.handicapper_logic).toBeDefined();
     expect(result.handicapper_logic).toContain('Lebron is active');
-    expect(result.trueProbability).toBe(43.8);
+    expect(result.trueProbability).toBeCloseTo(47.8, 1);
   });
 
   it('should include ground truth in the prompt (verified via mock)', async () => {

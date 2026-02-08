@@ -66,7 +66,8 @@ export const SwipeableCard: React.FC<SwipeableCardProps> = ({
 
   const getThresholdPx = useCallback(() => {
     if (!containerRef.current) return 100;
-    return containerRef.current.offsetWidth * threshold;
+    const raw = containerRef.current.offsetWidth * threshold;
+    return Number.isFinite(raw) && raw > 0 ? raw : 100;
   }, [threshold]);
 
   // Touch Start (React Event - Passive OK)
@@ -161,14 +162,15 @@ export const SwipeableCard: React.FC<SwipeableCardProps> = ({
   };
 
   // Opacity Calcs
-  const leftActionOpacity = Math.min(
-    1,
-    Math.abs(Math.min(0, translateX)) / getThresholdPx(),
-  );
-  const rightActionOpacity = Math.min(
-    1,
-    Math.max(0, translateX) / getThresholdPx(),
-  );
+  const thresholdPx = getThresholdPx();
+  const leftActionOpacityRaw = Math.abs(Math.min(0, translateX)) / thresholdPx;
+  const rightActionOpacityRaw = Math.max(0, translateX) / thresholdPx;
+  const leftActionOpacity = Number.isFinite(leftActionOpacityRaw)
+    ? Math.max(0, Math.min(1, leftActionOpacityRaw))
+    : 0;
+  const rightActionOpacity = Number.isFinite(rightActionOpacityRaw)
+    ? Math.max(0, Math.min(1, rightActionOpacityRaw))
+    : 0;
 
   return (
     <div className="relative overflow-hidden rounded-2xl h-full">

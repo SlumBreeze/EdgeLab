@@ -8,6 +8,10 @@ const BASE_URL = 'https://api.the-odds-api.com/v4/sports';
 // Cache Duration: 60 minutes (keeps "Scout" free for an hour)
 const CACHE_DURATION = 60 * 60 * 1000; 
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const MAX_RETRIES = 2;
+const BASE_BACKOFF_MS = 800;
+
 const SPORT_KEYS: Record<Sport, string> = {
   'NBA': 'basketball_nba',
   'NFL': 'americanfootball_nfl',
@@ -20,13 +24,23 @@ const SPORT_KEYS: Record<Sport, string> = {
 };
 
 export const SOCCER_LEAGUE_KEYS = [
-  'soccer_epl',
-  'soccer_spain_la_liga',
-  'soccer_germany_bundesliga',
-  'soccer_italy_serie_a',
-  'soccer_france_ligue_one',
-  'soccer_uefa_champions_league'
+  'soccer_epl'
 ];
+
+const getSoccerLeagueKeys = () => {
+  if (typeof window === 'undefined') return SOCCER_LEAGUE_KEYS;
+  const override = localStorage.getItem('edgelab_soccer_leagues');
+  if (!override) return SOCCER_LEAGUE_KEYS;
+  try {
+    const parsed = JSON.parse(override);
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      return parsed.map((val) => String(val));
+    }
+  } catch {
+    // Ignore malformed overrides
+  }
+  return SOCCER_LEAGUE_KEYS;
+};
 
 // Filtered list based on user preference
 export const SOFT_BOOK_KEYS = [
@@ -114,39 +128,76 @@ const fetchOddsByLeagueKey = async (sportKey: string, forceRefresh = false): Pro
   const url = `${BASE_URL}/${sportKey}/odds?apiKey=${API_KEY}&regions=us,us2,eu,au&markets=h2h,spreads,totals&oddsFormat=american`;
   console.log(`[OddsService] Fetching: ${url.replace(API_KEY, 'HIDDEN')}`);
   
-  try {
-    const response = await fetch(url);
-    if (!response.ok) {
-      if (response.status === 401) {
-        console.warn("Odds API Key invalid or expired");
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt += 1) {
+    try {
+      const response = await fetch(url);
+      if (!response.ok) {
+        if (response.status === 401) {
+          console.warn("Odds API Key invalid or expired");
+          return [];
+        }
+        if (response.status === 404) {
+          console.warn(`[OddsService] League not found or not allowed: ${sportKey}`);
+          const cacheEntry = { timestamp: now, data: [] as any[] };
+          memoryCache[sportKey] = cacheEntry;
+          if (typeof window !== 'undefined') {
+            localStorage.setItem(storageKey, JSON.stringify(cacheEntry));
+          }
+          return [];
+        }
+        if (response.status === 429) {
+          const retryAfterHeader = response.headers.get("Retry-After");
+          const retryAfterSeconds = retryAfterHeader ? parseInt(retryAfterHeader, 10) : 0;
+          const backoff =
+            retryAfterSeconds > 0
+              ? retryAfterSeconds * 1000
+              : BASE_BACKOFF_MS * Math.pow(2, attempt) + Math.floor(Math.random() * 200);
+          console.warn(
+            `[OddsService] Rate limited for ${sportKey}. Backing off ${backoff}ms (attempt ${attempt + 1}/${MAX_RETRIES + 1})`,
+          );
+          if (attempt < MAX_RETRIES) {
+            await sleep(backoff);
+            continue;
+          }
+        }
+        return [];
       }
+      
+      const data = await response.json();
+      
+      // 3. Update Caches
+      const cacheEntry = { timestamp: now, data: data };
+      memoryCache[sportKey] = cacheEntry;
+      
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(storageKey, JSON.stringify(cacheEntry));
+      }
+      
+      return data;
+    } catch (error) {
+      if (attempt < MAX_RETRIES) {
+        const backoff = BASE_BACKOFF_MS * Math.pow(2, attempt) + Math.floor(Math.random() * 200);
+        console.warn(`[OddsService] Fetch failed for ${sportKey}. Retrying in ${backoff}ms...`, error);
+        await sleep(backoff);
+        continue;
+      }
+      console.error("Failed to fetch odds:", error);
       return [];
     }
-    
-    const data = await response.json();
-    
-    // 3. Update Caches
-    const cacheEntry = { timestamp: now, data: data };
-    memoryCache[sportKey] = cacheEntry;
-    
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(storageKey, JSON.stringify(cacheEntry));
-    }
-    
-    return data;
-  } catch (error) {
-    console.error("Failed to fetch odds:", error);
-    return [];
   }
+  return [];
 };
 
 export const fetchOddsForSport = async (sport: Sport, forceRefresh = false): Promise<any[]> => {
   if (sport === 'SOCCER') {
     console.log(`[OddsService] Fetching all soccer leagues...`);
-    const allSoccerOdds = await Promise.all(
-      SOCCER_LEAGUE_KEYS.map(key => fetchOddsByLeagueKey(key, forceRefresh))
-    );
-    const flattened = allSoccerOdds.flat();
+    const flattened: any[] = [];
+    const leagues = getSoccerLeagueKeys();
+    for (const key of leagues) {
+      const leagueOdds = await fetchOddsByLeagueKey(key, forceRefresh);
+      flattened.push(...leagueOdds);
+      await sleep(350);
+    }
     console.log(`[OddsService] Total soccer games found: ${flattened.length}`);
     return flattened;
   }
@@ -196,6 +247,7 @@ export const fetchAllSportsOdds = async (forceRefresh = false): Promise<Record<S
   
   for (const sport of sports) {
     results[sport] = await fetchOddsForSport(sport, forceRefresh);
+    await sleep(250);
   }
   
   console.log('[OddsService] Batch load complete.');

@@ -262,7 +262,5 @@ Analyze this sports betting screenshot and extract data.
    - Keep American odds as American (-110), Decimal as Decimal (1.91)
 `;
 
-// Queue timing: 60 seconds between analysis starts
-// This is measured from when one analysis STARTS, not when it completes.
-// If an analysis takes longer than 60 seconds, the next one starts immediately.
-export const ANALYSIS_QUEUE_DELAY_MS = 60000;
+// Queue timing: Minimal delay to prevent UI freezing
+export const ANALYSIS_QUEUE_DELAY_MS = 2000;

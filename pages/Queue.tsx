@@ -4,7 +4,9 @@ import {
   extractLinesFromScreenshot,
   quickScanGame,
   analyzeGame,
+  isTimeoutError,
 } from "../services/geminiService";
+import { sportsDbService } from "../services/sportsDbService";
 import QueuedGameCard from "../components/QueuedGameCard";
 import SwipeableCard from "../components/SwipeableCard";
 import {
@@ -50,6 +52,9 @@ export default function Queue() {
   const [analysisStartTime, setAnalysisStartTime] = useState<number | null>(
     null,
   );
+  const analysisRetryCounts = React.useRef<Record<string, number>>({});
+  const MAX_ANALYSIS_RETRIES = 2;
+  const RETRY_DELAY_MS = 5000;
 
   // Queue Processor
   useEffect(() => {
@@ -124,7 +129,7 @@ export default function Queue() {
         const lines = getBookmakerLines(data, key);
         if (lines) {
           const displayName = lines.bookName;
-          const isActiveBook = activeBookNames.some(
+          const isActiveBook = activeBookNames.length === 0 || activeBookNames.some(
             (name) =>
               name.toLowerCase().includes(displayName.toLowerCase()) ||
               displayName.toLowerCase().includes(name.toLowerCase()),
@@ -147,12 +152,24 @@ export default function Queue() {
         softLines: matchedSoftLines,
       });
 
-      // Step 5: Run v3 analysis
+      // Step 5: Fetch Ground Truth (Rosters) - Parallelized
+      const [awayRosterData, homeRosterData] = await Promise.all([
+        sportsDbService.getRosterByTeamName(game.awayTeam.name),
+        sportsDbService.getRosterByTeamName(game.homeTeam.name)
+      ]);
+      
+      const awayRoster = awayRosterData?.players || [];
+      const homeRoster = homeRosterData?.players || [];
+
+      // Step 6: Run v3 analysis
       const result = await analyzeGame({
         ...game,
         sharpLines: pinnacle,
         softLines: matchedSoftLines,
-      }, persona, bookBalances);
+      }, persona, bookBalances, {
+        awayRoster,
+        homeRoster
+      });
 
       updateGame(game.id, {
         analysis: result,
@@ -172,13 +189,32 @@ export default function Queue() {
       autoPickBestGames();
     } catch (error) {
       console.error(`Analysis failed for game ${gameId}:`, error);
-      // Update game with error state so the card can display the failure
-      const errorMessage =
-        error instanceof Error
-          ? error.message
-          : "Analysis failed. Try manual flow.";
-      updateGame(game.id, { analysisError: errorMessage, autoAnalyze: false });
-      toast.showError(`Analysis failed: ${errorMessage}`);
+      if (isTimeoutError(error)) {
+        const current = analysisRetryCounts.current[gameId] || 0;
+        if (current < MAX_ANALYSIS_RETRIES) {
+          analysisRetryCounts.current[gameId] = current + 1;
+          toast.showWarning(`AI timeout. Retrying (${current + 1}/${MAX_ANALYSIS_RETRIES})...`);
+          setTimeout(() => {
+            setAnalysisQueue((prev) =>
+              prev.includes(gameId) ? prev : [...prev, gameId],
+            );
+          }, RETRY_DELAY_MS);
+        } else {
+          updateGame(game.id, {
+            analysisError: "AI timeout after retries. Try manual flow.",
+            autoAnalyze: false,
+          });
+          toast.showError("AI timeout after retries.");
+        }
+      } else {
+        // Update game with error state so the card can display the failure
+        const errorMessage =
+          error instanceof Error
+            ? error.message
+            : "Analysis failed. Try manual flow.";
+        updateGame(game.id, { analysisError: errorMessage, autoAnalyze: false });
+        toast.showError(`Analysis failed: ${errorMessage}`);
+      }
     } finally {
       setActiveAnalysisId(null);
       // Note: Don't clear analysisStartTime here - the effect needs it to calculate next delay
@@ -321,7 +357,25 @@ export default function Queue() {
     }
 
     setAnalyzingIds((prev) => new Set(prev).add(gameId));
-    const result = await quickScanGame(game);
+    
+    // Fetch Ground Truth (Rosters)
+    const [awayData, homeData] = await Promise.all([
+      sportsDbService.getRosterByTeamName(game.awayTeam.name),
+      sportsDbService.getRosterByTeamName(game.homeTeam.name)
+    ]);
+    const awayRoster = awayData?.players || [];
+    const homeRoster = homeData?.players || [];
+
+    const result = await quickScanGame(game, { awayRoster, homeRoster });
+    if (result.deferred) {
+      toast.showWarning("Scan deferred (AI timeout).");
+      setAnalyzingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(gameId);
+        return next;
+      });
+      return;
+    }
     updateGame(gameId, {
       edgeSignal: result.signal,
       edgeDescription: result.description,
@@ -340,7 +394,18 @@ export default function Queue() {
 
     setAnalyzingIds((prev) => new Set(prev).add(gameId));
     try {
-      const result = await analyzeGame(game, persona, bookBalances);
+      // Fetch Ground Truth (Rosters)
+      const [awayData, homeData] = await Promise.all([
+        sportsDbService.getRosterByTeamName(game.awayTeam.name),
+        sportsDbService.getRosterByTeamName(game.homeTeam.name)
+      ]);
+      const awayRoster = awayData?.players || [];
+      const homeRoster = homeData?.players || [];
+
+      const result = await analyzeGame(game, persona, bookBalances, {
+        awayRoster,
+        homeRoster
+      });
       updateGame(gameId, { analysis: result });
 
       if (result.decision === "PLAYABLE") {

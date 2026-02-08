@@ -603,6 +603,57 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({
     let pickedCount = 0;
     let skippedCount = 0;
     const skipReasons: string[] = [];
+    const clamp = (value: number, min: number, max: number) =>
+      Math.max(min, Math.min(max, value));
+    const sportWeights: Record<
+      Sport,
+      { efficiency: number; market: number; situational: number; injury: number; regression: number }
+    > = {
+      NFL: { efficiency: 0.30, market: 0.28, situational: 0.22, injury: 0.10, regression: 0.10 },
+      NBA: { efficiency: 0.35, market: 0.20, situational: 0.20, injury: 0.17, regression: 0.08 },
+      MLB: { efficiency: 0.27, market: 0.20, situational: 0.25, injury: 0.10, regression: 0.18 },
+      NHL: { efficiency: 0.32, market: 0.22, situational: 0.22, injury: 0.10, regression: 0.14 },
+      SOCCER: { efficiency: 0.26, market: 0.24, situational: 0.26, injury: 0.12, regression: 0.12 },
+      NCAAB: { efficiency: 0.34, market: 0.20, situational: 0.22, injury: 0.14, regression: 0.10 },
+      NCAAF: { efficiency: 0.30, market: 0.24, situational: 0.24, injury: 0.10, regression: 0.12 },
+      Other: { efficiency: 0.30, market: 0.22, situational: 0.22, injury: 0.12, regression: 0.14 },
+    };
+    const getWinnerScore = (game: QueuedGame): number => {
+      const a = game.analysis;
+      if (!a) return 0;
+      const weights = sportWeights[game.sport] || sportWeights.Other;
+
+      const prob = a.recProbability ?? a.trueProbability ?? 50;
+      const confidenceScore = a.confidenceScore ?? 50;
+      const efficiency = clamp(prob * 0.6 + confidenceScore * 0.4, 0, 100);
+
+      const pointsValue = Math.min(Math.abs(a.lineValuePoints || 0), 3) / 3;
+      const priceValue = Math.min(Math.max(a.lineValueCents || 0, 0), 30) / 30;
+      const market = clamp(pointsValue * 60 + priceValue * 40, 0, 100);
+
+      const signal = scanResults[game.id]?.signal || game.edgeSignal || "WHITE";
+      let situational = signal === "RED" ? 85 : signal === "YELLOW" ? 72 : 58;
+      if (a.trapAlert) situational -= 12;
+      if (a.riskFactors?.length) situational -= Math.min(10, a.riskFactors.length * 2);
+      situational = clamp(situational, 0, 100);
+
+      const injuryContext =
+        scanResults[game.id]?.injuryContext || game.scanResult?.injuryContext || "";
+      let injury = 55;
+      if (/out|questionable|doubtful|injur/i.test(injuryContext)) injury = 72;
+      if (/unavailable|no injury data/i.test(injuryContext)) injury = 45;
+
+      const edge = a.edge ?? 0;
+      const regression = clamp((edge + 5) * 10, 0, 100);
+
+      return (
+        efficiency * weights.efficiency +
+        market * weights.market +
+        situational * weights.situational +
+        injury * weights.injury +
+        regression * weights.regression
+      );
+    };
 
     setQueue((prev) => {
       const reset = prev.map((g) =>
@@ -627,49 +678,93 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({
         return true;
       });
 
-      // STEP 2: Quality-based selection - only pick games that meet thresholds
+      // STEP 2: Selection strategy depends on persona decision mode
       const qualityPicks: QueuedGame[] = [];
       const skippedPicks: QueuedGame[] = [];
+      const decisionMode = persona?.decision_mode || "MATH_STRICT";
+      const targetMinPicks = 3;
+      const targetMaxPicks = Math.min(5, MAX_DAILY_PLAYS);
 
       playable.forEach((g) => {
         const a = g.analysis!;
         const linePoints = a.lineValuePoints || 0;
         const juiceCents = a.lineValueCents || 0;
         const confidence = a.confidence || "MEDIUM";
+        const confidenceScore = a.confidenceScore || 0;
 
-        // Use shared logic from edgeUtils
-        const isPremium = isPremiumEdge(
-          linePoints,
-          juiceCents,
-          confidence,
-          g.sport,
-          g.analysis?.market,
-        );
-        const isStandard = isStandardEdge(
-          linePoints,
-          juiceCents,
-          g.sport,
-          g.analysis?.market,
-        );
-
-        // Only auto-pick if it meets at least STANDARD threshold
-        if (isPremium || isStandard) {
-          qualityPicks.push(g);
-        } else {
-          skippedPicks.push(g);
-          const teamName = g.awayTeam.name;
-          skipReasons.push(
-            `${teamName}: No meaningful edge (${linePoints} pts, ${juiceCents}¢)`,
+        if (decisionMode === "MATH_STRICT") {
+          // Use shared logic from edgeUtils
+          const isPremium = isPremiumEdge(
+            linePoints,
+            juiceCents,
+            confidence,
+            g.sport,
+            g.analysis?.market,
           );
+          const isStandard = isStandardEdge(
+            linePoints,
+            juiceCents,
+            g.sport,
+            g.analysis?.market,
+          );
+          if (isPremium || isStandard) {
+            qualityPicks.push(g);
+          } else {
+            skippedPicks.push(g);
+            const teamName = g.awayTeam.name;
+            skipReasons.push(
+              `${teamName}: No meaningful edge (${linePoints} pts, ${juiceCents}c)`,
+            );
+          }
+        } else {
+          const winnerScore = getWinnerScore(g);
+          const minWinnerScore = decisionMode === "HYBRID_PRO" ? 62 : 58;
+          if (
+            (a.recommendation === "BET" || a.decision === "PLAYABLE") &&
+            winnerScore >= minWinnerScore
+          ) {
+            qualityPicks.push(g);
+          } else {
+            skippedPicks.push(g);
+            const teamName = g.awayTeam.name;
+            skipReasons.push(
+              `${teamName}: Winner score ${winnerScore.toFixed(1)} below ${minWinnerScore} for ${decisionMode}.`,
+            );
+          }
         }
       });
 
+      if (decisionMode !== "MATH_STRICT" && qualityPicks.length < targetMinPicks) {
+        const fallbackPool = playable
+          .filter((g) => !qualityPicks.includes(g))
+          .filter((g) => getWinnerScore(g) >= 55)
+          .sort((a, b) => getWinnerScore(b) - getWinnerScore(a));
+
+        for (const g of fallbackPool) {
+          if (qualityPicks.length >= targetMinPicks) break;
+          qualityPicks.push(g);
+          skipReasons.push(`${g.awayTeam.name}: Included to meet minimum playable volume.`);
+        }
+      }
+
       skippedCount = skippedPicks.length;
 
-      // STEP 3: Market-aware sort (best first)
+      // STEP 3: Sort candidates by strategy
       qualityPicks.sort((a, b) => {
         const ap = a.analysis!;
         const bp = b.analysis!;
+
+        if (decisionMode !== "MATH_STRICT") {
+          const winnerScoreDiff = getWinnerScore(b) - getWinnerScore(a);
+          if (winnerScoreDiff !== 0) return winnerScoreDiff;
+          const confDiff = (bp.confidenceScore || 0) - (ap.confidenceScore || 0);
+          if (confDiff !== 0) return confDiff;
+          const probDiff = (bp.recProbability || 0) - (ap.recProbability || 0);
+          if (probDiff !== 0) return probDiff;
+          const edgeDiff = (bp.edge || 0) - (ap.edge || 0);
+          if (edgeDiff !== 0) return edgeDiff;
+          return a.id.localeCompare(b.id);
+        }
 
         // 1) Line value points (CLV priority)
         const pointDiff =
@@ -688,9 +783,10 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({
         return a.id.localeCompare(b.id);
       });
 
-      // STEP 4: Cap at MAX_DAILY_PLAYS for safety (but don't fill to it)
+      // STEP 4: Cap picks
+      const pickLimit = decisionMode === "MATH_STRICT" ? MAX_DAILY_PLAYS : targetMaxPicks;
       const finalPicks = qualityPicks
-        .slice(0, MAX_DAILY_PLAYS)
+        .slice(0, pickLimit)
         .map((g) => g.id);
       pickedCount = finalPicks.length;
 

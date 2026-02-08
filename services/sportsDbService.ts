@@ -39,6 +39,22 @@ const saveToCache = <T>(key: string, data: T) => {
   localStorage.setItem(key, JSON.stringify(entry));
 };
 
+const fetchWithTimeout = async (url: string, options: any = {}, timeout = 15000) => {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeout);
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal
+    });
+    clearTimeout(id);
+    return response;
+  } catch (error) {
+    clearTimeout(id);
+    throw error;
+  }
+};
+
 /**
  * Service to fetch verified sports data from TheSportsDB (v1).
  * Handles caching and rate-limiting for the free tier (30 RPM).
@@ -55,7 +71,7 @@ export const sportsDbService = {
     const url = `${BASE_URL}/searchteams.php?t=${encodeURIComponent(teamName)}`;
     
     try {
-      const response = await fetch(url);
+      const response = await fetchWithTimeout(url);
       if (response.status === 429) {
         console.warn('SportsDB rate limit exceeded');
         return null;
@@ -87,7 +103,7 @@ export const sportsDbService = {
     const url = `${BASE_URL}/lookup_all_players.php?id=${teamId}`;
 
     try {
-      const response = await fetch(url);
+      const response = await fetchWithTimeout(url);
       if (response.status === 429) {
         console.warn('SportsDB rate limit exceeded');
         return [];

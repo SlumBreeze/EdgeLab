@@ -69,7 +69,9 @@ describe('Scout Page Individual Reset', () => {
     },
     loadSlates: vi.fn(),
     isBatchProcessing: false,
-    batchProgress: { phase: 'IDLE', current: 0, total: 0, statusText: '' }
+    batchProgress: { phase: 'IDLE', current: 0, total: 0, statusText: '' },
+    getSportBatchProgress: vi.fn(() => ({ isProcessing: false, current: 0, total: 0 })),
+    getProcessableGamesForSport: vi.fn(() => [])
   };
 
   beforeEach(() => {

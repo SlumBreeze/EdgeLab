@@ -7,6 +7,7 @@ describe('Soccer Veto Logic', () => {
       sport: 'SOCCER',
       confidence: 'HIGH',
       narrativeAnalysis: "This is a massive Derby. Both teams are desperate and it's a must-win for the home side to stay in the title race. The rivalry is intense.",
+      handicapper_logic: "Math edge found but narrative is dominant. Professional check passed.",
       factsUsed: [
         { claim: "Arsenal vs Tottenham is a North London Derby", source_type: "ODDS_API", confidence: "HIGH" }
       ],
@@ -26,6 +27,7 @@ describe('Soccer Veto Logic', () => {
       sport: 'SOCCER',
       confidence: 'HIGH',
       narrativeAnalysis: "This North London Derby is a must-win. However, the edge is justified by the return of Bukayo Saka to the starting XI, providing a massive tactical boost against a rotated Spurs backline.",
+      handicapper_logic: "Tactical advantage found with key player returning. Professional check passed.",
       factsUsed: [
         { claim: "Saka returning from injury", source_type: "ODDS_API", confidence: "HIGH" }
       ],

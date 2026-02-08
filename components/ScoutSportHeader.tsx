@@ -1,5 +1,6 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Sport } from "../types";
+import { geminiService } from "../services/geminiService";
 
 interface ScoutSportHeaderProps {
   sport: Sport;
@@ -20,11 +21,32 @@ const ScoutSportHeader: React.FC<ScoutSportHeaderProps> = ({
   isProcessingSport,
   onProcessSport,
 }) => {
+  const [aiStatus, setAiStatus] = useState<"idle" | "scanning" | "analyzing">("idle");
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setAiStatus(geminiService.getAiStatus());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
   return (
     <div className="flex flex-col gap-1 mb-3">
       <div className="flex items-center gap-2">
         <span className="text-lg">{icon}</span>
         <h2 className="text-lg font-bold text-ink-text">{label}</h2>
+        <div className="flex items-center gap-2 text-[10px] uppercase tracking-wider font-mono text-ink-text/60 ml-2">
+          <span
+            className={`w-2 h-2 rounded-full ${
+              aiStatus === "idle"
+                ? "bg-ink-gray"
+                : aiStatus === "scanning"
+                  ? "bg-amber-400"
+                  : "bg-emerald-400"
+            }`}
+          />
+          <span>AI {aiStatus}</span>
+        </div>
         {(canProcessSport || isProcessingSport) && (
           <button
             onClick={() => onProcessSport(sport)}

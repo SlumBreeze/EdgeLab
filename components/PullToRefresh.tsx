@@ -94,7 +94,8 @@ export const PullToRefresh: React.FC<PullToRefreshProps> = ({
     setIsPulling(false);
     stateRef.current.canPull = false;
 
-    if (pullDistance >= pullThreshold) {
+    const thresholdToUse = Number.isFinite(pullThreshold) && pullThreshold > 0 ? pullThreshold : 80;
+    if (pullDistance >= thresholdToUse) {
       setIsRefreshing(true);
       setPullDistance(60);
       
@@ -111,8 +112,10 @@ export const PullToRefresh: React.FC<PullToRefreshProps> = ({
     }
   };
 
-  const pullProgress = Math.min(1, pullDistance / pullThreshold);
-  const isReady = pullDistance >= pullThreshold && !isRefreshing;
+  const safePullThreshold = Number.isFinite(pullThreshold) && pullThreshold > 0 ? pullThreshold : 80;
+  const pullProgressRaw = pullDistance / safePullThreshold;
+  const pullProgress = Number.isFinite(pullProgressRaw) ? Math.max(0, Math.min(1, pullProgressRaw)) : 0;
+  const isReady = pullDistance >= safePullThreshold && !isRefreshing;
   
   const [spinnerRotation, setSpinnerRotation] = useState(0);
   useEffect(() => {

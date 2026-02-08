@@ -1,0 +1,8 @@
+{
+  "track_id": "fix_hangs_ground_truth_20260208",
+  "type": "bug",
+  "status": "new",
+  "created_at": "2026-02-08T11:29:00Z",
+  "updated_at": "2026-02-08T11:29:00Z",
+  "description": "Fix process hangs in batch scans and complete Ground Truth integration using Gemini 3 Pro with Gemini 3 Flash fallback."
+}

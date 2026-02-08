@@ -509,18 +509,21 @@ const QueuedGameCard: React.FC<Props> = ({
             {/* Decision Header */}
             <div className="px-4 py-3 flex justify-between items-center">
               <div className="flex items-center gap-2">
-                <span className="font-bold text-sm flex items-center gap-2">
-                  {game.analysis.decision === 'PLAYABLE' ? '✅' : '⛔'} 
+                <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider border ${
+                  game.analysis.decision === 'PLAYABLE' 
+                    ? 'bg-status-win/10 text-status-win border-status-win/30' 
+                    : 'bg-ink-gray/20 text-ink-text/60 border-ink-gray/30'
+                }`}>
                   {game.analysis.decision}
                 </span>
                 {game.analysis.wagerType && (
-                  <span className="px-2 py-1 rounded bg-blue-900/50 text-blue-200 text-xs font-mono uppercase tracking-wider">
+                  <span className="px-2 py-1 rounded bg-blue-900/50 text-blue-200 text-[10px] font-mono uppercase tracking-wider">
                     {game.analysis.wagerType}
                   </span>
                 )}
               </div>
               {game.analysis.sharpImpliedProb && (
-                <span className="text-xs opacity-80 font-mono">
+                <span className="text-[10px] opacity-80 font-mono">
                   Fair: {game.analysis.sharpImpliedProb.toFixed(1)}%
                 </span>
               )}

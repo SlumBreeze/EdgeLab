@@ -7,6 +7,7 @@ export interface UserPersona {
   max_odds_american: number;
   risk_tolerance: string;
   active_sports: string[];
+  decision_mode?: "MATH_STRICT" | "HYBRID_PRO" | "QUALITATIVE_PRO";
   updated_at?: string;
 }
 

@@ -137,36 +137,42 @@ export const fetchDailyScores = async (dateStr: string): Promise<GameScore[]> =>
   const promises = Object.entries(ENDPOINTS).map(async ([sport, url]) => {
     const targetUrl = `${url}?dates=${apiDate}&limit=200`;
     
-    // Helper to fetch with timeout
-    const fetchWithTimeout = (url: string, timeout = 5000) => {
-        return Promise.race([
-            fetch(url),
-            new Promise<Response>((_, reject) => setTimeout(() => reject(new Error('Timeout')), timeout))
-        ]);
+    // Helper to fetch with timeout and proper cleanup
+    const fetchWithTimeout = async (url: string, timeout = 10000) => {
+        const controller = new AbortController();
+        const id = setTimeout(() => controller.abort(), timeout);
+        try {
+            const response = await fetch(url, { signal: controller.signal });
+            clearTimeout(id);
+            return response;
+        } catch (e) {
+            clearTimeout(id);
+            throw e;
+        }
     };
 
     try {
       // 1. Try direct fetch first
-      const res = await fetchWithTimeout(targetUrl);
+      const res = await fetchWithTimeout(targetUrl, 5000);
       if (!res.ok) throw new Error(`Direct fetch status: ${res.status}`);
       const data = await res.json();
       return parseEspnResponse(data, sport, dateStr);
 
     } catch (e) {
-      // 2. Fallback to AllOrigins
+      // 2. Fallback to CorsProxy.io (often more reliable than AllOrigins)
       try {
-        const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`;
-        const res = await fetchWithTimeout(proxyUrl);
-        if (!res.ok) throw new Error(`AllOrigins status: ${res.status}`);
+        const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
+        const res = await fetchWithTimeout(proxyUrl, 12000);
+        if (!res.ok) throw new Error(`CorsProxy status: ${res.status}`);
         const data = await res.json();
         return parseEspnResponse(data, sport, dateStr);
 
       } catch (proxyError) {
-        // 3. Fallback to CorsProxy.io
+        // 3. Fallback to AllOrigins
         try {
-            const proxyUrl2 = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
-            const res = await fetchWithTimeout(proxyUrl2);
-            if (!res.ok) throw new Error(`CorsProxy status: ${res.status}`);
+            const proxyUrl2 = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`;
+            const res = await fetchWithTimeout(proxyUrl2, 12000);
+            if (!res.ok) throw new Error(`AllOrigins status: ${res.status}`);
             const data = await res.json();
             return parseEspnResponse(data, sport, dateStr);
         } catch (finalError) {

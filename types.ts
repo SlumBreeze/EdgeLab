@@ -145,6 +145,8 @@ export interface ScanResult {
   situationalContext?: string;
   expertSentiment?: string;
   gameScript?: string;
+  deferred?: boolean;
+  error?: string;
 }
 
 export interface ReferenceLineData {
@@ -372,5 +374,6 @@ export interface UserPersona {
   max_odds_american: number;
   risk_tolerance: string;
   active_sports: string[];
+  decision_mode?: "MATH_STRICT" | "HYBRID_PRO" | "QUALITATIVE_PRO";
   updated_at?: string;
 }
