@@ -1,0 +1,96 @@
+export interface SportsDbTeam {
+  idTeam: string;
+  idSoccerXML?: string;
+  idAPIfootball?: string;
+  intLoved?: string;
+  strTeam: string;
+  strTeamShort?: string;
+  strAlternate: string;
+  intFormedYear: string;
+  strSport: string;
+  strLeague: string;
+  idLeague: string;
+  strLeague2?: string;
+  idLeague2?: string;
+  strLeague3?: string;
+  idLeague3?: string;
+  strDivision?: string;
+  strStadium: string;
+  strKeywords: string;
+  strRSS: string;
+  strStadiumThumb?: string;
+  strStadiumDescription?: string;
+  strStadiumLocation: string;
+  intStadiumCapacity: string;
+  strWebsite: string;
+  strFacebook: string;
+  strTwitter: string;
+  strInstagram: string;
+  strDescriptionEN: string;
+  strGender: string;
+  strCountry: string;
+  strTeamBadge: string;
+  strTeamJersey?: string;
+  strTeamLogo: string;
+  strTeamFanart1?: string;
+  strTeamFanart2?: string;
+  strTeamFanart3?: string;
+  strTeamFanart4?: string;
+  strTeamBanner?: string;
+  strYoutube: string;
+  strLocked: string;
+}
+
+export interface SportsDbPlayer {
+  idPlayer: string;
+  idTeam: string;
+  idTeam2?: string;
+  idTeamNational?: string;
+  idSoccerXML?: string;
+  idAPIfootball?: string;
+  idPlayerManager?: string;
+  strNationality: string;
+  strPlayer: string;
+  strPlayerAlternate?: string;
+  strTeam: string;
+  strTeam2?: string;
+  strSport: string;
+  intSoccerXMLTeamID?: string;
+  dateBorn: string;
+  strNumber?: string;
+  dateSigned?: string;
+  strSigning?: string;
+  strWage?: string;
+  strOutfieldPosition: string;
+  strRole?: string;
+  strStatus?: string;
+  strSide?: string;
+  strDescriptionEN: string;
+  strGender: string;
+  strSide?: string;
+  strPosition: string;
+  strCollege?: string;
+  strFacebook: string;
+  strWebsite: string;
+  strTwitter: string;
+  strInstagram: string;
+  strYoutube: string;
+  strHeight: string;
+  strWeight: string;
+  intLoved: string;
+  strThumb: string;
+  strCutout?: string;
+  strRender?: string;
+  strBanner?: string;
+  strFanart1?: string;
+  strFanart2?: string;
+  strFanart3?: string;
+  strFanart4?: string;
+  strCreativeCommons: string;
+  strLocked: string;
+}
+
+export interface SportsDbResponse<T> {
+  teams?: T[];
+  players?: T[];
+}
