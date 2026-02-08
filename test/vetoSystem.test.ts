@@ -74,6 +74,7 @@ describe('Veto System with Persona and Rebalancing', () => {
         recommendation: 'BET',
         confidence: 80,
         reasoning: 'Strong edge found.',
+        handicapper_logic: 'Roster is healthy and statistical edge is significant.',
         trueProbability: 60,
         impliedProbability: 55,
         edge: 5,
@@ -133,11 +134,86 @@ describe('Veto System with Persona and Rebalancing', () => {
         side: 'AWAY',
         market: 'Moneyline',
         softBestOdds: '-150',
-        sharpImpliedProb: 60
+        sharpImpliedProb: 60,
+        handicapper_logic: 'Too short.'
       } as AnalysisResult
     };
 
     const result = geminiService.refreshAnalysisMathOnly(analyzedGame, tightOddsPersona, mockBalances);
+    expect(result.decision).toBe('PASS');
+    expect(result.vetoReason).toContain('JUICE_VETO');
+  });
+
+  it('should allow favorites up to persona max_odds_american if logic is present', () => {
+    const tightPersona: UserPersona = {
+      user_id: '123',
+      min_edge_percentage: 0.1,
+      volume_mode: 'High Action',
+      max_odds_american: -160,
+      risk_tolerance: 'Balanced',
+      active_sports: ['NBA']
+    };
+
+    const strongGame = {
+      ...mockGame,
+      softLines: [
+        {
+          ...mockGame.softLines[0],
+          mlOddsA: '-150' // Within -160 limit
+        }
+      ]
+    };
+
+    const analyzedGame: QueuedGame = {
+      ...strongGame,
+      analysis: {
+        decision: 'PLAYABLE',
+        side: 'AWAY',
+        market: 'Moneyline',
+        softBestOdds: '-150',
+        sharpImpliedProb: 65,
+        handicapper_logic: 'Strong roster integrity and matchup dominance verified by ground truth.'
+      } as AnalysisResult
+    };
+
+    const result = geminiService.refreshAnalysisMathOnly(analyzedGame, tightPersona, mockBalances);
+    expect(result.decision).toBe('PLAYABLE');
+    expect(result.softBestOdds).toBe('-150');
+  });
+
+  it('should veto if odds are worse than persona max_odds_american regardless of logic', () => {
+    const tightPersona: UserPersona = {
+      user_id: '123',
+      min_edge_percentage: 0.1,
+      volume_mode: 'High Action',
+      max_odds_american: -160,
+      risk_tolerance: 'Balanced',
+      active_sports: ['NBA']
+    };
+
+    const strongButExpensiveGame = {
+      ...mockGame,
+      softLines: [
+        {
+          ...mockGame.softLines[0],
+          mlOddsA: '-170' // Worse than -160
+        }
+      ]
+    };
+
+    const analyzedGame: QueuedGame = {
+      ...strongButExpensiveGame,
+      analysis: {
+        decision: 'PLAYABLE',
+        side: 'AWAY',
+        market: 'Moneyline',
+        softBestOdds: '-170',
+        sharpImpliedProb: 75,
+        handicapper_logic: 'Strong roster integrity and matchup dominance verified by ground truth.'
+      } as AnalysisResult
+    };
+
+    const result = geminiService.refreshAnalysisMathOnly(analyzedGame, tightPersona, mockBalances);
     expect(result.decision).toBe('PASS');
     expect(result.vetoReason).toContain('JUICE_VETO');
   });

@@ -115,4 +115,21 @@ describe('sportsDbService', () => {
     expect(result?.players).toEqual(mockPlayers);
     expect(mockFetch).toHaveBeenCalledTimes(2);
   });
+
+  it('should not call API if data is in cache (avoiding rate limits)', async () => {
+    const mockTeam = { idTeam: '133604', strTeam: 'Arsenal' };
+    const cacheKey = 'sportsdb_cache_team_arsenal';
+    localStorageMock.setItem(cacheKey, JSON.stringify({
+      timestamp: Date.now(),
+      data: mockTeam
+    }));
+
+    // Call searchTeam 10 times
+    for (let i = 0; i < 10; i++) {
+      await sportsDbService.searchTeam('Arsenal');
+    }
+
+    // Should only have called fetch 0 times because it was already in cache
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
 });

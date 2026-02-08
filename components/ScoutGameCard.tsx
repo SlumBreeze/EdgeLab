@@ -115,10 +115,10 @@ const ScoutGameCard: React.FC<ScoutGameCardProps> = ({
                 className="w-full py-1.5 bg-ink-base hover:bg-ink-gray text-ink-text/80 hover:text-ink-text rounded-lg text-[10px] font-bold transition-colors flex items-center justify-center gap-1 border border-ink-gray"
               >
                 {isScanning ? (
-                  <span className="animate-pulse">Rescanning...</span>
+                  <span className="animate-pulse">Auditing...</span>
                 ) : (
                   <>
-                    <span className="text-[10px]">🔄</span> Rescan
+                    <span className="text-[10px]">🔄</span> Re-Audit
                   </>
                 )}
               </button>
@@ -128,6 +128,11 @@ const ScoutGameCard: React.FC<ScoutGameCardProps> = ({
                 🩹 {scan.injuryContext}
               </div>
             )}
+            {scan.situationalContext && scan.situationalContext !== "Standard rest." && scan.situationalContext !== "Unavailable" && (
+              <div className="text-[9px] text-ink-text/70 line-clamp-2 px-1">
+                📅 {scan.situationalContext}
+              </div>
+            )}
             {scan.expertSentiment && scan.expertSentiment !== "No expert consensus found." && scan.expertSentiment !== "Sentiment unavailable." && (
               <div className="text-[9px] text-ink-accent/70 line-clamp-2 px-1 italic">
                 💬 {scan.expertSentiment}
@@ -135,7 +140,7 @@ const ScoutGameCard: React.FC<ScoutGameCardProps> = ({
             )}
           </>
         ) : (
-          <button onClick={() => onQuickScan(gameObj)} disabled={isScanning || isBatchScanning} className="w-full py-1.5 bg-ink-base hover:bg-ink-gray text-ink-text/80 hover:text-ink-text rounded-lg text-[10px] font-bold transition-colors flex items-center justify-center gap-1 border border-ink-gray">{isScanning ? <span className="animate-pulse">Scanning...</span> : <><span className="text-[10px]">⚡</span> Scan Injuries</>}</button>
+          <button onClick={() => onQuickScan(gameObj)} disabled={isScanning || isBatchScanning} className="w-full py-1.5 bg-ink-base hover:bg-ink-gray text-ink-text/80 hover:text-ink-text rounded-lg text-[10px] font-bold transition-colors flex items-center justify-center gap-1 border border-ink-gray">{isScanning ? <span className="animate-pulse">Auditing...</span> : <><span className="text-[10px]">⚡</span> Handicapper Audit</>}</button>
         )}
       </div>
     </div>

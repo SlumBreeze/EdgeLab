@@ -339,7 +339,7 @@ export default function Scout() {
 
       for (const apiGame of gamesToScan) {
         count++;
-        setProgressText(`Scanning ${count}/${gamesToScan.length}...`);
+        setProgressText(`Auditing ${count}/${gamesToScan.length}...`);
         const sport = (apiGame._sport as Sport) || "NBA";
         const gameObj = mapToGameObject(apiGame, sport, null);
         try {
@@ -363,7 +363,7 @@ export default function Scout() {
         }
         await new Promise((r) => setTimeout(r, 600));
       }
-      toast.showSuccess(`Batch scan complete for ${count} games`);
+      toast.showSuccess(`Batch audit complete for ${count} games`);
     } finally {
       setBatchScanning(false);
       setProgressText("");
@@ -418,17 +418,17 @@ export default function Scout() {
       .map((g) => g.id);
 
     if (idsToReset.length === 0) {
-      toast.showInfo("No scans to reset in this window.");
+      toast.showInfo("No audits to reset in this window.");
       return;
     }
 
     if (
       window.confirm(
-        `Reset ${idsToReset.length} scans for ${getTimeWindowLabel(selectedWindow)}?`,
+        `Reset ${idsToReset.length} audits for ${getTimeWindowLabel(selectedWindow)}?`,
       )
     ) {
       clearScanResults(idsToReset);
-      toast.showSuccess(`Reset ${idsToReset.length} scans.`);
+      toast.showSuccess(`Reset ${idsToReset.length} audits.`);
     }
   };
 

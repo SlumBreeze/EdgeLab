@@ -2,6 +2,7 @@ import type { Fact, InjuryFact, Sport } from '../types.ts';
 
 export interface ValidationInput {
   narrativeAnalysis: string;
+  handicapper_logic?: string;
   factsUsed: Fact[];
   injuries: InjuryFact[];
   confidence?: 'HIGH' | 'MEDIUM' | 'LOW';
@@ -166,6 +167,17 @@ export const validateAnalysis = (input: ValidationInput): ValidationResult => {
     return {
       vetoTriggered: true,
       vetoReason: 'NARRATIVE_DOMINANCE',
+      dominanceRatio,
+      adjustedConfidence: input.confidence || 'MEDIUM',
+      factConfidence: 'LOW'
+    };
+  }
+
+  // Professional Logic Check
+  if (!input.handicapper_logic || input.handicapper_logic.length < 20) {
+    return {
+      vetoTriggered: true,
+      vetoReason: 'INSUFFICIENT_PROFESSIONAL_LOGIC',
       dominanceRatio,
       adjustedConfidence: input.confidence || 'MEDIUM',
       factConfidence: 'LOW'

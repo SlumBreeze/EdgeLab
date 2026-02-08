@@ -61,9 +61,23 @@ export const CompactSoftLines: React.FC<Props> = ({
                     edgeColor = 'text-status-win font-bold bg-status-win/10 px-1.5 py-0.5 rounded';
                 }
                 
-                // Total Highlight if different
-                const totalDiff = Math.abs(parseFloat(line.totalLine) - parseFloat(sharp.totalLine));
-                if (totalDiff > 0) totalBetter = true;
+                // Total Edge Check
+                const sTotal = parseFloat(line.totalLine);
+                const pTotal = parseFloat(sharp.totalLine);
+                
+                if (!isNaN(sTotal) && !isNaN(pTotal)) {
+                    if (sTotal !== pTotal) {
+                        totalBetter = true;
+                        const diff = Math.round(Math.abs(sTotal - pTotal) * 10) / 10;
+                        
+                        // Determine if beneficial
+                        // OVER: lower line is better. UNDER: higher line is better.
+                        // For display, we highlight if there is ANY point diff, 
+                        // but we label it more clearly.
+                        edgeLabel = `+${diff}`;
+                        edgeColor = 'text-status-win font-bold bg-status-win/10 px-1.5 py-0.5 rounded';
+                    }
+                }
 
                 // Juice Check if no point edge
                 if (edgeLabel === '—') {

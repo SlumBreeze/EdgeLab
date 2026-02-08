@@ -307,6 +307,19 @@ export default function Queue() {
     const game = queue.find((g) => g.id === gameId);
     if (!game) return;
 
+    // If already has a signal, clear it (Reset)
+    if (game.edgeSignal) {
+      updateGame(gameId, {
+        edgeSignal: undefined,
+        edgeDescription: undefined,
+        scanResult: undefined,
+        analysis: undefined,
+        analysisError: undefined
+      });
+      toast.showInfo("Audit data reset.");
+      return;
+    }
+
     setAnalyzingIds((prev) => new Set(prev).add(gameId));
     const result = await quickScanGame(game);
     updateGame(gameId, {

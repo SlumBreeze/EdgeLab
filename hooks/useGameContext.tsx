@@ -617,6 +617,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({
 
         // JUICE VETO: Use persona limit or fallback to -160
         const oddsLimit = persona?.max_odds_american ?? -160;
+
         const oddsStr = g.analysis.softBestOdds;
         const oddsVal = parseFloat(oddsStr);
         if (!isNaN(oddsVal) && oddsVal < oddsLimit) {

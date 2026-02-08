@@ -98,6 +98,7 @@ export interface AnalysisResult {
   // Pro Analysis Fields
   publicNarrative?: string; // The "story" the public is betting on
   gameScript?: string; // Expected game flow (pace, style)
+  handicapper_logic?: string; // AI-provided professional justification
 
   // AI-provided context (narrative only, no numbers)
   market?: string;

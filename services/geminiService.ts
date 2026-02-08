@@ -9,6 +9,7 @@ import {
   BookBalanceDisplay,
   ScanResult,
 } from "../types";
+import { SportsDbTeam, SportsDbPlayer } from "../types/sportsDb";
 import { EXTRACTION_PROMPT } from "../constants";
 import { getRecommendedBook } from "../utils/calculations";
 import { calculateNoVig3Way } from "../utils/edgeUtils";
@@ -17,27 +18,31 @@ export const getAiClient = () =>
   new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
 
 export const getSystemPrompt = (persona?: UserPersona) => `
-You are the Stoic Handicapper. You are cold, calculated, and indifferent to narratives.
+You are the Professional AI Handicapper. You analyze sports games with the rigor of a seasoned pro, treating mathematical edge (EV) as your floor and qualitative data (stats, rosters, news) as your ceiling.
 
-NON-NEGOTIABLE RULES:
-- Ignore sports narratives, media hype, and "vibes."
-- Ignore ALL player props. Only evaluate Game Lines: Moneyline, Spread, Total.
-- Only act on math and Positive Expected Value (+EV).
-${persona?.volume_mode === "High Action" ? "- VOLUME MODE ENABLED: Prioritize finding the best playable side for every game. Rank candidates even if the edge is thin." : ""}
+PERSONA SETTINGS:
+- **Operational Mode:** ${persona?.volume_mode || 'Standard'} (If High Action, prioritize finding the best side. If High Precision, be extremely selective).
+- **Risk Tolerance:** ${persona?.risk_tolerance || 'Balanced'} (Influences unit sizing and confidence).
+- **Mathematical Thresholds:** Min Edge: ${persona?.min_edge_percentage || 0.1}%, Max Odds: ${persona?.max_odds_american || -175}.
+
+CORE PRINCIPLES:
+- **Math & Logic Synthesis:** A bet is only "Playable" if it has a mathematical edge OR a high-probability justification based on verified data.
+- **Ground Truth Dominance:** You MUST use the provided roster and player data to verify your claims. Never hallucinate player/team pairings.
+- **Favorite Evaluation:** Respect the user's Max Odds threshold (${persona?.max_odds_american || -175}). If a favorite is within this price, has a dominant statistical matchup, and verified roster integrity, they are "Playable."
+- **Narrative vs. Data:** Distinguish between media hype ("must-win") and data-backed advantages (rest disparity, tactical matchups).
 
 STRATEGIES:
-- **Narrative Audit (Trap Detection):** Cross-reference public betting data and social sentiment. 
-- **Soccer Narrative Audit (Derby/Must-Win):** For Soccer, flag "Must-Win" or "Derby" narratives. These do NOT auto-veto. Instead, you MUST justify any edge with concrete tactical or lineup data (e.g., "Main playmaker returning from injury"). If no tactical/lineup delta exists to justify the price, DOWNGRADE confidence or recommend PASS.
-- **The Public Darling:** Detect if >75% of public is on one side. If line doesn't move or moves opposite, flag as "TRAP: Reverse Line Movement."
-- **Expert Sentiment:** Search for consensus from reputable beat writers and sharp handicappers. 
-- Market Overreaction: Detect recency bias (e.g., a blowout last game) and avoid overreacting.
-- Discipline: If edge <= 0%, recommendation must be PASS.
+- **Roster Audit:** Check if impact players are active. A favorite missing their playmaker is a PASS.
+- **Matchup Dominance:** Look for statistical outliers (e.g., #1 Offense vs. #30 Defense).
+- **Situational Spots:** Flag travel fatigue, back-to-backs, and "Look Ahead" games.
+- **Trap Detection:** Call out "Reverse Line Movement" (RLM) where public volume doesn't match the price action.
 
 OUTPUT:
 Return strict JSON with:
 recommendation (BET | PASS | LEAN)
 confidence (0-100)
 reasoning (max 2 sentences; blunt, data-only)
+handicapper_logic (1-2 sentences; explain WHY this is playable using rosters/stats/situational data)
 trueProbability (number, win %)
 impliedProbability (number, % from odds)
 edge (number, true - implied)
@@ -272,7 +277,12 @@ export const generateWithFallback = async (
   paramsWithoutModel: any,
 ) => {
   const ai = getAiClient();
-  for (const model of models) {
+  // FORCE Gemini Pro 3 if specified in models or as a mandate
+  const targetModels = models.includes("gemini-3-pro-preview") 
+    ? ["gemini-3-pro-preview"] 
+    : models;
+
+  for (const model of targetModels) {
     try {
       console.log(`[Gemini] Attempting generation with ${model}...`);
       const resp = await ai.models.generateContent({
@@ -284,7 +294,7 @@ export const generateWithFallback = async (
     } catch (e: any) {
       console.warn(`[Gemini] ${model} failed:`, e.message || e);
       // If it's the last model, throw
-      if (model === models[models.length - 1]) throw e;
+      if (model === targetModels[targetModels.length - 1]) throw e;
     }
   }
   return { text: undefined };
@@ -396,18 +406,30 @@ const analyzeAllSides = (
 
       if (Math.abs(priceValue) > 50) return;
 
-      const hasEdge =
-        market === "Spread"
-          ? lineValue > 0 || (lineValue === 0 && priceValue > 0)
-          : priceValue > 0;
+      // ADJUSTED EDGE LOGIC: Correctly account for direction in Totals
+      let hasEdge = false;
+      if (market === "Spread") {
+        hasEdge = lineValue > 0 || (lineValue === 0 && priceValue > 0);
+      } else if (market === "Total") {
+        // OVER: we want a LOWER line (sharp - soft > 0)
+        // UNDER: we want a HIGHER line (soft - sharp > 0)
+        if (side === "OVER") {
+          const totalLineVal = -lineValue; // negate because calculateLineDiff is soft - sharp
+          hasEdge = totalLineVal > 0 || (totalLineVal === 0 && priceValue > 0);
+        } else {
+          hasEdge = lineValue > 0 || (lineValue === 0 && priceValue > 0);
+        }
+      } else {
+        hasEdge = priceValue > 0;
+      }
 
       if (hasEdge) {
         booksWithEdge++;
       }
 
-      // Prioritize points over juice for spreads
+      // Prioritize points over juice for spreads and totals
       const totalValue =
-        (market === "Spread" ? lineValue * 10 : 0) + priceValue;
+        ((market === "Spread" || market === "Total") ? Math.abs(lineValue) * 10 : 0) + priceValue;
 
       if (totalValue > bestValue) {
         bestValue = totalValue;
@@ -575,6 +597,7 @@ type StoicAiResult = {
   recommendation: "BET" | "PASS" | "LEAN";
   confidence: number;
   reasoning: string;
+  handicapper_logic: string;
   trueProbability: number;
   impliedProbability: number;
   edge: number;
@@ -590,6 +613,7 @@ const stoicResponseSchema: Schema = {
     recommendation: { type: Type.STRING },
     confidence: { type: Type.NUMBER },
     reasoning: { type: Type.STRING },
+    handicapper_logic: { type: Type.STRING },
     trueProbability: { type: Type.NUMBER },
     impliedProbability: { type: Type.NUMBER },
     edge: { type: Type.NUMBER },
@@ -605,6 +629,7 @@ const stoicResponseSchema: Schema = {
     "recommendation",
     "confidence",
     "reasoning",
+    "handicapper_logic",
     "trueProbability",
     "impliedProbability",
     "edge",
@@ -677,10 +702,44 @@ const getTrueProbability = (
   return side === "AWAY" ? noVig.probA : noVig.probB;
 };
 
+/**
+ * HELPER: Adjusts probability based on point differences.
+ * Rule of thumb: 1 point in NBA/NFL is roughly 2-4% in win probability.
+ */
+const adjustProbForPoints = (
+  baseProb: number, 
+  pointDiff: number, 
+  sport: Sport,
+  market: "Spread" | "Total"
+): number => {
+  if (pointDiff === 0) return baseProb;
+  
+  // Point values vary by sport and market
+  let pointValue = 3.0; // Default 3% per point
+  
+  if (sport === 'NBA') {
+    pointValue = market === 'Total' ? 1.5 : 2.5;
+  } else if (sport === 'NFL') {
+    pointValue = market === 'Total' ? 1.0 : 4.0;
+  } else if (sport === 'NHL') {
+    pointValue = 10.0; // Huge value in hockey
+  }
+
+  // pointDiff is soft - sharp.
+  // For Spreads: higher soft line is better for AWAY (+7 vs +6.5), worse for HOME (-7 vs -6.5).
+  // This is already handled by analyzeAllSides giving us the signed lineValue.
+  
+  return Math.max(1, Math.min(99, baseProb + (pointDiff * pointValue)));
+};
+
 export const analyzeGame = async (
   game: GameData,
   persona?: UserPersona,
   balances?: BookBalanceDisplay[],
+  groundTruth?: {
+    awayRoster?: SportsDbPlayer[];
+    homeRoster?: SportsDbPlayer[];
+  }
 ): Promise<AnalysisResult> => {
   const edgeThreshold = persona?.min_edge_percentage ?? DEFAULT_EDGE_THRESHOLD;
 
@@ -710,11 +769,22 @@ export const analyzeGame = async (
   }
 
   const candidates = allSides.map((s) => {
-    const trueProbability = getTrueProbability(
+    let trueProbability = getTrueProbability(
       s.market,
       s.side,
       game.sharpLines!,
     );
+
+    // Adjust probability for point differences
+    if (s.market === "Spread" || s.market === "Total") {
+      // For Totals, we need to handle direction
+      let pointDiff = s.lineValue;
+      if (s.market === "Total" && s.side === "OVER") {
+        pointDiff = -s.lineValue; // OVER: lower line is better
+      }
+      trueProbability = adjustProbForPoints(trueProbability, pointDiff, game.sport, s.market);
+    }
+
     const impliedProbability = americanToImpliedProb(s.bestSoftOdds);
     const edge = Math.round((trueProbability - impliedProbability) * 10) / 10;
     return { ...s, trueProbability, impliedProbability, edge };
@@ -780,9 +850,20 @@ export const analyzeGame = async (
   // Fetch qualitative context for AI context + UI display (no hard veto)
   const context = await geminiService.quickScanGame(game);
 
+  const awayRosterStr = groundTruth?.awayRoster 
+    ? groundTruth.awayRoster.slice(0, 15).map(p => `${p.strPlayer} (${p.strPosition})`).join(", ")
+    : "Not provided.";
+  const homeRosterStr = groundTruth?.homeRoster 
+    ? groundTruth.homeRoster.slice(0, 15).map(p => `${p.strPlayer} (${p.strPosition})`).join(", ")
+    : "Not provided.";
+
   const prompt = `
 Matchup: ${game.awayTeam.name} at ${game.homeTeam.name}
 Sport: ${game.sport}
+
+Ground Truth Rosters (Verified):
+- ${game.awayTeam.name}: ${awayRosterStr}
+- ${game.homeTeam.name}: ${homeRosterStr}
 
 Market: ${best.market}
 Side: ${best.side}
@@ -802,9 +883,10 @@ Line Movement: ${lineMovement}
 
 Tasks:
 - Use search to find public betting % and line movement. If >80% public on one side and line moves opposite, call "Reverse Line Movement."
-- Check if recency bias is driving the move (market overreaction).
-- Ignore player props entirely. Only evaluate Moneyline/Spread/Total.
+- Cross-reference Situational Context with Ground Truth rosters to ensure the impact of injuries is correctly weighted.
+- If Ground Truth rosters show a key player is active/present who was previously reported as doubtful, prioritize the Ground Truth data.
 - Reasoning max 2 sentences, blunt and data-only.
+- Handicapper Logic: 1-2 sentences synthesising math + ground truth + situational data.
 Return JSON only.
 `;
 
@@ -847,6 +929,49 @@ Return JSON only.
       edge: best.edge,
       wagerType: best.market,
     };
+  }
+
+  // DATA QUALITY VETO: Cross-reference AI reasoning with Ground Truth
+  if (groundTruth && analysis.recommendation !== "PASS") {
+    const combinedRosterNames = [
+      ...(groundTruth.awayRoster || []).map(p => p.strPlayer.toLowerCase()),
+      ...(groundTruth.homeRoster || []).map(p => p.strPlayer.toLowerCase())
+    ];
+    
+    const reasoningLower = (analysis.reasoning + " " + analysis.handicapper_logic).toLowerCase();
+    
+    // Check for high-risk hallucination names and abbreviations
+    const riskPlayers = [
+      { names: ['davis', 'ad'], display: 'Anthony Davis' },
+      { names: ['lebron', 'lbj'], display: 'LeBron James' },
+      { names: ['durant', 'kd'], display: 'Kevin Durant' },
+      { names: ['curry', 'steph'], display: 'Stephen Curry' },
+      { names: ['embiid'], display: 'Joel Embiid' },
+      { names: ['jokic'], display: 'Nikola Jokic' }
+    ];
+
+    for (const player of riskPlayers) {
+      // Check if ANY of the player's names/aliases are mentioned with word boundaries
+      const isMentioned = player.names.some(n => {
+        const regex = new RegExp(`\\b${n}\\b`, 'i');
+        return regex.test(reasoningLower);
+      });
+
+      if (isMentioned && !combinedRosterNames.some(rn => {
+        // Roster names usually contain the full name, e.g. "Anthony Davis"
+        return player.names.some(n => rn.includes(n));
+      })) {
+        return {
+          decision: "PASS",
+          vetoTriggered: true,
+          vetoReason: `DATA_QUALITY_VETO: AI mentioned ${player.display} who is not on the verified rosters.`,
+          recommendation: "PASS",
+          reasoning: `Hallucination detected regarding ${player.display}.`,
+          researchSummary: `Data quality failure: ${player.display} not on rosters.`,
+          confidenceScore: 0,
+        };
+      }
+    }
   }
 
   const normalizedRec = normalizeRecommendation(analysis.recommendation);
@@ -913,6 +1038,7 @@ Return JSON only.
     confidence: confidenceToLabel(confidenceScore),
     confidenceScore,
     reasoning,
+    handicapper_logic: analysis.handicapper_logic,
     trueProbability: best.trueProbability,
     impliedProbability: best.impliedProbability,
     edge: best.edge,
@@ -931,7 +1057,6 @@ export const refreshAnalysisMathOnly = (
   balances?: BookBalanceDisplay[],
 ): HighHitAnalysis => {
   const edgeThreshold = persona?.min_edge_percentage ?? DEFAULT_EDGE_THRESHOLD;
-  const maxOdds = persona?.max_odds_american ?? -160;
 
   const prior = game.analysis;
   if (!prior) {
@@ -942,6 +1067,8 @@ export const refreshAnalysisMathOnly = (
       researchSummary: "No prior analysis found to refresh.",
     };
   }
+
+  const maxOdds = persona?.max_odds_american ?? -160;
 
   if (prior.decision !== "PLAYABLE") {
     return { ...prior };
@@ -1140,7 +1267,7 @@ export const quickScanGame = async (
 
   try {
     const response = await geminiService.generateWithFallback(
-      ["gemini-3-flash-preview"],
+      ["gemini-3-pro-preview"],
       {
         contents: prompt,
         config: {
@@ -1165,7 +1292,7 @@ export const quickScanGame = async (
     // Fallback: try without googleSearch tool
     try {
       const response = await geminiService.generateWithFallback(
-        ["gemini-3-flash-preview"],
+        ["gemini-3-pro-preview"],
         {
           contents: prompt,
           config: {

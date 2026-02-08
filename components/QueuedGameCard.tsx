@@ -266,14 +266,24 @@ const QueuedGameCard: React.FC<Props> = ({
       <div className="px-4 py-3 border-b border-ink-gray bg-ink-base">
         <div className="flex items-center justify-between">
           <span className="text-xs text-ink-text/80 font-medium uppercase tracking-wide">Initial Read</span>
-          {!game.edgeSignal && (
-            <button 
-              onClick={onScan} 
-              className="text-xs text-ink-accent hover:text-sky-400 font-medium flex items-center gap-1"
-            >
-              <span>⚡</span> Quick Scan
-            </button>
-          )}
+          <div className="flex gap-3">
+            {game.edgeSignal && (
+              <button 
+                onClick={onScan} 
+                className="text-xs text-ink-text/60 hover:text-ink-text font-medium flex items-center gap-1"
+              >
+                <span>🔄</span> Reset Audit
+              </button>
+            )}
+            {!game.edgeSignal && (
+              <button 
+                onClick={onScan} 
+                className="text-xs text-ink-accent hover:text-sky-400 font-medium flex items-center gap-1"
+              >
+                <span>⚡</span> Handicapper Audit
+              </button>
+            )}
+          </div>
         </div>
         {game.edgeSignal ? (
           <div className="mt-2 space-y-2">
@@ -555,14 +565,24 @@ const QueuedGameCard: React.FC<Props> = ({
             )}
             
             {/* Research Summary */}
-            <details className="text-xs bg-ink-base border-t border-ink-gray">
-              <summary className="px-4 py-2 cursor-pointer hover:bg-ink-paper font-medium">
-                Research Summary
-              </summary>
-              <div className="px-4 py-3 whitespace-pre-wrap text-ink-text/70">
-                {game.analysis.researchSummary}
-              </div>
-            </details>
+            <div className="bg-ink-paper border-t border-ink-gray">
+              {game.analysis.handicapper_logic && (
+                <div className="px-4 py-3 border-b border-ink-gray bg-ink-accent/5">
+                  <div className="text-[10px] font-bold text-ink-accent uppercase mb-1 tracking-wider">🎯 Handicapper Logic</div>
+                  <div className="text-xs text-ink-text leading-relaxed">
+                    {game.analysis.handicapper_logic}
+                  </div>
+                </div>
+              )}
+              <details className="text-xs">
+                <summary className="px-4 py-2 cursor-pointer hover:bg-ink-paper font-medium">
+                  Research Summary
+                </summary>
+                <div className="px-4 py-3 whitespace-pre-wrap text-ink-text/70">
+                  {game.analysis.researchSummary}
+                </div>
+              </details>
+            </div>
           </div>
         ) : game.analysisError ? (
           /* New: Show error state if Quick Analyze failed */
