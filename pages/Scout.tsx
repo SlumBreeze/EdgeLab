@@ -432,6 +432,11 @@ export default function Scout() {
     }
   };
 
+  const handleClearSingleScan = (gameId: string) => {
+    clearScanResults([gameId]);
+    toast.showInfo("Audit data reset for this game.");
+  };
+
   const handleAddToQueue = (
     apiGame: any,
     sport: Sport,
@@ -844,6 +849,7 @@ export default function Scout() {
                             movement={movement}
                             onQuickScan={handleQuickScan}
                             onAddToQueue={handleAddToQueue}
+                            onClearScan={handleClearSingleScan}
                             mapToGameObject={mapToGameObject}
                           />
                         );

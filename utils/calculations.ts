@@ -85,6 +85,7 @@ export const getRecommendedBook = (
 
   // Map candidates to their balance data
   const candidateBalances = balances
+    .filter(b => b.currentBalance > 0) // Strictly funded mandate
     .filter(b => candidateBooks.some(c => 
       c.toLowerCase().includes(b.sportsbook.toLowerCase()) || 
       b.sportsbook.toLowerCase().includes(c.toLowerCase())

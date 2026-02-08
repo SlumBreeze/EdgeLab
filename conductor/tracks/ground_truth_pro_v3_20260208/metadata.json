@@ -1,8 +1,0 @@
-{
-  "track_id": "ground_truth_pro_v3_20260208",
-  "type": "feature",
-  "status": "new",
-  "created_at": "2026-02-08T08:10:00Z",
-  "updated_at": "2026-02-08T08:10:00Z",
-  "description": "Professional-grade handicapping engine using Gemini Pro 3 and TheSportsDB v1 API for ground truth data."
-}

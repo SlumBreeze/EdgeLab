@@ -383,14 +383,6 @@ const analyzeAllSides = (
     getSoftLine: (s: BookLines) => string,
     getSoftOdds: (s: BookLines) => string,
   ) => {
-    let bestValue = -999;
-    let bestBook = "";
-    let bestLine = "";
-    let bestOdds = "";
-    let bestLineValue = 0;
-    let bestPriceValue = 0;
-    let booksWithEdge = 0;
-
     softLines.forEach((soft) => {
       const softLine = getSoftLine(soft);
       const softOdds = getSoftOdds(soft);
@@ -423,44 +415,20 @@ const analyzeAllSides = (
         hasEdge = priceValue > 0;
       }
 
-      if (hasEdge) {
-        booksWithEdge++;
-      }
-
-      // Prioritize points over juice for spreads and totals
-      const totalValue =
-        ((market === "Spread" || market === "Total") ? Math.abs(lineValue) * 10 : 0) + priceValue;
-
-      if (totalValue > bestValue) {
-        bestValue = totalValue;
-        bestBook = soft.bookName;
-        bestLine = softLine;
-        bestOdds = softOdds;
-        bestLineValue = lineValue;
-        bestPriceValue = priceValue;
-      }
-    });
-
-    if (bestBook) {
-      const hasPositiveValue =
-        market === "Spread"
-          ? bestLineValue > 0 || (bestLineValue === 0 && bestPriceValue > 0)
-          : bestPriceValue > 0;
-
       results.push({
         side,
         market,
         sharpLine,
         sharpOdds,
-        bestSoftLine: bestLine,
-        bestSoftOdds: bestOdds,
-        bestSoftBook: bestBook,
-        lineValue: bestLineValue,
-        priceValue: bestPriceValue,
-        hasPositiveValue,
-        booksWithEdge,
+        bestSoftLine: softLine,
+        bestSoftOdds: softOdds,
+        bestSoftBook: soft.bookName,
+        lineValue,
+        priceValue,
+        hasPositiveValue: hasEdge,
+        booksWithEdge: hasEdge ? 1 : 0,
       });
-    }
+    });
   };
 
   checkSide(
@@ -790,8 +758,13 @@ export const analyzeGame = async (
     return { ...s, trueProbability, impliedProbability, edge };
   });
 
-  const best = candidates.sort((a, b) => b.edge - a.edge)[0];
-  if (!best || best.edge <= edgeThreshold) {
+  const positiveEdgeCandidates = candidates
+    .filter((c) => c.edge > edgeThreshold)
+    .sort((a, b) => b.edge - a.edge);
+
+  if (positiveEdgeCandidates.length === 0) {
+    // Check if the overall best candidate had an edge <= threshold
+    const bestOverall = candidates.sort((a, b) => b.edge - a.edge)[0];
     return {
       decision: "PASS",
       vetoTriggered: true,
@@ -800,12 +773,48 @@ export const analyzeGame = async (
       reasoning: `Edge <= ${edgeThreshold}%.`,
       researchSummary: `Edge <= ${edgeThreshold}%.`,
       confidenceScore: 0,
-      trueProbability: best?.trueProbability ?? 0,
-      impliedProbability: best?.impliedProbability ?? 0,
-      edge: best?.edge ?? 0,
-      wagerType: best?.market ?? undefined,
+      trueProbability: bestOverall?.trueProbability ?? 0,
+      impliedProbability: bestOverall?.impliedProbability ?? 0,
+      edge: bestOverall?.edge ?? 0,
+      wagerType: bestOverall?.market ?? undefined,
     };
   }
+
+  // LIQUIDITY FILTER: Find the best candidate that actually has funds
+  let best = positiveEdgeCandidates[0];
+  let fundedCandidate = null;
+
+  if (balances) {
+    for (const cand of positiveEdgeCandidates) {
+      const rec = getRecommendedBook([cand.bestSoftBook], balances);
+      if (rec.book) {
+        fundedCandidate = cand;
+        break;
+      }
+    }
+  } else {
+    // If no balance context provided (e.g. initial scan), assume best is funded for now
+    fundedCandidate = best;
+  }
+
+  // If we found positive edge plays but NONE are funded, trigger veto
+  if (!fundedCandidate) {
+    return {
+      decision: "PASS",
+      vetoTriggered: true,
+      vetoReason: "INSUFFICIENT_FUNDS_FOR_EDGE: No funded books have +EV.",
+      recommendation: "PASS",
+      reasoning: "No funded books available with positive EV.",
+      researchSummary: "Liquidity Veto: All +EV books have $0.00 balance.",
+      confidenceScore: 0,
+      trueProbability: best.trueProbability,
+      impliedProbability: best.impliedProbability,
+      edge: best.edge,
+      wagerType: best.market,
+    };
+  }
+
+  best = fundedCandidate;
 
   const refLines = getReferenceLines(game.id);
   const lineMovement =
@@ -984,6 +993,18 @@ Return JSON only.
       ? "PASS"
       : normalizedRec;
 
+  if (finalRecommendation === "PASS") {
+    console.log(`[DEBUG] analyzeGame returned PASS. Reasons:`, {
+      edgeBelowThreshold: best.edge <= edgeThreshold,
+      edge: best.edge,
+      threshold: edgeThreshold,
+      wagerTypeMismatch: normalizedWagerType !== best.market,
+      aiWagerType: normalizedWagerType,
+      bestMarket: best.market,
+      normalizedRec
+    });
+  }
+
   const decision = finalRecommendation === "BET" ? "PLAYABLE" : "PASS";
   const unitTier =
     finalRecommendation === "BET"
@@ -1085,43 +1106,75 @@ export const refreshAnalysisMathOnly = (
 
   const allSides = analyzeAllSides(game.sharpLines, game.softLines);
 
-  const selectedSide = allSides.find(
-    (s) => s.side === prior.side && s.market === prior.market,
-  );
+  const candidates = allSides.map((s) => {
+    let trueProbability = getTrueProbability(
+      s.market,
+      s.side,
+      game.sharpLines!,
+    );
 
-  let sharpImpliedProb = prior.sharpImpliedProb ?? 50;
+    if (s.market === "Spread" || s.market === "Total") {
+      let pointDiff = s.lineValue;
+      if (s.market === "Total" && s.side === "OVER") {
+        pointDiff = -s.lineValue;
+      }
+      trueProbability = adjustProbForPoints(trueProbability, pointDiff, game.sport, s.market);
+    }
 
-  if (!selectedSide || !selectedSide.hasPositiveValue) {
+    const impliedProbability = americanToImpliedProb(s.bestSoftOdds);
+    const edge = Math.round((trueProbability - impliedProbability) * 10) / 10;
+    return { ...s, trueProbability, impliedProbability, edge };
+  });
+
+  const positiveEdgeCandidates = candidates
+    .filter((c) => c.edge > edgeThreshold)
+    .sort((a, b) => b.edge - a.edge);
+
+  if (positiveEdgeCandidates.length === 0) {
     return {
       ...prior,
       decision: "PASS",
       vetoTriggered: true,
-      vetoReason: "LINE_MOVED: No longer positive value.",
-      sharpImpliedProb,
-      lineValueCents: 0,
-      lineValuePoints: 0,
+      vetoReason: "NO_EDGE: No positive EV.",
     };
   }
 
-  sharpImpliedProb = getTrueProbability(
-    selectedSide.market,
-    selectedSide.side,
-    game.sharpLines,
-  );
+  // LIQUIDITY FILTER: Find the best candidate that actually has funds
+  let best = null;
 
-  const lineValueCents =
-    selectedSide.priceValue > 0 ? selectedSide.priceValue : 0;
+  if (balances) {
+    for (const cand of positiveEdgeCandidates) {
+      const rec = getRecommendedBook([cand.bestSoftBook], balances);
+      if (rec.book) {
+        best = cand;
+        break;
+      }
+    }
+  } else {
+    best = positiveEdgeCandidates[0];
+  }
 
-  const bestOddsVal = parseFloat(selectedSide.bestSoftOdds);
+  if (!best) {
+    return {
+      ...prior,
+      decision: "PASS",
+      vetoTriggered: true,
+      vetoReason: "INSUFFICIENT_FUNDS_FOR_EDGE: No funded books have +EV.",
+    };
+  }
+
+  const lineValueCents = best.priceValue > 0 ? best.priceValue : 0;
+
+  const bestOddsVal = parseFloat(best.bestSoftOdds);
   if (!isNaN(bestOddsVal) && bestOddsVal < maxOdds) {
     return {
       ...prior,
       decision: "PASS",
       vetoTriggered: true,
       vetoReason: `JUICE_VETO: Recommended odds ${formatOddsForDisplay(bestOddsVal)} are worse than ${formatOddsForDisplay(maxOdds)} limit.`,
-      sharpImpliedProb,
+      sharpImpliedProb: best.trueProbability,
       lineValueCents,
-      lineValuePoints: selectedSide.lineValue,
+      lineValuePoints: best.lineValue,
     };
   }
 
@@ -1129,65 +1182,42 @@ export const refreshAnalysisMathOnly = (
   let oddsFloor: string | undefined;
   let floorReason: string | undefined;
 
-  if (selectedSide.market === "Spread" || selectedSide.market === "Total") {
+  if (best.market === "Spread" || best.market === "Total") {
     lineFloor =
-      selectedSide.market === "Total"
-        ? `${selectedSide.side === "OVER" ? "o" : "u"}${selectedSide.sharpLine}`
-        : selectedSide.sharpLine;
+      best.market === "Total"
+        ? `${best.side === "OVER" ? "o" : "u"}${best.sharpLine}`
+        : best.sharpLine;
 
     // Floor is sharp book's odds - where edge disappears
-    oddsFloor = formatOddsForDisplay(selectedSide.sharpOdds);
+    oddsFloor = formatOddsForDisplay(best.sharpOdds);
     floorReason =
-      selectedSide.market === "Spread"
+      best.market === "Spread"
         ? "Matches sharp line - no edge below this"
         : "Matches sharp line";
-  } else if (selectedSide.market === "Moneyline") {
+  } else if (best.market === "Moneyline") {
     lineFloor = undefined;
-    oddsFloor = formatOddsForDisplay(selectedSide.sharpOdds);
+    oddsFloor = formatOddsForDisplay(best.sharpOdds);
     floorReason = "Matches sharp price";
   }
 
-  const isLineOk = isLineWithinFloor(
-    selectedSide.market,
-    selectedSide.side,
-    selectedSide.bestSoftLine,
-    lineFloor,
-  );
-  const isOddsOk = isOddsWithinFloor(selectedSide.bestSoftOdds, oddsFloor);
-
-  if (!isLineOk || !isOddsOk) {
-    return {
-      ...prior,
-      decision: "PASS",
-      vetoTriggered: true,
-      vetoReason: "LINE_MOVED: Outside floor thresholds.",
-      sharpImpliedProb,
-      lineValueCents,
-      lineValuePoints: selectedSide.lineValue,
-      lineFloor,
-      oddsFloor,
-      floorReason,
-    };
-  }
-
   const teamName =
-    selectedSide.side === "AWAY"
+    best.side === "AWAY"
       ? game.awayTeam.name
-      : selectedSide.side === "HOME"
+      : best.side === "HOME"
         ? game.homeTeam.name
-        : selectedSide.side;
+        : best.side;
 
   const recLine =
-    selectedSide.market === "Moneyline"
-      ? formatOddsForDisplay(selectedSide.bestSoftOdds)
-      : `${selectedSide.bestSoftLine} (${formatOddsForDisplay(selectedSide.bestSoftOdds)})`;
+    best.market === "Moneyline"
+      ? formatOddsForDisplay(best.bestSoftOdds)
+      : `${best.bestSoftLine} (${formatOddsForDisplay(best.bestSoftOdds)})`;
 
   // Smart Wallet: Calculate recommended book based on liquidity
   let recommendedBook: string | undefined;
   let balanceStatus: "SUFFICIENT" | "LOW" | "CRITICAL" | undefined;
 
   if (balances) {
-    const candidateBooks = [selectedSide.bestSoftBook];
+    const candidateBooks = [best.bestSoftBook];
     const rec = getRecommendedBook(candidateBooks, balances);
     if (rec.book) {
       recommendedBook = rec.book;
@@ -1201,17 +1231,17 @@ export const refreshAnalysisMathOnly = (
     vetoTriggered: false,
     vetoReason: undefined,
     recommendation: prior.recommendation ?? "BET",
-    pick: `${teamName} ${selectedSide.market}`,
+    pick: `${teamName} ${best.market}`,
     recLine,
-    recProbability: sharpImpliedProb,
-    market: selectedSide.market,
-    side: selectedSide.side,
-    line: selectedSide.bestSoftLine,
-    sharpImpliedProb,
-    softBestOdds: formatOddsForDisplay(selectedSide.bestSoftOdds),
-    softBestBook: selectedSide.bestSoftBook,
+    recProbability: best.trueProbability,
+    market: best.market,
+    side: best.side,
+    line: best.bestSoftLine,
+    sharpImpliedProb: best.trueProbability,
+    softBestOdds: formatOddsForDisplay(best.bestSoftOdds),
+    softBestBook: best.bestSoftBook,
     lineValueCents,
-    lineValuePoints: selectedSide.lineValue,
+    lineValuePoints: best.lineValue,
     lineFloor,
     oddsFloor,
     floorReason,

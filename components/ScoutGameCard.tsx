@@ -15,6 +15,7 @@ interface ScoutGameCardProps {
   movement: { icon: string; text: string; color: string } | null;
   onQuickScan: (gameObj: Game) => void;
   onAddToQueue: (game: any, sport: Sport, pinnLines: BookLines | null) => void;
+  onClearScan?: (gameId: string) => void;
   mapToGameObject: (apiGame: any, sport: Sport, pinnLines: BookLines | null) => Game;
 }
 
@@ -32,6 +33,7 @@ const ScoutGameCard: React.FC<ScoutGameCardProps> = ({
   movement,
   onQuickScan,
   onAddToQueue,
+  onClearScan,
   mapToGameObject
 }) => {
   const gameObj = mapToGameObject(game, sport, pinnLines);
@@ -50,9 +52,25 @@ const ScoutGameCard: React.FC<ScoutGameCardProps> = ({
   const showDraw = isSoccer && pinnLines?.mlOddsDraw;
 
   return (
-    <div className="bg-ink-paper border border-ink-gray rounded-xl p-3 shadow-sm transition-shadow relative overflow-hidden">
-      {scan && <div className={`absolute top-0 left-0 bottom-0 w-1.5 ${scan.signal === 'RED' ? 'bg-status-loss' : scan.signal === 'YELLOW' ? 'bg-amber-400' : 'bg-ink-gray'}`} />}
-      <div className="flex justify-between items-center mb-2 pl-2">
+    <div className="bg-ink-paper border border-ink-gray rounded-xl p-3 shadow-sm transition-shadow relative overflow-hidden group">
+      {scan && (
+        <>
+          <div className={`absolute top-0 left-0 bottom-0 w-1.5 ${scan.signal === 'RED' ? 'bg-status-loss' : scan.signal === 'YELLOW' ? 'bg-amber-400' : 'bg-ink-gray'}`} />
+          {onClearScan && (
+            <button
+              onClick={() => onClearScan(game.id)}
+              className="absolute top-2 right-2 p-1.5 text-ink-text/40 hover:text-red-400 bg-ink-base/50 hover:bg-red-500/10 rounded-lg transition-all opacity-100 md:opacity-0 md:group-hover:opacity-100 z-10 border border-ink-gray/50 hover:border-red-500/30 shadow-sm"
+              title="Reset Audit"
+              aria-label="✕"
+            >
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
+        </>
+      )}
+      <div className="flex justify-between items-center mb-2 pl-2 pr-6">
         <div className="flex flex-col gap-1">
           <div className="flex items-center gap-2">
             <div className="text-[10px] font-bold text-ink-text/80 uppercase tracking-wider">{timeLabel}</div>
