@@ -54,11 +54,11 @@ describe('Gemini Pro 3 Analysis', () => {
         bookName: 'FanDuel',
         mlOddsA: '+150', // Massive edge vs +100
         mlOddsB: '-180',
-        spreadLineA: '+3.5',
+        spreadLineA: '+3',
         spreadOddsA: '-110',
-        spreadLineB: '-3.5',
+        spreadLineB: '-3',
         spreadOddsB: '-110',
-        totalLine: '221',
+        totalLine: '220',
         totalOddsOver: '-110',
         totalOddsUnder: '-110'
       }

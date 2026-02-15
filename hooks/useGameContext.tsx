@@ -36,6 +36,57 @@ import { calculateCLV } from "../utils/clvUtils";
 const GameContext = createContext<AnalysisState | undefined>(undefined);
 
 const getTodayKey = () => new Date().toLocaleDateString("en-CA");
+const RAW_SLATE_KEY = "edgelab_raw_slate";
+
+const isQuotaExceededError = (error: unknown) =>
+  error instanceof DOMException &&
+  (error.name === "QuotaExceededError" ||
+    error.name === "NS_ERROR_DOM_QUOTA_REACHED");
+
+const clearOddsCacheStorage = () => {
+  for (let i = localStorage.length - 1; i >= 0; i -= 1) {
+    const key = localStorage.key(i);
+    if (key?.startsWith("edgelab_odds_cache_")) {
+      localStorage.removeItem(key);
+    }
+  }
+};
+
+const setLocalStorageSafe = (
+  key: string,
+  value: string,
+  options?: { allowSkipOnQuota?: boolean },
+) => {
+  try {
+    localStorage.setItem(key, value);
+    return true;
+  } catch (error) {
+    if (isQuotaExceededError(error)) {
+      console.warn(
+        `[Storage] Quota exceeded for ${key}. Clearing odds cache and retrying.`,
+      );
+      clearOddsCacheStorage();
+      try {
+        localStorage.setItem(key, value);
+        return true;
+      } catch (retryError) {
+        if (options?.allowSkipOnQuota) {
+          console.warn(
+            `[Storage] Skipping ${key} persistence due to quota limits.`,
+            retryError,
+          );
+          return false;
+        }
+        console.warn(`[Storage] Failed to persist ${key} after cleanup.`, retryError);
+        return false;
+      }
+    }
+
+    console.warn(`[Storage] Failed to persist ${key}.`, error);
+    return false;
+  }
+};
+
 const formatEtDate = (date: Date) =>
   new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/New_York",
@@ -104,7 +155,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({
   useEffect(() => {
     if (user?.id) {
       setUserIdState(user.id);
-      localStorage.setItem("edgelab_user_id", user.id);
+      setLocalStorageSafe("edgelab_user_id", user.id);
     }
   }, [user]);
 
@@ -123,7 +174,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({
   const setUserIdManual = (newId: string) => {
     if (!newId || newId.length < 5) return;
     setUserIdState(newId);
-    localStorage.setItem("edgelab_user_id", newId);
+    setLocalStorageSafe("edgelab_user_id", newId);
   };
 
   // State
@@ -139,7 +190,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const setPersona = (newPersona: UserPersona) => {
     setPersonaState(newPersona);
-    localStorage.setItem("edgelab_persona", JSON.stringify(newPersona));
+    setLocalStorageSafe("edgelab_persona", JSON.stringify(newPersona));
   };
 
   const [isBatchProcessing, setIsBatchProcessing] = useState(false);
@@ -169,11 +220,11 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({
   const [allSportsData, setAllSportsData] = useState<Record<string, any[]>>(
     () => {
       try {
-        const saved = localStorage.getItem("edgelab_raw_slate");
+        const saved = localStorage.getItem(RAW_SLATE_KEY);
         if (!saved) return {};
         const parsed = JSON.parse(saved);
         if (!slateHasEtDate(parsed, etToday)) {
-          localStorage.removeItem("edgelab_raw_slate");
+          localStorage.removeItem(RAW_SLATE_KEY);
           return {};
         }
         return parsed;
@@ -221,7 +272,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({
           setScanResults({});
           setReferenceLines({});
           setAllSportsData({});
-          localStorage.removeItem("edgelab_raw_slate");
+          localStorage.removeItem(RAW_SLATE_KEY);
         }
       } catch (err) {
         console.warn("[Context] Error loading from local storage", err);
@@ -326,24 +377,25 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({
           if (finalData.all_sports_data) {
             if (slateHasEtDate(finalData.all_sports_data, etToday)) {
               setAllSportsData(finalData.all_sports_data);
-              localStorage.setItem(
-                "edgelab_raw_slate",
+              setLocalStorageSafe(
+                RAW_SLATE_KEY,
                 JSON.stringify(finalData.all_sports_data),
+                { allowSkipOnQuota: true },
               );
             } else {
               console.warn(
                 "[Supabase] Stale slate detected. Ignoring all_sports_data for today.",
               );
-              localStorage.removeItem("edgelab_raw_slate");
+              localStorage.removeItem(RAW_SLATE_KEY);
               setAllSportsData({});
             }
           }
 
-          localStorage.setItem(
+          setLocalStorageSafe(
             "edgelab_queue_v2",
             JSON.stringify(finalData.queue),
           );
-          localStorage.setItem(
+          setLocalStorageSafe(
             `edgelab_scan_results_${today}`,
             JSON.stringify(finalData.scan_results),
           );
@@ -372,15 +424,15 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({
 
   // 2a. Main Sync Loop (Frequent, Lightweight)
   useEffect(() => {
-    localStorage.setItem("edgelab_unit_pct", unitSizePercent.toString());
-    localStorage.setItem("edgelab_last_date", today);
-    localStorage.setItem("edgelab_queue_v2", JSON.stringify(queue));
-    localStorage.setItem("edgelab_daily_plays", JSON.stringify(dailyPlays));
-    localStorage.setItem(
+    setLocalStorageSafe("edgelab_unit_pct", unitSizePercent.toString());
+    setLocalStorageSafe("edgelab_last_date", today);
+    setLocalStorageSafe("edgelab_queue_v2", JSON.stringify(queue));
+    setLocalStorageSafe("edgelab_daily_plays", JSON.stringify(dailyPlays));
+    setLocalStorageSafe(
       `edgelab_scan_results_${today}`,
       JSON.stringify(scanResults),
     );
-    localStorage.setItem(
+    setLocalStorageSafe(
       `edgelab_reference_lines_${today}`,
       JSON.stringify(referenceLines),
     );
@@ -447,7 +499,9 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({
     if (!slateHasEtDate(allSportsData, etToday)) return;
 
     // Always update local storage
-    localStorage.setItem("edgelab_raw_slate", JSON.stringify(allSportsData));
+    setLocalStorageSafe(RAW_SLATE_KEY, JSON.stringify(allSportsData), {
+      allowSkipOnQuota: true,
+    });
 
     if (!isSyncEnabled || !userId) return;
 
@@ -487,7 +541,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({
             const closingOdds = parseFloat(game.sharpLines.mlOddsA); // Simplified for now
             // Actually we need the odds for the SPECIFIC side picked.
             // But since addBet happens later, we just snapshot ALL sharp lines.
-            localStorage.setItem(snapshotKey, JSON.stringify(game.sharpLines));
+            setLocalStorageSafe(snapshotKey, JSON.stringify(game.sharpLines));
             console.log(`[CLV] Snapshotted closing lines for ${game.id}`);
           }
         }
@@ -855,7 +909,9 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const loadSlates = (data: Record<string, any[]>) => {
     setAllSportsData(data);
-    localStorage.setItem("edgelab_raw_slate", JSON.stringify(data));
+    setLocalStorageSafe(RAW_SLATE_KEY, JSON.stringify(data), {
+      allowSkipOnQuota: true,
+    });
   };
 
   return (
