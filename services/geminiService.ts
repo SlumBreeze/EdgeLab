@@ -85,8 +85,74 @@ const processAiQueue = async () => {
   }
 };
 
-export const getSystemPrompt = (persona?: UserPersona) => `
+const NHL_SYSTEM_PROMPT = `
+NHL ANALYTICAL LOGIC (from Betting NHL Notebook):
+- **Think Probabilistically, Not Emotionally:** Treat every game as a probability puzzle.
+- **Value Over Winners:** Find sides where true probability > implied probability.
+- **Ignore Standings:** Focus on recent performance levels (last 5-10 games) rather than season-long records.
+- **Advanced Metrics Priority:**
+    * **Expected Goals (xG):** Use xGF and xGA as the premier predictor of goal scoring.
+    * **Corsi & Fenwick:** Measure puck possession and offensive efficiency.
+    * **High Danger Scoring Chances (HDSC):** Track volume of premium opportunities.
+    * **Goaltending:** Prioritize **Goals Saved Above Expected (GSx)** and **Goals Saved Above Average (GSAA)** over W/L or GAA.
+- **Situational Triggers:**
+    * **Fatigue Overloads:** Target teams on "3 games in 4 nights" or the back end of a back-to-back (B2B).
+    * **Rested Underdogs:** Look for rested underdogs vs. worn-out favorites.
+    * **Backup Goalies:** Identify and attack weak backup goalie starts before the market adjusts.
+- **Market Dynamics:**
+    * **Fade the Public:** Find value against "glamor" teams (Leafs, Rangers, Blackhawks) where public volume inflates the price.
+    * **Empty Net Dynamics:** Account for high frequency of empty-net goals when evaluating margins and totals.
+- **Always Find a Play (NHL):** If a clear Moneyline edge isn't apparent, you MUST evaluate the Puck Line (Spread) or the Total (Over/Under) using the metrics above to find the most mathematically sound angle. DO NOT PASS unless data is missing.
+`;
+
+const NBA_SYSTEM_PROMPT = `
+NBA ANALYTICAL LOGIC (from Betting Pro Basketball Notebook):
+- **Prioritize Efficiency & Pace:** Focus on Offensive/Defensive Efficiency (per 100 possessions) and Pace (possessions per game).
+- **Four Factors Analysis:** Analyze Shooting (eFG%), Turnovers, Rebounding, and Free Throw Rate.
+- **Exponential Smoothing:** Weight recent performance (last 5-10 games) more heavily than season averages.
+- **Situational Fatigue:** Identify "3-in-4 nights" or back-to-back (B2B) road games, especially when changing time zones.
+- **Altitude/Environment:** Factor in disadvantages for teams playing in Denver (DEN) or Salt Lake City (UTA) on short rest.
+- **Motivation Spots:** Look for players returning to face former teams or high-profile "statement" games.
+- **Sharp Handles:** If handle % (money) significantly exceeds ticket % (volume) on Unders or Road Teams, consider it a sharp signal.
+- **Always Find a Play (NBA):** If the Moneyline or Spread lacks a clear edge, you MUST evaluate the Total (Over/Under) using Pace and Efficiency metrics to find the most mathematically sound angle. DO NOT PASS unless data is missing.
+`;
+
+const WNBA_SYSTEM_PROMPT = `
+WNBA ANALYTICAL LOGIC (from Betting Pro Basketball Notebook):
+- **Information Gap Exploitation:** WNBA lines are often slow to adjust. Monitor beat reporters for late-breaking news.
+- **Star Player Dependency:** Due to small rosters, injuries to star players (top 2 scorers) have a massive impact on efficiency.
+- **"Camp Day" Fatigue:** Identify games with unusual noon ET tip-offs ("Camp Days"). These often lead to sluggish, lower-scoring first halves.
+- **Fatigue & Totals:** Fatigue in WNBA usually leads to slower pace and shortened rotations. Target "Unders" in high-fatigue spots.
+- **Home Court Edge:** WNBA has a solid 60% home win rate; amplify this in high-engagement smaller markets.
+- **Always Find a Play (WNBA):** If the Spread is sharp, you MUST evaluate the Total (Over/Under) to find value, especially in high-fatigue or Camp Day spots where Unders thrive. DO NOT PASS unless data is missing.
+`;
+
+const MLB_SYSTEM_PROMPT = `
+MLB ANALYTICAL LOGIC (from Betting MLB Notebook):
+- **Underdog Value & Parity:** MLB has high parity. Avoid heavy favorites (-180 or worse) and look for value on underdogs or the Run Line (-1.5) for strong favorites.
+- **Pitching Metrics:** Prioritize K% (Strikeout Percentage) over ERA for bullpens. Monitor starting pitcher velocity; a drop of 2+ mph over recent starts is a massive fade signal.
+- **First 5 (F5) Isolation:** If you trust a starting pitcher but their bullpen is fatigued (high pitch counts in last 3 days), isolate the starter by targeting the First 5 Innings Moneyline.
+- **Umpire Tendencies:** Match umpire zones with pitcher styles. A "wide" zone favors control pitchers and Unders. A "tight" zone creates walks and favors Overs.
+- **Weather & Park Factors:** Account for wind (tailwind boosts distance) and temperature (>80°F boosts scoring). Factor in park dimensions (e.g., Coors Field for Overs, T-Mobile Park for Unders).
+- **Always Find a Play (MLB):** If the full-game Moneyline lacks edge, you MUST evaluate the Run Line, Total, or First 5 (F5) markets to find value based on starting pitching mismatches or bullpen fatigue. DO NOT PASS unless data is missing.
+`;
+
+export const getSystemPrompt = (persona?: UserPersona, sport?: string) => {
+  let sportLogic = "";
+  if (sport === "NHL") {
+    sportLogic = NHL_SYSTEM_PROMPT;
+  } else if (sport === "NBA") {
+    sportLogic = NBA_SYSTEM_PROMPT;
+  } else if (sport === "WNBA") {
+    sportLogic = WNBA_SYSTEM_PROMPT;
+  } else if (sport === "MLB") {
+    sportLogic = MLB_SYSTEM_PROMPT;
+  }
+
+  return `
 You are the Professional AI Handicapper. Your goal is to identify the BEST side of every game. You treat mathematical edge (EV) as a key signal, but you prioritize finding a winning play using the full synthesis of stats, rosters, and news.
+
+${sportLogic}
 
 PERSONA SETTINGS:
 - **Operational Mode:** ${persona?.volume_mode || 'Standard'} (If High Action, you MUST find a side for every game. If High Precision, be slightly more selective but aim for maximum slate coverage).
@@ -122,6 +188,7 @@ expertSentiment (string; 1-sentence summary of expert consensus)
 
 No extra keys. No props. No narrative fluff.
 `;
+};
 
 const DEFAULT_EDGE_THRESHOLD = 0.0;
 
@@ -351,7 +418,7 @@ export const generateWithFallback = async (
   const disableFallback = options?.disableFallback === true;
 
   // MANDATE: Strict Gemini 3 Pro -> Gemini 3 Flash fallback (unless disabled)
-  const mandateModels = ["gemini-3-pro-preview", "gemini-3-flash-preview"];
+  const mandateModels = ["gemini-2.5-pro", "gemini-2.5-flash"];
   
   // Use mandate models if the requested list contains a Pro or Flash variant
   const targetModels = disableFallback
@@ -645,7 +712,7 @@ export const extractLinesFromScreenshot = async (
   const base64 = await fileToBase64(file);
 
   const response = await geminiService.generateWithFallback(
-    ["gemini-3-flash-preview"],
+    ["gemini-2.5-flash"],
     {
       contents: {
         parts: [
@@ -1018,6 +1085,7 @@ Situational Context:
 - Injuries: ${context.injuryContext}
 - Spot: ${context.situationalContext}
 - Game Script: ${context.gameScript}
+- Advanced Metrics: ${context.data_metrics || 'No advanced metrics found.'}
 
 Line Movement: ${lineMovement}
 
@@ -1032,11 +1100,11 @@ Return JSON only.
   let analysis: StoicAiResult;
   try {
     const response = await geminiService.generateWithFallback(
-      ["gemini-3-pro-preview"],
+      ["gemini-2.5-pro"],
       {
         contents: prompt,
         config: {
-          systemInstruction: getSystemPrompt(persona),
+          systemInstruction: getSystemPrompt(persona, game.sport),
           responseMimeType: "application/json",
           responseSchema: stoicResponseSchema,
           temperature: 0.1,
@@ -1058,11 +1126,11 @@ Return JSON only.
     if (isTimeoutError(error)) {
       try {
         const retryResponse = await geminiService.generateWithFallback(
-          ["gemini-3-pro-preview"],
+          ["gemini-2.5-pro"],
           {
             contents: prompt,
             config: {
-              systemInstruction: getSystemPrompt(persona),
+              systemInstruction: getSystemPrompt(persona, game.sport),
               responseMimeType: "application/json",
               responseSchema: stoicResponseSchema,
               temperature: 0.1,
@@ -1180,11 +1248,13 @@ Return JSON only.
     
 
     // LOGIC VETO 1: Max Odds (Hard Price Cap)
-
     if (Number.isFinite(bestOddsVal) && bestOddsVal < maxOdds) {
-
       finalRecommendation = "PASS";
+    }
 
+    // LOGIC VETO 2: Min Edge
+    if (best.edge < edgeThreshold) {
+      finalRecommendation = "PASS";
     }
 
   
@@ -1264,29 +1334,13 @@ Return JSON only.
   
 
         vetoTriggered: finalRecommendation === "PASS",
-
-  
-
         vetoReason:
-
-  
-
           finalRecommendation === "PASS"
-
-  
-
             ? (Number.isFinite(bestOddsVal) && bestOddsVal < maxOdds)
-
-  
-
               ? `JUICE_VETO: Recommended odds ${formatOddsForDisplay(bestOddsVal)} are worse than ${formatOddsForDisplay(maxOdds)} limit.`
-
-  
-
-              : "AI_PASS: AI did not find a playable side."
-
-  
-
+              : best.edge < edgeThreshold
+                ? `NO_EDGE: Calculated edge (${best.edge}%) is below minimum threshold (${edgeThreshold}%).`
+                : "AI_PASS: AI did not find a playable side."
             : undefined,
 
   
@@ -1349,6 +1403,7 @@ export const refreshAnalysisMathOnly = (
   }
 
   const maxOdds = persona?.max_odds_american ?? -160;
+  const edgeThreshold = persona?.min_edge_percentage ?? 0.0;
 
   if (prior.decision !== "PLAYABLE") {
     return { ...prior };
@@ -1437,6 +1492,18 @@ export const refreshAnalysisMathOnly = (
       decision: "PASS",
       vetoTriggered: true,
       vetoReason: `JUICE_VETO: Recommended odds ${formatOddsForDisplay(bestOddsVal)} are worse than ${formatOddsForDisplay(maxOdds)} limit.`,
+      sharpImpliedProb: best.trueProbability,
+      lineValueCents,
+      lineValuePoints: best.lineValue,
+    };
+  }
+
+  if (best.edge < edgeThreshold) {
+    return {
+      ...prior,
+      decision: "PASS",
+      vetoTriggered: true,
+      vetoReason: `NO_EDGE: Calculated edge (${best.edge}%) is below minimum threshold (${edgeThreshold}%).`,
       sharpImpliedProb: best.trueProbability,
       lineValueCents,
       lineValuePoints: best.lineValue,
@@ -1552,6 +1619,29 @@ export const quickScanGame = async (
     ? groundTruth.homeRoster.slice(0, 15).map(p => `${p.strPlayer} (${p.strPosition})`).join(", ")
     : "NO VERIFIED ROSTER DATA AVAILABLE. DO NOT NAME SPECIFIC PLAYERS FOR THIS TEAM UNLESS YOU ARE CERTAIN FROM LIVE SEARCH.";
 
+  let sportSpecificResearch = "";
+  if (game.sport === "NHL") {
+    sportSpecificResearch = `
+    5. NHL Advanced Metrics: Search for current-season/last-10 xGF%, Corsi For%, and High Danger Scoring Chance (HDSC) margins for both teams.
+    6. NHL Goaltending: Confirm the starting goalie for both teams. Find their Goals Saved Above Expected (GSx) or GSAA for the season.
+    `;
+  } else if (game.sport === "NBA") {
+    sportSpecificResearch = `
+    5. NBA Efficiency: Search for Offensive/Defensive Rating and Net Rating over the last 10 games.
+    6. NBA Fatigue: Check for altitude (DEN/UTA) and time zone shifts for teams on road B2Bs.
+    `;
+  } else if (game.sport === "WNBA") {
+    sportSpecificResearch = `
+    5. WNBA Specifics: Check if this is a "Camp Day" (noon ET tip-off).
+    6. WNBA Line Movement: Search for late-breaking lineup changes from team beat reporters.
+    `;
+  } else if (game.sport === "MLB") {
+    sportSpecificResearch = `
+    5. MLB Pitching: Identify the starting pitchers. Check their recent velocity trends and First 5 (F5) ERA.
+    6. MLB Bullpen & Environment: Check recent bullpen usage (pitch counts last 3 days) and notable weather/umpire tendencies.
+    `;
+  }
+
   const prompt = `
     Conduct a deep situational scan for ${game.awayTeam.name} vs ${game.homeTeam.name} (${game.sport}) on ${readableDate}.
     
@@ -1566,6 +1656,7 @@ export const quickScanGame = async (
     2. Situational Spot: Is this a back-to-back? Rest advantage? Travel fatigue?
     3. Expert Sentiment: What is the consensus from reputable beat writers and sharp handicappers? Are there any "trap" warnings?
     4. Game Script: How is the game likely to play out based on matchups?
+    ${sportSpecificResearch}
     
     Return JSON only:
     {
@@ -1574,13 +1665,14 @@ export const quickScanGame = async (
       "injuryContext": "Detailed injury info",
       "situationalContext": "Rest/Travel context",
       "expertSentiment": "Expert consensus/warnings",
-      "gameScript": "Expected game flow"
+      "gameScript": "Expected game flow",
+      "data_metrics": "Sport-specific advanced stats (e.g., xG, GSx, Corsi) if available"
     }
   `;
 
   try {
     const response = await geminiService.generateWithFallback(
-      ["gemini-3-flash-preview"],
+      ["gemini-2.5-flash"],
       {
         contents: prompt,
         config: {
@@ -1598,14 +1690,15 @@ export const quickScanGame = async (
       injuryContext: "No injury data found.",
       situationalContext: "Standard rest.",
       expertSentiment: "No expert consensus found.",
-      gameScript: "No specific script detected."
+      gameScript: "No specific script detected.",
+      data_metrics: ""
     });
   } catch (e: any) {
     console.error("Quick scan failed (with search tool)", e);
     // Fallback: retry without external tools
     try {
       const response = await geminiService.generateWithFallback(
-        ["gemini-3-flash-preview"],
+        ["gemini-2.5-flash"],
         {
           contents: prompt,
           config: {
@@ -1622,7 +1715,8 @@ export const quickScanGame = async (
         injuryContext: "No injury data found.",
         situationalContext: "Standard rest.",
         expertSentiment: "No expert consensus found.",
-        gameScript: "No specific script detected."
+        gameScript: "No specific script detected.",
+        data_metrics: ""
       });
     } catch (fallbackError: any) {
       console.error("Quick scan failed (retry)", fallbackError);

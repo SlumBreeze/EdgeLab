@@ -241,10 +241,9 @@ export const fetchOddsForGame = async (sport: Sport, gameId: string): Promise<an
 // New function to batch load all sports
 export const fetchAllSportsOdds = async (forceRefresh = false): Promise<Record<Sport, any[]>> => {
   const results: Record<string, any[]> = {};
-  const sports: Sport[] = ['NBA', 'NFL', 'NHL', 'NCAAB', 'NCAAF', 'MLB', 'SOCCER'];
-  
-  console.log(`[OddsService] Batch loading all sports (Force: ${forceRefresh})...`);
-  
+  const sports: Sport[] = ['NBA', 'WNBA', 'NHL', 'MLB'];
+
+  console.log(`[OddsService] Batch loading active sports (Force: ${forceRefresh})...`);  
   for (const sport of sports) {
     results[sport] = await fetchOddsForSport(sport, forceRefresh);
     await sleep(250);

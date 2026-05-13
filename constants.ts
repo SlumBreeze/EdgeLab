@@ -6,7 +6,9 @@ export const SPORT_CADENCE_OFFSETS: Record<
   { first: number; second: number; lock: number }
 > = {
   NBA: { first: 90, second: 50, lock: 25 },
+  WNBA: { first: 90, second: 50, lock: 25 },
   NHL: { first: 105, second: 60, lock: 30 },
+  MLB: { first: 120, second: 60, lock: 30 },
   NFL: { first: 150, second: 90, lock: 45 },
   NCAAB: { first: 90, second: 50, lock: 25 },
   SOCCER: { first: 120, second: 55, lock: 15 },
@@ -15,12 +17,13 @@ export const SPORT_CADENCE_OFFSETS: Record<
 
 export const SPORTS_CONFIG: Record<string, { label: string, espnSlug: string, icon: string }> = {
   NBA: { label: 'NBA', espnSlug: 'basketball/nba', icon: '🏀' },
-  NFL: { label: 'NFL', espnSlug: 'football/nfl', icon: '🏈' },
+  WNBA: { label: 'WNBA', espnSlug: 'basketball/wnba', icon: '🧡' },
   NHL: { label: 'NHL', espnSlug: 'hockey/nhl', icon: '🏒' },
   MLB: { label: 'MLB', espnSlug: 'baseball/mlb', icon: '⚾' },
-  NCAAB: { label: 'NCAAB', espnSlug: 'basketball/mens-college-basketball', icon: '🏫' },
-  NCAAF: { label: 'NCAAF', espnSlug: 'football/college-football', icon: '🏈' },
-  SOCCER: { label: 'Soccer', espnSlug: 'soccer/eng.1', icon: '⚽' },
+  // NFL: { label: 'NFL', espnSlug: 'football/nfl', icon: '🏈' },
+  // NCAAB: { label: 'NCAAB', espnSlug: 'basketball/mens-college-basketball', icon: '🏫' },
+  // NCAAF: { label: 'NCAAF', espnSlug: 'football/college-football', icon: '🏈' },
+  // SOCCER: { label: 'Soccer', espnSlug: 'soccer/eng.1', icon: '⚽' },
 };
 
 export const COMMON_BOOKS = [
@@ -31,7 +34,7 @@ export const COMMON_BOOKS = [
 export const SPORTSBOOKS = Object.values(Sportsbook);
 
 export const SPORTS = [
-  'NFL', 'NBA', 'MLB', 'NHL', 'NCAAF', 'NCAAB', 'SOCCER', 'UFC', 'Tennis', 'Golf', 'F1', 'Esports', 'Other'
+  'NFL', 'NBA', 'WNBA', 'MLB', 'NHL', 'NCAAF', 'NCAAB', 'SOCCER', 'UFC', 'Tennis', 'Golf', 'F1', 'Esports', 'Other'
 ];
 
 export const CHART_COLORS = {

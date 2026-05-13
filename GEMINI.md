@@ -58,7 +58,39 @@ A multi-stage validation process for every potential bet:
 - **Data Quality Veto:** Ensures verified injury info exists.
 - **Contradiction Check:** Validates that AI reasoning aligns with the final recommendation.
 
-### 2. Scan Cadence Protocol (New)
+### 2. Sport-Specific Logic (New)
+
+The AI logic is tailored for each sport to prioritize the most predictive metrics:
+
+#### NHL (The "Betting NHL" Protocol)
+- **Advanced Metrics:** Prioritizes Expected Goals (xG), Corsi/Fenwick (possession), and High Danger Scoring Chances.
+- **Goaltending Audit:** Focuses on Goals Saved Above Expected (GSx) rather than basic W/L stats.
+- **Situational Triggers:** Specifically targets teams on "3 games in 4 nights," back-to-backs (B2B), and identifies weak backup goalie starts.
+- **Empty Net Dynamics:** Adjusts spread and total evaluations for late-game empty net scenarios.
+- **Mandatory Pick:** Enforced protocol to find the most mathematically sound angle (ML, Spread, or Total) for every matchup.
+
+#### NBA (Efficiency & Pace Protocol)
+- **Net Rating:** Prioritizes Offensive/Defensive Efficiency over the last 10 games (Exponential Smoothing).
+- **Four Factors:** Analyzes Shooting, Turnovers, Rebounding, and Free Throw Rate to determine game control.
+- **Fatigue Spots:** Identifies "3-in-4 nights," time zone shifts, and altitude disadvantages (Denver/SLC).
+- **Sharp Alignment:** Monitors handle vs. ticket splits for sharp money signals (Road teams/Unders).
+- **Mandatory Pick:** Enforced protocol to find the most mathematically sound angle (ML, Spread, or Total) for every matchup.
+
+#### WNBA (Information Gap Protocol)
+- **Line Speed:** Targets slow-moving lines where oddsmakers haven't adjusted to late news.
+- **Star Impact:** Heavily weights injuries to top-2 scorers due to small rotations.
+- **Camp Day Triggers:** Identifies noon ET tip-offs as low-scoring/sluggish triggers.
+- **Fatigue Unders:** High-fatigue spots correlate with slower pace and "Unders."
+- **Mandatory Pick:** Enforced protocol to find the most mathematically sound angle (ML, Spread, or Total) for every matchup.
+
+#### MLB (Parity & Environment Protocol)
+- **Underdog Value:** Fades heavy favorites (-180+) and prioritizes underdog value or the Run Line (-1.5) due to high league parity.
+- **Pitching Metrics:** Prioritizes K% over ERA for bullpens and flags starting pitcher velocity drops (2+ mph).
+- **First 5 (F5) Isolation:** Isolates starting pitchers by targeting F5 moneylines when bullpen fatigue is high.
+- **Environment Factors:** Matches umpire tendencies (wide vs. tight) with pitcher styles and accounts for weather/park dimensions.
+- **Mandatory Pick:** Enforced protocol to find the most mathematically sound angle (ML, Run Line, Total, or F5) for every matchup.
+
+### 3. Scan Cadence Protocol (New)
 
 To minimize "trash volume" from early market noise, the app enforces sport-specific scanning windows:
 

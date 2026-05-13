@@ -29,26 +29,26 @@ describe('Veto System with Persona and Rebalancing', () => {
       {
         bookName: 'FanDuel',
         spreadLineA: '-5.5',
-        spreadOddsA: '-110',
+        spreadOddsA: '-110', 
         spreadLineB: '+5.5',
         spreadOddsB: '-110',
         totalLine: '220.5',
         totalOddsOver: '-110',
         totalOddsUnder: '-110',
-        mlOddsA: '-150',
+        mlOddsA: '-150', // Soft ML is better than Sharp
         mlOddsB: '+130',
       }
     ],
     sharpLines: {
       bookName: 'Pinnacle',
-      spreadLineA: '-5',
+      spreadLineA: '-5.5',
       spreadOddsA: '-110',
-      spreadLineB: '+5',
+      spreadLineB: '+5.5',
       spreadOddsB: '-110',
-      totalLine: '220',
+      totalLine: '220.5',
       totalOddsOver: '-110',
       totalOddsUnder: '-110',
-      mlOddsA: '-200',
+      mlOddsA: '-200', // Sharp thinks ML is -200, so -150 is a huge edge
       mlOddsB: '+170',
     }
   };

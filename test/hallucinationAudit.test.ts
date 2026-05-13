@@ -16,9 +16,9 @@ describe('Hallucination Audit', () => {
       bookName: 'Pinnacle',
       mlOddsA: '+100',
       mlOddsB: '-120',
-      spreadLineA: '+1.5',
+      spreadLineA: '-1.5',
       spreadOddsA: '-110',
-      spreadLineB: '-1.5',
+      spreadLineB: '+1.5',
       spreadOddsB: '-110',
       totalLine: '220',
       totalOddsOver: '-110',
@@ -28,14 +28,14 @@ describe('Hallucination Audit', () => {
       {
         bookName: 'FanDuel',
         mlOddsA: '+150', // Huge Edge
-        mlOddsB: '-180',
-        spreadLineA: '+2',
-        spreadOddsA: '-110',
-        spreadLineB: '-2',
-        spreadOddsB: '-110',
-        totalLine: '221',
-        totalOddsOver: '-110',
-        totalOddsUnder: '-110'
+        mlOddsB: '+150',
+        spreadLineA: '-1.5',
+        spreadOddsA: '+150', // Huge edge
+        spreadLineB: '+1.5',
+        spreadOddsB: '+150',
+        totalLine: '220',
+        totalOddsOver: '+150',
+        totalOddsUnder: '+150'
       }
     ]
   };

@@ -1,4 +1,4 @@
-export type Sport = "NBA" | "NFL" | "NHL" | "NCAAB" | "SOCCER" | "MLB" | "NCAAF" | "Other";
+export type Sport = "NBA" | "NFL" | "NHL" | "NCAAB" | "SOCCER" | "MLB" | "NCAAF" | "WNBA" | "Other";
 export type TimeWindow = "EARLY" | "AFTERNOON" | "EVENING";
 export type TimeWindowFilter = "ALL" | TimeWindow;
 
@@ -145,6 +145,7 @@ export interface ScanResult {
   situationalContext?: string;
   expertSentiment?: string;
   gameScript?: string;
+  data_metrics?: string;
   deferred?: boolean;
   error?: string;
 }

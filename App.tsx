@@ -180,22 +180,8 @@ const AppContent: React.FC = () => {
   );
 };
 
-// WRAPPER to handle Auth Logic inside the context
+// Auth bypassed — Supabase not configured, run as single-user local app
 const AppShell: React.FC = () => {
-  const { user, loading } = useAuth();
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-ink-base flex items-center justify-center text-ink-accent animate-pulse">
-        <span className="text-2xl font-mono">Loading EdgeLab...</span>
-      </div>
-    );
-  }
-
-  if (!user) {
-    return <Login />;
-  }
-
   return <AppContent />;
 };
 
