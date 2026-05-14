@@ -32,20 +32,13 @@ ALLOWED_ORIGIN=http://localhost:5173
 
 ## Local Frontend Pairing
 
-Run the backend in one terminal:
-
-```bash
-cd server
-npm run dev
-```
-
-Run the React app in another terminal from the repo root:
+For normal local use, start from the repo root:
 
 ```bash
 npm run dev
 ```
 
-The Vite proxy forwards `/api` calls to `http://localhost:8787`. For deployed or non-proxy setups, set `VITE_BACKEND_URL` in the frontend environment.
+The root dev script starts this backend and the Vite frontend together. The Vite proxy forwards `/api` calls to `http://localhost:8787`. For deployed or non-proxy setups, set `VITE_BACKEND_URL` in the frontend environment.
 
 ## Data & Spend Controls
 

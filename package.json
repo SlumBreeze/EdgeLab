@@ -4,7 +4,10 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "node scripts/dev.mjs",
+    "dev:frontend": "vite",
+    "dev:backend": "npm --prefix server run dev",
+    "postinstall": "npm --prefix server install",
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run",

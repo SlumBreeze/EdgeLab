@@ -38,25 +38,16 @@ ALLOWED_ORIGIN=http://localhost:5173
 1.  **Install Dependencies:**
     ```bash
     npm install
-    cd server
-    npm install
-    cd ..
     ```
+    The root install also installs backend dependencies.
 
-2.  **Start the WNBA Backend:**
-    ```bash
-    cd server
-    npm run dev
-    ```
-    The backend runs at `http://localhost:8787`.
-
-3.  **Start the Frontend Dev Server in a second terminal:**
+2.  **Start the App:**
     ```bash
     npm run dev
     ```
-    The app will run at `http://localhost:5173`.
+    This starts the local backend at `http://localhost:8787` and the frontend at `http://localhost:5173`.
 
-The frontend Vite server proxies `/api` to the backend during local development. If the backend is not running, the WNBA dashboard will fail even if the rest of the app loads.
+The frontend Vite server proxies `/api` to the backend during local development. You should not need a second terminal for normal local use.
 
 ## Supabase Setup (Optional)
 If you want to sync your bankroll and queue across devices:
@@ -69,5 +60,5 @@ If you want to sync your bankroll and queue across devices:
 
 *   **API Errors:** Check the browser console. If Gemini returns 400/403, verify your API key and quotas.
 *   **Odds Not Loading:** The Odds API has usage limits. Check your dashboard if data stops appearing.
-*   **WNBA Dashboard Fails to Load:** Start the backend from `server/` and verify `PORT=8787`.
+*   **WNBA Dashboard Fails to Load:** Verify `npm run dev` started both the backend and frontend, and confirm `PORT=8787` in `server/.env`.
 *   **No Cached WNBA Odds:** Click refresh odds from the dashboard. The backend intentionally does not spend Odds API credits in the background.

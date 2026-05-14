@@ -74,7 +74,6 @@ The current branch also includes a WNBA-focused dashboard backed by a local Node
 
 - Node.js 20+
 - npm
-- Backend terminal for the WNBA dashboard
 - Supabase Project (for database)
   - Use **SlumBreeze's Project** (ref `ekdcafbqwrbvxulutszx`) for EdgeLab.
   - The **edgelab** Supabase project is paused and must not be used.
@@ -115,7 +114,7 @@ The current branch also includes a WNBA-focused dashboard backed by a local Node
     ```bash
     cd server
     cp .env.example .env
-    npm install
+    cd ..
     ```
 
     Populate `server/.env`:
@@ -129,23 +128,16 @@ The current branch also includes a WNBA-focused dashboard backed by a local Node
     ALLOWED_ORIGIN=http://localhost:5173
     ```
 
-4.  **Run the backend for WNBA:**
+4.  **Run the app:**
     ```bash
-    cd server
     npm run dev
     ```
 
-5.  **Run the frontend dev server in a second terminal:**
-    ```bash
-    cd ..
-    npm run dev
-    ```
-
-    Open `http://localhost:5173`. The Vite dev server proxies `/api` requests to `http://localhost:8787`, so no `VITE_BACKEND_URL` is needed for local development.
+    This starts both the local WNBA backend and the Vite frontend. Open `http://localhost:5173`. The Vite dev server proxies `/api` requests to `http://localhost:8787`, so no `VITE_BACKEND_URL` is needed for local development.
 
 ### WNBA Run Notes
 
-- Start the backend before opening the WNBA dashboard.
+- `npm run dev` starts the backend and frontend together.
 - Click the WNBA tab in the app, set the daily budget, then refresh odds manually.
 - `Analyze All` uses cached slate and cached odds. It does not refresh odds in the background.
 - A `STATS_CONFLICT` pass means the selected priced candidate had market value, but the basketball profile supported the opposite side.
