@@ -2,6 +2,8 @@
 
 Local Node/TypeScript backend for WNBA-only slate, odds, session, quota, and Gemini analysis workflows.
 
+The backend exists because the WNBA dashboard needs server-side API keys, SQLite persistence, quota controls, and a single place to enforce conservative analysis rules. The frontend should not call Odds API or Gemini directly for this WNBA flow.
+
 ## Commands
 
 ```bash
@@ -11,11 +13,47 @@ npm run build
 npm test
 ```
 
+`npm run dev` starts the API at `http://localhost:8787` by default.
+
 ## Environment
 
 Copy `.env.example` to `.env`.
 
 `SQLITE_PATH` is optional and defaults to `server/data/edgelab.sqlite`.
+
+```env
+PORT=8787
+SQLITE_PATH=server/data/edgelab.sqlite
+ODDS_API_KEY=your_odds_api_key
+GEMINI_API_KEY=your_gemini_key
+GEMINI_MODEL=gemini-3-pro-preview
+ALLOWED_ORIGIN=http://localhost:5173
+```
+
+## Local Frontend Pairing
+
+Run the backend in one terminal:
+
+```bash
+cd server
+npm run dev
+```
+
+Run the React app in another terminal from the repo root:
+
+```bash
+npm run dev
+```
+
+The Vite proxy forwards `/api` calls to `http://localhost:8787`. For deployed or non-proxy setups, set `VITE_BACKEND_URL` in the frontend environment.
+
+## Data & Spend Controls
+
+- Dates and sessions are keyed to Eastern Time.
+- SQLite stores the daily budget, slate cache, odds cache, analysis cache, and provider usage counters.
+- WNBA odds are fetched only when `/api/odds/wnba?refresh=true` is called.
+- `/api/analyze/all` uses cached odds and cached slate; it does not refresh odds.
+- The analysis service evaluates only the selected priced candidate. If stats support the opposite side, the result is a pass with `STATS_CONFLICT`, not an automatic flip into a bet.
 
 ## API Contracts
 
@@ -48,3 +86,19 @@ Analyzes every cached slate game using cached odds. It does not refresh odds.
 `GET /api/quota`
 
 Returns API usage counters and the latest odds fetch time for the current Eastern Time date.
+
+`GET /api/analysis/wnba`
+
+Returns cached analysis results for the current Eastern Time date.
+
+## Pass Codes
+
+- `NO_EDGE`: no candidate cleared the value floor.
+- `NO_MARKET_DATA`: required slate or odds data is missing.
+- `STALE_INJURY_DATA`: injury/availability context is too weak or stale.
+- `STATS_CONFLICT`: the priced candidate conflicts with the statistical profile.
+- `MARKET_OVERREACTION`: the price move is not supported by hard data.
+- `LOW_CONFIDENCE`: the recommendation lacks enough confidence to size a wager.
+- `MISSING_ROTATION_DATA`: player availability or rotation context is missing.
+- `AI_MARKET_SWITCH`: Gemini tried to evaluate a different side or market.
+- `AI_ERROR`: Gemini failed or timed out.

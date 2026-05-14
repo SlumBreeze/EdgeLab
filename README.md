@@ -21,6 +21,8 @@
 
 Unlike basic odds screens, EdgeLab implements a rigorous "veto system" where Gemini AI agents audit every potential bet for injuries, motivation traps, and narrative contradictions before it reaches your card.
 
+The current branch also includes a WNBA-focused dashboard backed by a local Node API. That flow separates price discovery from bet validation: the scanner finds a priced candidate, then the backend analysis can reject it when hard WNBA data points the other way. That is intentional. The app should not flip an Under into an Over unless the opposite side independently clears the pricing screen.
+
 ## ✨ Key Features
 
 ### 🧠 Intelligent Analysis
@@ -44,6 +46,15 @@ Unlike basic odds screens, EdgeLab implements a rigorous "veto system" where Gem
 - **Auto‑Scan (Optional):** Automatically scans games as they enter cadence windows.
 - **Card:** A daily "Battle Plan" generated from your approved queue, ready for execution.
 
+### 🏀 WNBA Dashboard
+
+- **Daily WNBA slate:** Pulls the current Eastern Time slate from ESPN through the local backend.
+- **Manual odds refresh:** Fetches WNBA odds only when explicitly requested, which protects Odds API credits.
+- **Daily budget gate:** Requires a daily bankroll budget before wager sizing is shown.
+- **Candidate validation:** Selects the best priced candidate from supported books, then validates it with Gemini and official/free WNBA context.
+- **Conservative passes:** Uses explicit pass codes such as `NO_EDGE`, `STATS_CONFLICT`, `LOW_CONFIDENCE`, and `MISSING_ROTATION_DATA`.
+- **Usage tracking:** Shows Odds API refresh usage and Gemini cost estimates for the current day/week.
+
 ---
 
 ## 🛠 Tech Stack
@@ -63,6 +74,7 @@ Unlike basic odds screens, EdgeLab implements a rigorous "veto system" where Gem
 
 - Node.js 20+
 - npm
+- Backend terminal for the WNBA dashboard
 - Supabase Project (for database)
   - Use **SlumBreeze's Project** (ref `ekdcafbqwrbvxulutszx`) for EdgeLab.
   - The **edgelab** Supabase project is paused and must not be used.
@@ -98,10 +110,45 @@ Unlike basic odds screens, EdgeLab implements a rigorous "veto system" where Gem
     VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
     ```
 
-4.  **Run the dev server:**
+    For the WNBA dashboard, also configure the backend:
+
     ```bash
+    cd server
+    cp .env.example .env
+    npm install
+    ```
+
+    Populate `server/.env`:
+
+    ```env
+    PORT=8787
+    SQLITE_PATH=server/data/edgelab.sqlite
+    ODDS_API_KEY=your_odds_api_key
+    GEMINI_API_KEY=your_gemini_key
+    GEMINI_MODEL=gemini-3-pro-preview
+    ALLOWED_ORIGIN=http://localhost:5173
+    ```
+
+4.  **Run the backend for WNBA:**
+    ```bash
+    cd server
     npm run dev
     ```
+
+5.  **Run the frontend dev server in a second terminal:**
+    ```bash
+    cd ..
+    npm run dev
+    ```
+
+    Open `http://localhost:5173`. The Vite dev server proxies `/api` requests to `http://localhost:8787`, so no `VITE_BACKEND_URL` is needed for local development.
+
+### WNBA Run Notes
+
+- Start the backend before opening the WNBA dashboard.
+- Click the WNBA tab in the app, set the daily budget, then refresh odds manually.
+- `Analyze All` uses cached slate and cached odds. It does not refresh odds in the background.
+- A `STATS_CONFLICT` pass means the selected priced candidate had market value, but the basketball profile supported the opposite side.
 
 ---
 
@@ -164,6 +211,7 @@ edgelab/
 ├── components/       # Reusable UI components (Cards, Modals, Badges)
 ├── hooks/            # Custom React hooks (useBankroll, useGameContext)
 ├── pages/            # Main application views (Scout, Queue, Card, Tracker)
+├── server/           # Local WNBA backend (Express, SQLite, Gemini, Odds API)
 ├── services/         # API integrations (Gemini, Odds API, Supabase)
 ├── types/            # TypeScript definitions
 ├── utils/            # Core logic (Math, Edge Calculation, Validation)
@@ -195,6 +243,12 @@ edgelab/
 5. **Card is manual**
    - Plays are manually promoted/logged from Queue to Card.
    - No auto‑promotion by default.
+
+6. **WNBA dashboard is backend-backed**
+   - `pages/WnbaDashboard.tsx` calls `services/backendApi.ts`.
+   - Vite proxies `/api` to the local backend on port `8787`.
+   - The backend caches daily slate, odds, sessions, analysis results, and quota data in SQLite.
+   - Odds refreshes and slate-wide analysis are explicit user actions to avoid invisible API spend.
 
 ---
 

@@ -1,6 +1,6 @@
 # Architecture
 
-EdgeLab is a single-page React app that runs an end-to-end betting workflow: Scout → Queue → Card → Tracker. This document summarizes the runtime flow, key modules, data lifecycle, and failure behavior.
+EdgeLab is a single-page React app that runs an end-to-end betting workflow: Scout → Queue → Card → Tracker. The current branch also includes a backend-backed WNBA dashboard for daily slate analysis, odds caching, API quota controls, and Gemini validation.
 
 ## Runtime Flow
 
@@ -26,6 +26,19 @@ EdgeLab is a single-page React app that runs an end-to-end betting workflow: Sco
 4) Tracker (Performance)
 - Uses Supabase + localStorage to track balances, bets, and performance.
 
+5) WNBA Dashboard (Backend-Backed)
+- Frontend: `pages/WnbaDashboard.tsx`.
+- Client wrapper: `services/backendApi.ts`.
+- Backend: `server/src`.
+- Local API: `http://localhost:8787`, proxied by Vite under `/api`.
+- Flow:
+  - Load today's Eastern Time session and budget.
+  - Load the WNBA slate from ESPN through the backend.
+  - Load cached odds and cached analysis when available.
+  - Refresh WNBA odds only when the user explicitly requests it.
+  - Analyze cached games with cached odds.
+  - Store slate, odds, sessions, analysis, and usage counters in SQLite.
+
 ## Key Modules
 
 - `pages/Scout.tsx`
@@ -38,11 +51,20 @@ EdgeLab is a single-page React app that runs an end-to-end betting workflow: Sco
   - Odds API fetch, cache, and line parsing.
 - `hooks/useGameContext.tsx`
   - Global state, localStorage sync, Supabase sync.
+- `pages/WnbaDashboard.tsx`
+  - WNBA daily budget, slate, odds refresh, analysis display, and quota status.
+- `services/backendApi.ts`
+  - Frontend API wrapper for the local WNBA backend.
+- `server/src/services/analysisService.ts`
+  - WNBA candidate selection, Gemini prompt construction, pass-code normalization, and usage estimates.
+- `server/src/storage/database.ts`
+  - SQLite persistence for sessions, cached provider data, analysis, and usage counters.
 
 ## State & Persistence
 
 - LocalStorage is the primary persistence layer.
 - Supabase sync is optional; heavy slate data is uploaded on a debounced loop.
+- The WNBA dashboard uses backend SQLite persistence rather than localStorage for slate, odds, analysis, sessions, and quota data.
 - State slices include:
   - queue
   - scanResults
@@ -74,6 +96,14 @@ EdgeLab is a single-page React app that runs an end-to-end betting workflow: Sco
 ### ReferenceLineData
 - `spreadLineA`, `spreadLineB`
 
+### WNBA AnalysisResult
+- `recommendation`: BET | LEAN | PASS
+- `confidence`: numeric wager confidence, 0-100
+- `dataQuality`: STRONG | PARTIAL | WEAK
+- `selectedMarket`, `selectedSide`, `selectedBook`, `selectedOdds`, `selectedPoint`
+- `edgePercent`
+- `passReasonCode`: NO_EDGE | STATS_CONFLICT | LOW_CONFIDENCE | etc.
+
 ## Sync & Caching Timings
 
 - Odds API cache
@@ -86,6 +116,11 @@ EdgeLab is a single-page React app that runs an end-to-end betting workflow: Sco
 - Supabase sync
   - Light payload debounce: ~3s after state change.
   - Heavy payload debounce: ~5s after slate change.
+
+- WNBA backend cache
+  - Slate, odds, analysis, daily session, and quota data are keyed by Eastern Time date.
+  - Odds refreshes are explicit user actions.
+  - Slate-wide analysis uses cached odds and does not trigger an odds refresh.
 
 ## Error Handling & Fallbacks
 
@@ -104,6 +139,13 @@ EdgeLab is a single-page React app that runs an end-to-end betting workflow: Sco
 - Supabase
   - Missing table / 404 → falls back to localStorage (sync disabled).
 
+- WNBA backend
+  - Missing backend → WNBA dashboard API calls fail while the rest of the frontend can still load.
+  - Missing cached odds → odds endpoint returns a controlled error until the user refreshes odds.
+  - Gemini timeout/error → PASS with an AI error code.
+  - Gemini market switch → PASS with `AI_MARKET_SWITCH`.
+  - Statistical support for the opposite side → PASS with `STATS_CONFLICT`.
+
 ## Cadence Windows
 
 Each sport has First/Second/Lock offsets (minutes before start). Scout cards show a badge:
@@ -115,3 +157,5 @@ Auto-scan (optional) checks every 30s and triggers Scan Ready when windows open.
 
 - Cloud Run using Docker build (`cloudbuild.yaml`).
 - `npm run deploy` reads `.env` and injects VITE_* vars at build time.
+
+The WNBA backend is currently a local Node service. Production deployment needs an explicit backend hosting target and a persistent SQLite replacement or mounted storage decision before it should be treated as production-ready.
