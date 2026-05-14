@@ -14,6 +14,7 @@ const BASE_BACKOFF_MS = 800;
 
 const SPORT_KEYS: Record<Sport, string> = {
   'NBA': 'basketball_nba',
+  'WNBA': 'basketball_wnba',
   'NFL': 'americanfootball_nfl',
   'NHL': 'icehockey_nhl',
   'NCAAB': 'basketball_ncaab',
@@ -71,8 +72,76 @@ interface OddsCache {
   };
 }
 
+export interface OddsUsageStatus {
+  requestsUsed: number;
+  monthlyCap?: number;
+  remaining?: number;
+  lastFetchAt?: number;
+  lastFetchSport?: string;
+  lastFetchUsedCache: boolean;
+}
+
 // In-memory cache acts as a fast layer on top of localStorage
 let memoryCache: OddsCache = {};
+
+const ODDS_USAGE_KEY = 'edgelab_odds_usage';
+
+const readOddsUsage = (): OddsUsageStatus => {
+  if (typeof window === 'undefined') {
+    return { requestsUsed: 0, lastFetchUsedCache: false };
+  }
+
+  try {
+    const saved = localStorage.getItem(ODDS_USAGE_KEY);
+    if (saved) return JSON.parse(saved);
+  } catch {
+    // Ignore malformed local telemetry.
+  }
+
+  return { requestsUsed: 0, lastFetchUsedCache: false };
+};
+
+const writeOddsUsage = (usage: OddsUsageStatus) => {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(ODDS_USAGE_KEY, JSON.stringify(usage));
+};
+
+const updateOddsUsage = (
+  sportKey: string,
+  usedCache: boolean,
+  headers?: Headers,
+) => {
+  const previous = readOddsUsage();
+  const usedHeader = headers?.get('x-requests-used');
+  const remainingHeader = headers?.get('x-requests-remaining');
+  const parsedUsed = usedHeader ? Number.parseInt(usedHeader, 10) : undefined;
+  const parsedRemaining = remainingHeader
+    ? Number.parseInt(remainingHeader, 10)
+    : undefined;
+  const requestsUsed =
+    Number.isFinite(parsedUsed) && parsedUsed !== undefined
+      ? parsedUsed
+      : previous.requestsUsed + (usedCache ? 0 : 1);
+  const remaining =
+    Number.isFinite(parsedRemaining) && parsedRemaining !== undefined
+      ? parsedRemaining
+      : previous.remaining;
+  const monthlyCap =
+    requestsUsed !== undefined && remaining !== undefined
+      ? requestsUsed + remaining
+      : previous.monthlyCap;
+
+  writeOddsUsage({
+    requestsUsed,
+    monthlyCap,
+    remaining,
+    lastFetchAt: Date.now(),
+    lastFetchSport: sportKey,
+    lastFetchUsedCache: usedCache,
+  });
+};
+
+export const getOddsUsageStatus = (): OddsUsageStatus => readOddsUsage();
 
 const formatPoint = (point: number): string => {
   return point > 0 ? `+${point}` : `${point}`;
@@ -94,6 +163,7 @@ const fetchOddsByLeagueKey = async (sportKey: string, forceRefresh = false): Pro
   // 1. Check In-Memory Cache (Fastest) - Skip if forced
   if (!forceRefresh && memoryCache[sportKey] && (now - memoryCache[sportKey].timestamp < CACHE_DURATION)) {
     console.log(`[OddsService] Using memory cache for ${sportKey}`);
+    updateOddsUsage(sportKey, true);
     return memoryCache[sportKey].data;
   }
 
@@ -109,6 +179,7 @@ const fetchOddsByLeagueKey = async (sportKey: string, forceRefresh = false): Pro
           console.log(`[OddsService] Restoring ${sportKey} from LocalStorage (${Math.round(age/1000/60)}m old)`);
           // Hydrate memory cache
           memoryCache[sportKey] = parsed;
+          updateOddsUsage(sportKey, true);
           return parsed.data;
         } else {
           console.log(`[OddsService] Expired LocalStorage for ${sportKey}`);
@@ -164,6 +235,7 @@ const fetchOddsByLeagueKey = async (sportKey: string, forceRefresh = false): Pro
       }
       
       const data = await response.json();
+      updateOddsUsage(sportKey, false, response.headers);
       
       // 3. Update Caches
       const cacheEntry = { timestamp: now, data: data };
@@ -231,6 +303,7 @@ export const fetchOddsForGame = async (sport: Sport, gameId: string): Promise<an
   try {
     const response = await fetch(url);
     if (!response.ok) return null;
+    updateOddsUsage(`${sportKey}:event`, false, response.headers);
     return await response.json();
   } catch (e) {
     console.error("Error fetching single game odds:", e);

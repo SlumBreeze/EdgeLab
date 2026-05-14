@@ -119,12 +119,12 @@ NBA ANALYTICAL LOGIC (from Betting Pro Basketball Notebook):
 
 const WNBA_SYSTEM_PROMPT = `
 WNBA ANALYTICAL LOGIC (from Betting Pro Basketball Notebook):
-- **Information Gap Exploitation:** WNBA lines are often slow to adjust. Monitor beat reporters for late-breaking news.
-- **Star Player Dependency:** Due to small rosters, injuries to star players (top 2 scorers) have a massive impact on efficiency.
-- **"Camp Day" Fatigue:** Identify games with unusual noon ET tip-offs ("Camp Days"). These often lead to sluggish, lower-scoring first halves.
-- **Fatigue & Totals:** Fatigue in WNBA usually leads to slower pace and shortened rotations. Target "Unders" in high-fatigue spots.
-- **Home Court Edge:** WNBA has a solid 60% home win rate; amplify this in high-engagement smaller markets.
-- **Always Find a Play (WNBA):** If the Spread is sharp, you MUST evaluate the Total (Over/Under) to find value, especially in high-fatigue or Camp Day spots where Unders thrive. DO NOT PASS unless data is missing.
+- **Information Gap Exploitation:** WNBA lines can be slower to adjust, but only act on verified availability, rotation, or market data.
+- **Official Availability First:** Prefer WNBA injury report data, team/coach updates, and reputable beat reporting over generic previews.
+- **Star Player Dependency:** Because rotations are small, injuries or minutes limits for top usage players, primary ball handlers, or rim protectors must be weighted heavily.
+- **Efficiency & Pace:** For sides and totals, use offensive rating, defensive rating, net rating, pace, turnover rate, rebound rate, free-throw rate, and 3P rate when available.
+- **Totals Discipline:** Camp Day, travel, fatigue, and shortened rotations can matter, but they are only actionable when pace/efficiency and market price agree.
+- **No Forced WNBA Bets:** If current injury, rotation, efficiency, or market support is weak, PASS. Thin markets create edge, but also bad information.
 `;
 
 const MLB_SYSTEM_PROMPT = `
@@ -161,8 +161,8 @@ PERSONA SETTINGS:
 - **Decision Mode:** ${persona?.decision_mode || 'MATH_STRICT'} (MATH_STRICT respects EV; HYBRID_PRO and QUALITATIVE_PRO prioritize situational/narrative edges over raw juice).
 
 CORE PRINCIPLES:
-- **Always Find a Play:** There is a "best" side to every game. Unless there is literally NO data available, do not return PASS. Use stats, matchups, and roster integrity to determine who has the higher probability of winning or covering.
-- **Math & Logic Synthesis:** Use the provided rosters and situational data to find edges that the market (Pinnacle) might be missing. If math is negative but rosters are dominant, it's a "Playable" side.
+- **No Forced Plays:** There is not always a bet. Return PASS when value is thin, facts are weak, or the qualitative case relies on narrative.
+- **Math & Logic Synthesis:** Use the provided rosters and situational data to validate the market candidate. Positive market value is the floor; qualitative data can confirm it, not replace it.
 - **Ground Truth Dominance:** You MUST use the provided roster and player data to verify your claims. Never hallucinate player/team pairings.
 - **Favorite Evaluation:** Respect the user's Max Odds threshold (${persona?.max_odds_american || -175}). If a favorite is within this price, has a dominant statistical matchup, and verified roster integrity, they are "Playable."
 
@@ -174,10 +174,10 @@ STRATEGIES:
 
 OUTPUT:
 Return strict JSON with:
-recommendation (BET | LEAN | PASS) - Use PASS only if data is missing.
+recommendation (BET | LEAN | PASS) - Use PASS when data is missing, weak, stale, or does not support the selected market.
 confidence (0-100)
 reasoning (max 2 sentences; blunt, data-only)
-handicapper_logic (1-2 sentences; explain WHY this side is the best play using rosters/stats/situational data)
+handicapper_logic (1-2 sentences; explain WHY the selected market is supported by rosters/stats/situational data)
 trueProbability (number, win %)
 impliedProbability (number, % from odds)
 edge (number, true - implied)
@@ -418,7 +418,7 @@ export const generateWithFallback = async (
   const disableFallback = options?.disableFallback === true;
 
   // MANDATE: Strict Gemini 3 Pro -> Gemini 3 Flash fallback (unless disabled)
-  const mandateModels = ["gemini-2.5-pro", "gemini-2.5-flash"];
+  const mandateModels = ["gemini-3-pro-preview", "gemini-3-flash-preview"];
   
   // Use mandate models if the requested list contains a Pro or Flash variant
   const targetModels = disableFallback
@@ -712,7 +712,7 @@ export const extractLinesFromScreenshot = async (
   const base64 = await fileToBase64(file);
 
   const response = await geminiService.generateWithFallback(
-    ["gemini-2.5-flash"],
+    ["gemini-3-flash-preview"],
     {
       contents: {
         parts: [
@@ -949,24 +949,30 @@ export const analyzeGame = async (
     return { ...s, trueProbability, impliedProbability, edge };
   });
 
-  const candidatePool = [...candidates]
+  const candidatePool = candidates
+    .filter((candidate) => candidate.hasPositiveValue && candidate.edge >= edgeThreshold)
     .sort((a, b) => {
-    const lineDiff = Math.abs(b.lineValue) - Math.abs(a.lineValue);
-    if (lineDiff !== 0) return lineDiff;
-    const priceDiff = b.priceValue - a.priceValue;
-    if (priceDiff !== 0) return priceDiff;
-    return b.trueProbability - a.trueProbability;
-  });
+      const edgeDiff = b.edge - a.edge;
+      if (edgeDiff !== 0) return edgeDiff;
+      const lineDiff = Math.abs(b.lineValue) - Math.abs(a.lineValue);
+      if (lineDiff !== 0) return lineDiff;
+      const priceDiff = b.priceValue - a.priceValue;
+      if (priceDiff !== 0) return priceDiff;
+      return b.trueProbability - a.trueProbability;
+    });
 
   if (candidatePool.length === 0) {
     const bestOverall = [...candidates].sort((a, b) => b.edge - a.edge)[0];
     return {
       decision: "PASS",
       vetoTriggered: true,
-      vetoReason: "NO_MARKET_DATA: No valid lines found.",
+      vetoReason:
+        bestOverall && bestOverall.edge < edgeThreshold
+          ? `NO_EDGE: Best calculated edge (${bestOverall.edge}%) is below minimum threshold (${edgeThreshold}%).`
+          : "NO_EDGE: No positive-value side found versus the sharp reference.",
       recommendation: "PASS",
-      reasoning: "No valid lines found.",
-      researchSummary: "No valid lines found.",
+      reasoning: "No positive-value side found versus the sharp reference.",
+      researchSummary: "No positive-value side found versus the sharp reference.",
       confidenceScore: 0,
       trueProbability: bestOverall?.trueProbability ?? 0,
       impliedProbability: bestOverall?.impliedProbability ?? 0,
@@ -1092,6 +1098,7 @@ Line Movement: ${lineMovement}
 Tasks:
 - Synthesize the provided Situational Context with Ground Truth rosters to ensure the impact of injuries is correctly weighted.
 - If Ground Truth rosters show a key player is active/present who was previously reported as doubtful, prioritize the Ground Truth data.
+- Evaluate ONLY the selected market and side above. If the facts do not support that exact candidate, return PASS instead of switching markets.
 - Reasoning max 2 sentences, blunt and data-only.
 - Handicapper Logic: 1-2 sentences synthesising math + ground truth + situational data.
 Return JSON only.
@@ -1100,7 +1107,7 @@ Return JSON only.
   let analysis: StoicAiResult;
   try {
     const response = await geminiService.generateWithFallback(
-      ["gemini-2.5-pro"],
+      ["gemini-3-pro-preview"],
       {
         contents: prompt,
         config: {
@@ -1126,7 +1133,7 @@ Return JSON only.
     if (isTimeoutError(error)) {
       try {
         const retryResponse = await geminiService.generateWithFallback(
-          ["gemini-2.5-pro"],
+          ["gemini-3-pro-preview"],
           {
             contents: prompt,
             config: {
@@ -1234,6 +1241,8 @@ Return JSON only.
     const normalizedWagerType = normalizeWagerType(analysis.wagerType);
 
     const confidenceScore = clampConfidence(analysis.confidence);
+    const aiWagerTypeMismatch =
+      normalizedWagerType !== null && normalizedWagerType !== best.market;
 
     const reasoning = trimToTwoSentences(analysis.reasoning || "");
 
@@ -1254,6 +1263,11 @@ Return JSON only.
 
     // LOGIC VETO 2: Min Edge
     if (best.edge < edgeThreshold) {
+      finalRecommendation = "PASS";
+    }
+
+    // LOGIC VETO 3: AI attempted to switch away from the priced candidate
+    if (aiWagerTypeMismatch) {
       finalRecommendation = "PASS";
     }
 
@@ -1338,6 +1352,8 @@ Return JSON only.
           finalRecommendation === "PASS"
             ? (Number.isFinite(bestOddsVal) && bestOddsVal < maxOdds)
               ? `JUICE_VETO: Recommended odds ${formatOddsForDisplay(bestOddsVal)} are worse than ${formatOddsForDisplay(maxOdds)} limit.`
+              : aiWagerTypeMismatch
+                ? `MARKET_MISMATCH: AI evaluated ${normalizedWagerType} instead of selected ${best.market} candidate.`
               : best.edge < edgeThreshold
                 ? `NO_EDGE: Calculated edge (${best.edge}%) is below minimum threshold (${edgeThreshold}%).`
                 : "AI_PASS: AI did not find a playable side."
@@ -1440,21 +1456,24 @@ export const refreshAnalysisMathOnly = (
     return { ...s, trueProbability, impliedProbability, edge };
   });
 
-  const rankedCandidates = [...candidates]
+  const rankedCandidates = candidates
+    .filter((candidate) => candidate.hasPositiveValue && candidate.edge >= edgeThreshold)
     .sort((a, b) => {
-    const lineDiff = Math.abs(b.lineValue) - Math.abs(a.lineValue);
-    if (lineDiff !== 0) return lineDiff;
-    const priceDiff = b.priceValue - a.priceValue;
-    if (priceDiff !== 0) return priceDiff;
-    return b.trueProbability - a.trueProbability;
-  });
+      const edgeDiff = b.edge - a.edge;
+      if (edgeDiff !== 0) return edgeDiff;
+      const lineDiff = Math.abs(b.lineValue) - Math.abs(a.lineValue);
+      if (lineDiff !== 0) return lineDiff;
+      const priceDiff = b.priceValue - a.priceValue;
+      if (priceDiff !== 0) return priceDiff;
+      return b.trueProbability - a.trueProbability;
+    });
 
   if (rankedCandidates.length === 0) {
     return {
       ...prior,
       decision: "PASS",
       vetoTriggered: true,
-      vetoReason: "NO_MARKET_DATA: No valid lines found in refresh.",
+      vetoReason: "NO_EDGE: No positive-value side found in refresh.",
       recommendation: "PASS",
     };
   }
@@ -1632,8 +1651,9 @@ export const quickScanGame = async (
     `;
   } else if (game.sport === "WNBA") {
     sportSpecificResearch = `
-    5. WNBA Specifics: Check if this is a "Camp Day" (noon ET tip-off).
-    6. WNBA Line Movement: Search for late-breaking lineup changes from team beat reporters.
+    5. WNBA Availability: Check the official WNBA injury report, team reports, and reputable beat reporters for OUT, questionable, minutes-limit, and rest notes.
+    6. WNBA Efficiency: Search for current offensive rating, defensive rating, net rating, pace, rebound rate, turnover rate, free-throw rate, and 3P rate for both teams.
+    7. WNBA Market Context: Check if this is a noon ET/Camp Day spot, identify spread/total movement, and separate real injury-driven movement from public steam.
     `;
   } else if (game.sport === "MLB") {
     sportSpecificResearch = `
@@ -1652,8 +1672,8 @@ export const quickScanGame = async (
     CRITICAL: Use the verified rosters above. If a team has "NO VERIFIED ROSTER DATA AVAILABLE", do not assume or invent player/team pairings.
 
     Research:
-    1. Injuries: Who is OUT or Questionable? Cross-reference with Ground Truth rosters to ensure impact players are correctly identified.
-    2. Situational Spot: Is this a back-to-back? Rest advantage? Travel fatigue?
+    1. Injuries: Who is OUT or Questionable? Use official injury reports when available, then cross-reference Ground Truth rosters to ensure impact players are correctly identified.
+    2. Situational Spot: Is this a back-to-back? Rest advantage? Travel fatigue? Odd tip time?
     3. Expert Sentiment: What is the consensus from reputable beat writers and sharp handicappers? Are there any "trap" warnings?
     4. Game Script: How is the game likely to play out based on matchups?
     ${sportSpecificResearch}
@@ -1666,13 +1686,13 @@ export const quickScanGame = async (
       "situationalContext": "Rest/Travel context",
       "expertSentiment": "Expert consensus/warnings",
       "gameScript": "Expected game flow",
-      "data_metrics": "Sport-specific advanced stats (e.g., xG, GSx, Corsi) if available"
+      "data_metrics": "Sport-specific advanced stats with source context; for WNBA include offensive rating, defensive rating, net rating, pace, and any player usage/minutes notes if available"
     }
   `;
 
   try {
     const response = await geminiService.generateWithFallback(
-      ["gemini-2.5-flash"],
+      ["gemini-3-flash-preview"],
       {
         contents: prompt,
         config: {
@@ -1698,7 +1718,7 @@ export const quickScanGame = async (
     // Fallback: retry without external tools
     try {
       const response = await geminiService.generateWithFallback(
-        ["gemini-2.5-flash"],
+        ["gemini-3-flash-preview"],
         {
           contents: prompt,
           config: {

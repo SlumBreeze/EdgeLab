@@ -25,6 +25,7 @@ export const fetchGames = async (sport: Sport, date: string): Promise<Game[]> =>
   let path = '';
   switch (sport) {
     case 'NBA': path = 'basketball/nba'; break;
+    case 'WNBA': path = 'basketball/wnba'; break;
     case 'NFL': path = 'football/nfl'; break;
     case 'NHL': path = 'hockey/nhl'; break;
     case 'NCAAB': path = 'basketball/mens-college-basketball'; break;
@@ -93,4 +94,3 @@ const fetchGamesFromSlug = async (path: string, sport: Sport, date: string): Pro
     return [];
   }
 };
-

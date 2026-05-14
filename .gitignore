@@ -12,6 +12,13 @@ dist
 dist-ssr
 *.local
 .env
+.env.*
+!.env.example
+!server/.env.example
+server/.env
+server/data/*.sqlite
+server/data/*.sqlite-*
+server/test/*.js
 
 # Editor directories and files
 .vscode/*

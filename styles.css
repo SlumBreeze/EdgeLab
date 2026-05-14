@@ -1,0 +1,630 @@
+:root {
+  color-scheme: dark;
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+  background: #0b1220;
+  color: #e6edf6;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top left, rgba(29, 168, 255, 0.12), transparent 34rem),
+    #0b1220;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+.wnba-dashboard {
+  min-height: 100vh;
+  background: transparent;
+  color: #e6edf6;
+}
+
+.wnba-shell {
+  width: min(1280px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 28px 0 48px;
+}
+
+.wnba-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+.wnba-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  color: #38bdf8;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.wnba-header h1 {
+  margin: 0;
+  font-size: 34px;
+  line-height: 1.1;
+  letter-spacing: 0;
+}
+
+.wnba-header p {
+  max-width: 760px;
+  margin: 10px 0 0;
+  color: #9fb0c8;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.wnba-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.wnba-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 42px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 10px 14px;
+  color: #e6edf6;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+  transition:
+    border-color 150ms ease,
+    background 150ms ease,
+    opacity 150ms ease;
+}
+
+.wnba-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.wnba-button-primary {
+  border-color: #1da8ff;
+  background: #1d8fe8;
+}
+
+.wnba-button-primary:not(:disabled):hover {
+  background: #167acc;
+}
+
+.wnba-button-secondary {
+  border-color: #314158;
+  background: #111a2b;
+}
+
+.wnba-button-secondary:not(:disabled):hover {
+  border-color: #1da8ff;
+}
+
+.wnba-button-full {
+  width: 100%;
+}
+
+.wnba-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.wnba-summary-card,
+.wnba-game-card,
+.wnba-empty {
+  border: 1px solid #26364d;
+  border-radius: 8px;
+  background: rgba(17, 26, 43, 0.94);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.18);
+}
+
+.wnba-summary-card {
+  min-height: 118px;
+  padding: 16px;
+}
+
+.wnba-card-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  color: #9fb0c8;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.wnba-card-value {
+  min-height: 32px;
+  color: #f8fafc;
+  font-size: 22px;
+  font-weight: 850;
+  line-height: 1.2;
+}
+
+.wnba-card-note {
+  margin-top: 6px;
+  color: #7f91ab;
+  font-size: 12px;
+}
+
+.wnba-guardrails-panel {
+  margin-bottom: 18px;
+  border: 1px solid #26364d;
+  border-radius: 8px;
+  background: rgba(17, 26, 43, 0.94);
+  padding: 16px;
+}
+
+.wnba-guardrails-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.wnba-guardrails-heading h2 {
+  margin: 0;
+  color: #f8fafc;
+  font-size: 20px;
+  line-height: 1.2;
+}
+
+.wnba-guardrails-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.wnba-guardrails-grid > div {
+  min-height: 88px;
+  border: 1px solid #26364d;
+  border-radius: 8px;
+  background: #0b1220;
+  padding: 12px;
+}
+
+.wnba-guardrails-grid span,
+.wnba-guardrails-grid small {
+  display: block;
+  color: #7f91ab;
+  font-size: 12px;
+}
+
+.wnba-guardrails-grid strong {
+  display: block;
+  margin: 6px 0;
+  color: #f8fafc;
+  font-size: 18px;
+  line-height: 1.25;
+}
+
+.wnba-guardrails-warnings {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.wnba-guardrails-warnings > div {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  border: 1px solid rgba(245, 158, 11, 0.28);
+  border-radius: 8px;
+  background: rgba(245, 158, 11, 0.08);
+  color: #fde68a;
+  padding: 10px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.wnba-alert {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 14px;
+  border-radius: 8px;
+  padding: 14px;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.wnba-alert-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.wnba-alert-action {
+  flex: 0 0 auto;
+  border: 1px solid rgba(245, 158, 11, 0.45);
+  border-radius: 6px;
+  background: rgba(245, 158, 11, 0.16);
+  color: #fde68a;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.wnba-alert-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.wnba-alert-warn {
+  border: 1px solid rgba(245, 158, 11, 0.36);
+  background: rgba(245, 158, 11, 0.1);
+  color: #fde68a;
+}
+
+.wnba-alert-bad {
+  border: 1px solid rgba(248, 113, 113, 0.36);
+  background: rgba(248, 113, 113, 0.1);
+  color: #fecaca;
+}
+
+.wnba-games {
+  display: grid;
+  gap: 14px;
+  padding-bottom: 32px;
+}
+
+.wnba-empty {
+  padding: 34px;
+  color: #9fb0c8;
+  text-align: center;
+}
+
+.wnba-game-card {
+  padding: 18px;
+}
+
+.wnba-game-top {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(420px, 0.9fr);
+  gap: 18px;
+  align-items: start;
+  margin-bottom: 14px;
+}
+
+.wnba-game-card h2 {
+  margin: 10px 0 0;
+  color: #f8fafc;
+  font-size: 21px;
+  line-height: 1.25;
+}
+
+.wnba-game-card p {
+  margin: 6px 0 0;
+  color: #91a3bd;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.wnba-badge-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.wnba-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  border: 1px solid #334155;
+  border-radius: 5px;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.wnba-badge-neutral {
+  background: #0b1220;
+  color: #bdc9da;
+}
+
+.wnba-badge-good {
+  border-color: rgba(52, 211, 153, 0.34);
+  background: rgba(52, 211, 153, 0.1);
+  color: #a7f3d0;
+}
+
+.wnba-badge-warn {
+  border-color: rgba(251, 191, 36, 0.34);
+  background: rgba(251, 191, 36, 0.1);
+  color: #fde68a;
+}
+
+.wnba-badge-bad {
+  border-color: rgba(248, 113, 113, 0.34);
+  background: rgba(248, 113, 113, 0.1);
+  color: #fecaca;
+}
+
+.wnba-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.wnba-metric {
+  min-height: 74px;
+  border-radius: 6px;
+  background: #0b1220;
+  padding: 12px;
+}
+
+.wnba-metric div {
+  margin-bottom: 8px;
+  color: #7f91ab;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.wnba-metric strong {
+  color: #f8fafc;
+  font-size: 14px;
+}
+
+.wnba-analysis-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.wnba-analysis-box,
+.wnba-lines-panel {
+  border: 1px solid #26364d;
+  border-radius: 6px;
+  background: #0b1220;
+  padding: 12px;
+}
+
+.wnba-analysis-box > div,
+.wnba-lines-heading > div {
+  margin-bottom: 6px;
+  color: #8ea1bb;
+  font-size: 10px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.wnba-analysis-box p {
+  margin: 0;
+  color: #d5dfec;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.wnba-lines-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.wnba-lines-heading span,
+.wnba-muted {
+  color: #7f91ab;
+  font-size: 12px;
+}
+
+.wnba-book-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.wnba-book-card {
+  border: 1px solid #26364d;
+  border-radius: 6px;
+  background: #111a2b;
+  padding: 12px;
+}
+
+.wnba-book-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.wnba-book-head strong {
+  color: #f8fafc;
+  font-size: 13px;
+}
+
+.wnba-book-head span {
+  color: #7f91ab;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.wnba-line-list {
+  display: grid;
+  gap: 4px;
+  color: #bdc9da;
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.wnba-risk {
+  margin-top: 12px;
+  border-top: 1px solid #26364d;
+  padding-top: 10px;
+  color: #9fb0c8;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.wnba-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(11, 18, 32, 0.86);
+  padding: 20px;
+  backdrop-filter: blur(8px);
+}
+
+.wnba-modal {
+  width: min(100%, 420px);
+  border: 1px solid #334155;
+  border-radius: 8px;
+  background: #111a2b;
+  padding: 20px;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.42);
+}
+
+.wnba-modal-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.wnba-icon-box {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 6px;
+  background: rgba(29, 168, 255, 0.12);
+  color: #38bdf8;
+}
+
+.wnba-modal h2 {
+  margin: 0;
+  color: #f8fafc;
+  font-size: 18px;
+}
+
+.wnba-modal p {
+  margin: 6px 0 0;
+  color: #9fb0c8;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.wnba-input {
+  width: 100%;
+  margin-bottom: 14px;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  background: #0b1220;
+  color: #f8fafc;
+  padding: 12px 14px;
+  font-size: 18px;
+  font-weight: 800;
+  outline: none;
+}
+
+.wnba-input:focus {
+  border-color: #1da8ff;
+}
+
+.wnba-spin {
+  animation: wnba-spin 850ms linear infinite;
+}
+
+@keyframes wnba-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 1100px) {
+  .wnba-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .wnba-actions {
+    justify-content: flex-start;
+  }
+
+  .wnba-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .wnba-guardrails-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .wnba-game-top {
+    grid-template-columns: 1fr;
+  }
+
+  .wnba-book-grid,
+  .wnba-analysis-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .wnba-shell {
+    width: min(100% - 20px, 1280px);
+    padding-top: 18px;
+  }
+
+  .wnba-header h1 {
+    font-size: 28px;
+  }
+
+  .wnba-actions,
+  .wnba-button {
+    width: 100%;
+  }
+
+  .wnba-alert {
+    flex-direction: column;
+  }
+
+  .wnba-alert-action {
+    width: 100%;
+  }
+
+  .wnba-summary-grid,
+  .wnba-metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .wnba-game-card {
+    padding: 14px;
+  }
+}
