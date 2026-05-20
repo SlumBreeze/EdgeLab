@@ -36,8 +36,9 @@ EdgeLab is a single-page React app that runs an end-to-end betting workflow: Sco
   - Load the WNBA slate from ESPN through the backend.
   - Load cached odds and cached analysis when available.
   - Refresh WNBA odds only when the user explicitly requests it.
-  - Analyze cached games with cached odds.
-  - Store slate, odds, sessions, analysis, and usage counters in SQLite.
+  - Build a priced candidate board across moneyline, spread, and total.
+  - Analyze cached games with cached odds and narrative/news context.
+  - Store slate, odds, sessions, analysis, candidate boards, narrative signals, and usage counters in SQLite.
 
 ## Key Modules
 
@@ -56,7 +57,7 @@ EdgeLab is a single-page React app that runs an end-to-end betting workflow: Sco
 - `services/backendApi.ts`
   - Frontend API wrapper for the local WNBA backend.
 - `server/src/services/analysisService.ts`
-  - WNBA candidate selection, Gemini prompt construction, pass-code normalization, and usage estimates.
+  - WNBA candidate-board construction, Gemini prompt construction, narrative signal normalization, pass-code normalization, and usage estimates.
 - `server/src/storage/database.ts`
   - SQLite persistence for sessions, cached provider data, analysis, and usage counters.
 
@@ -102,6 +103,8 @@ EdgeLab is a single-page React app that runs an end-to-end betting workflow: Sco
 - `dataQuality`: STRONG | PARTIAL | WEAK
 - `selectedMarket`, `selectedSide`, `selectedBook`, `selectedOdds`, `selectedPoint`
 - `edgePercent`
+- `candidateBoard`: priced moneyline, spread, and total candidates available for Gemini selection
+- `narrativeSignals`: graded hard facts, supported angles, and soft narratives from previews/news/context
 - `passReasonCode`: NO_EDGE | STATS_CONFLICT | LOW_CONFIDENCE | etc.
 
 ## Sync & Caching Timings
@@ -144,7 +147,8 @@ EdgeLab is a single-page React app that runs an end-to-end betting workflow: Sco
   - Missing cached odds → odds endpoint returns a controlled error until the user refreshes odds.
   - Gemini timeout/error → PASS with an AI error code.
   - Gemini market switch → PASS with `AI_MARKET_SWITCH`.
-  - Statistical support for the opposite side → PASS with `STATS_CONFLICT`.
+  - Gemini selects a side/book/line that is not on the board → PASS with `AI_MARKET_SWITCH`.
+  - Statistical or narrative support for the opposite side → PASS with `STATS_CONFLICT`.
 
 ## Cadence Windows
 

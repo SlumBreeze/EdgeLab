@@ -425,6 +425,82 @@ input {
   line-height: 1.5;
 }
 
+.wnba-context-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.wnba-context-panel {
+  border: 1px solid #26364d;
+  border-radius: 6px;
+  background: #0b1220;
+  padding: 12px;
+}
+
+.wnba-candidate-list,
+.wnba-signal-list {
+  display: grid;
+  gap: 8px;
+}
+
+.wnba-candidate-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  border: 1px solid #26364d;
+  border-radius: 6px;
+  background: #111a2b;
+  padding: 10px;
+}
+
+.wnba-candidate-row strong {
+  display: block;
+  color: #f8fafc;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.wnba-candidate-row span {
+  color: #8ea1bb;
+  font-size: 11px;
+}
+
+.wnba-candidate-row > div:last-child {
+  text-align: right;
+}
+
+.wnba-signal-row {
+  border: 1px solid #26364d;
+  border-radius: 6px;
+  background: #111a2b;
+  padding: 10px;
+}
+
+.wnba-signal-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.wnba-signal-row p {
+  margin: 0;
+  color: #d5dfec;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.wnba-signal-row > span {
+  display: block;
+  margin-top: 6px;
+  color: #7f91ab;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
 .wnba-lines-heading {
   display: flex;
   align-items: center;
@@ -591,7 +667,8 @@ input {
   }
 
   .wnba-book-grid,
-  .wnba-analysis-grid {
+  .wnba-analysis-grid,
+  .wnba-context-grid {
     grid-template-columns: 1fr;
   }
 }

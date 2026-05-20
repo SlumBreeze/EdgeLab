@@ -10,6 +10,7 @@ import type {
   SlateGame,
   WnbaCandidate,
   WnbaDataPack,
+  WnbaNarrativeSignal,
   WnbaPassReasonCode,
 } from "../types.js";
 import { normalizeTeamName } from "./wnbaDataService.js";
@@ -34,6 +35,8 @@ const DEFAULT_COST_CONFIG: GeminiCostConfig = {
   fallbackOutputTokens: 1200,
 };
 const GEMINI_TIMEOUT_MS = 45000;
+const BET_EDGE_FLOOR = 1.5;
+const NARRATIVE_WATCH_EDGE_FLOOR = 0.5;
 
 export class AnalysisService {
   private readonly client: GeminiClient | null;
@@ -47,6 +50,7 @@ export class AnalysisService {
   }
 
   async analyzeGame(dateEt: string, game: SlateGame, odds: OddsGame | null, dataPack?: WnbaDataPack | null): Promise<AnalysisWithUsage> {
+    const candidateBoard = buildWnbaCandidateBoard(game, odds);
     const candidate = selectBestWnbaCandidate(game, odds);
     if (!candidate) {
       return {
@@ -54,7 +58,7 @@ export class AnalysisService {
           dateEt,
           game.id,
           "NO_EDGE",
-          "No WNBA market cleared the 1.5% value floor against the available book consensus.",
+          "No WNBA moneyline, spread, or total cleared the narrative-watch value floor against the available book consensus.",
         ),
         usage: null,
       };
@@ -67,7 +71,7 @@ export class AnalysisService {
       };
     }
 
-    const prompt = buildWnbaPrompt(game, odds, candidate, dataPack || null);
+    const prompt = buildWnbaPrompt(game, odds, candidate, candidateBoard, dataPack || null);
     let response: any;
     try {
       response = await withTimeout(
@@ -96,7 +100,7 @@ export class AnalysisService {
 
     const text = typeof response.text === "function" ? response.text() : response.text;
     const parsed = parseJson(text);
-    const result = normalizeAnalysis(dateEt, game.id, parsed, candidate);
+    const result = normalizeAnalysis(dateEt, game.id, parsed, candidate, candidateBoard);
     return {
       result,
       usage: estimateGeminiUsage(this.model, game.id, response, this.costConfig),
@@ -113,16 +117,20 @@ export const buildWnbaPrompt = (
   game: SlateGame,
   odds: OddsGame | null,
   candidate: WnbaCandidate,
+  candidateBoard: WnbaCandidate[],
   dataPack: WnbaDataPack | null,
 ) => `
-You are analyzing one WNBA betting market for EdgeLab.
+You are analyzing one WNBA game for EdgeLab.
 
 Game:
 ${game.awayTeam.name} at ${game.homeTeam.name}
 Tip: ${game.date}
 
-Selected priced candidate:
+Initial best priced candidate:
 ${JSON.stringify(candidate)}
+
+Candidate board across moneyline, spread, and total:
+${JSON.stringify(candidateBoard)}
 
 Official/free WNBA data pack:
 ${JSON.stringify(dataPack || null)}
@@ -132,10 +140,16 @@ ${JSON.stringify(odds || null)}
 
 Rules:
 - Focus only on WNBA.
-- Evaluate ONLY the selected priced candidate. Do not switch markets, sides, teams, or totals.
+- Evaluate moneyline, spread, and total candidates on the candidate board.
+- You may recommend only a candidate that appears in the candidate board. Do not invent a side, market, line, book, or price.
+- If the initial best candidate is weak but another listed candidate has stronger price plus hard-data/narrative support, select the stronger listed candidate.
+- BET requires positive price value plus hard factual or supported narrative confirmation. LEAN is allowed for thin value with strong narrative/news support.
 - Totals deserve priority only when pace plus offensive/defensive efficiency support the number.
 - Spreads and moneylines require verified availability for high-usage players, primary creators, rim protectors, or defensive anchors.
-- Use official/free WNBA data first. Use current search-backed facts only to verify gaps in the data pack.
+- Incorporate game previews, AP/ESPN/CBS/WNBA/team news, injury reports, rotation notes, coach comments, rematch context, rest/travel, and recent form as narrative signals.
+- Grade every narrative signal as HARD_FACT, SUPPORTED_ANGLE, or SOFT_NARRATIVE.
+- Soft narrative can support a LEAN or watchlist note, but cannot rescue a negative-value or unsupported wager.
+- Use official/free WNBA data first. Use current search-backed facts only to verify gaps in the data pack and cite the source name in the signal.
 - Treat weak injury, rotation, efficiency, pace, or market support as a reason to PASS.
 - Do not invent player availability, team stats, or line movement.
 - Return JSON only.
@@ -145,16 +159,34 @@ Schema:
   "recommendation": "BET" | "LEAN" | "PASS",
   "confidence": 0-100,
   "dataQuality": "STRONG" | "PARTIAL" | "WEAK",
+  "selectedCandidateId": "must match a listed candidateId exactly",
   "selectedMarket": "Moneyline" | "Spread" | "Total",
-  "selectedSide": "must match selected candidate side exactly",
+  "selectedSide": "must match a listed candidate side exactly",
+  "selectedBook": "must match a listed candidate bookTitle exactly",
+  "selectedPoint": number | null,
   "marketValue": "short factual statement",
   "reasoning": "two sentences maximum",
+  "narrativeSignals": [
+    {
+      "category": "injury" | "rotation" | "rest_travel" | "rematch" | "recent_form" | "matchup" | "market" | "total_pace" | "other",
+      "grade": "HARD_FACT" | "SUPPORTED_ANGLE" | "SOFT_NARRATIVE",
+      "direction": "supports_candidate" | "opposes_candidate" | "neutral",
+      "summary": "short source-backed signal",
+      "source": "source name or URL"
+    }
+  ],
   "riskFactors": ["short factual risks"],
   "passReasonCode": "NO_EDGE" | "STALE_INJURY_DATA" | "STATS_CONFLICT" | "MARKET_OVERREACTION" | "LOW_CONFIDENCE" | "MISSING_ROTATION_DATA"
 }
 `;
 
-const normalizeAnalysis = (dateEt: string, gameId: string, parsed: any, candidate: WnbaCandidate): AnalysisResult => {
+const normalizeAnalysis = (
+  dateEt: string,
+  gameId: string,
+  parsed: any,
+  candidate: WnbaCandidate,
+  candidateBoard: WnbaCandidate[],
+): AnalysisResult => {
   const recommendation = ["BET", "LEAN", "PASS"].includes(parsed?.recommendation) ? parsed.recommendation : "PASS";
   const dataQuality = ["STRONG", "PARTIAL", "WEAK"].includes(parsed?.dataQuality) ? parsed.dataQuality : "WEAK";
   const confidence = Number.isFinite(parsed?.confidence) ? Math.max(0, Math.min(100, Math.round(parsed.confidence))) : 0;
@@ -162,8 +194,16 @@ const normalizeAnalysis = (dateEt: string, gameId: string, parsed: any, candidat
     ? parsed.selectedMarket
     : candidate.market;
   const selectedSide = String(parsed?.selectedSide || candidate.side);
-  const switchedMarket = selectedMarket !== candidate.market || normalizeName(selectedSide) !== normalizeName(candidate.side);
-  const finalRecommendation = dataQuality === "WEAK" || switchedMarket ? "PASS" : recommendation;
+  const selectedBook = String(parsed?.selectedBook || candidate.bookTitle);
+  const selectedPoint = Number.isFinite(parsed?.selectedPoint) ? Number(parsed.selectedPoint) : candidate.point;
+  const selectedCandidateId = String(parsed?.selectedCandidateId || "");
+  const matchedCandidate =
+    candidateBoard.find((boardCandidate) => boardCandidate.candidateId === selectedCandidateId) ||
+    findCandidateOnBoard(candidateBoard, selectedMarket, selectedSide, selectedBook, selectedPoint);
+  const boardCandidate = matchedCandidate || candidate;
+  const offBoardSelection = !matchedCandidate;
+  const narrativeSignals = readNarrativeSignals(parsed?.narrativeSignals);
+  const finalRecommendation = dataQuality === "WEAK" || offBoardSelection ? "PASS" : recommendation;
 
   return {
     gameId,
@@ -171,22 +211,24 @@ const normalizeAnalysis = (dateEt: string, gameId: string, parsed: any, candidat
     recommendation: finalRecommendation,
     confidence,
     dataQuality,
-    marketValue: String(parsed?.marketValue || `${candidate.edgePercent.toFixed(2)}% consensus edge on ${candidate.bookTitle}.`),
-    reasoning: switchedMarket
-      ? `AI attempted to evaluate ${selectedSide} ${selectedMarket} instead of the selected ${candidate.side} ${candidate.market}.`
+    marketValue: String(parsed?.marketValue || `${boardCandidate.edgePercent.toFixed(2)}% consensus edge on ${boardCandidate.bookTitle}.`),
+    reasoning: offBoardSelection
+      ? `AI attempted to evaluate ${selectedSide} ${selectedMarket} at ${selectedBook}, which was not on the priced candidate board.`
       : String(parsed?.reasoning || "Insufficient verified WNBA data."),
     riskFactors: [
       ...(Array.isArray(parsed?.riskFactors) ? parsed.riskFactors.map(String) : []),
-      ...(switchedMarket ? ["AI market switch veto"] : []),
+      ...(offBoardSelection ? ["AI off-board selection veto"] : []),
     ],
     createdAt: nowIso(),
-    selectedMarket: candidate.market,
-    selectedSide: candidate.side,
-    selectedBook: candidate.bookTitle,
-    selectedOdds: candidate.odds,
-    selectedPoint: candidate.point,
-    edgePercent: candidate.edgePercent,
-    passReasonCode: switchedMarket ? "AI_MARKET_SWITCH" : readPassReasonCode(parsed?.passReasonCode),
+    selectedMarket: boardCandidate.market,
+    selectedSide: boardCandidate.side,
+    selectedBook: boardCandidate.bookTitle,
+    selectedOdds: boardCandidate.odds,
+    selectedPoint: boardCandidate.point,
+    edgePercent: boardCandidate.edgePercent,
+    candidateBoard,
+    narrativeSignals,
+    passReasonCode: offBoardSelection ? "AI_MARKET_SWITCH" : readPassReasonCode(parsed?.passReasonCode),
   };
 };
 
@@ -225,6 +267,8 @@ const passAnalysis = (
   selectedOdds: candidate?.odds,
   selectedPoint: candidate?.point,
   edgePercent: candidate?.edgePercent,
+  candidateBoard: candidate ? [candidate] : [],
+  narrativeSignals: [],
   passReasonCode,
 });
 
@@ -293,14 +337,22 @@ export const findOddsForSlateGame = (game: SlateGame, odds: OddsGame[]): OddsGam
 };
 
 export const selectBestWnbaCandidate = (game: SlateGame, odds: OddsGame | null): WnbaCandidate | null => {
-  if (!odds || odds.bookmakers.length < 2) return null;
+  const candidates = buildWnbaCandidateBoard(game, odds);
+
+  return candidates.sort((a, b) => b.rankingScore - a.rankingScore)[0] || null;
+};
+
+export const buildWnbaCandidateBoard = (game: SlateGame, odds: OddsGame | null): WnbaCandidate[] => {
+  if (!odds || odds.bookmakers.length < 2) return [];
   const candidates = [
     ...buildMoneylineCandidates(game, odds),
     ...buildPointMarketCandidates(game, odds, "spreads"),
     ...buildPointMarketCandidates(game, odds, "totals"),
-  ].filter((candidate) => candidate.edgePercent >= 1.5);
+  ].filter((candidate) => candidate.edgePercent >= NARRATIVE_WATCH_EDGE_FLOOR);
 
-  return candidates.sort((a, b) => b.rankingScore - a.rankingScore)[0] || null;
+  return candidates
+    .sort((a, b) => b.rankingScore - a.rankingScore)
+    .slice(0, 12);
 };
 
 const buildMoneylineCandidates = (game: SlateGame, odds: OddsGame): WnbaCandidate[] => {
@@ -316,6 +368,7 @@ const buildMoneylineCandidates = (game: SlateGame, odds: OddsGame): WnbaCandidat
     return [
       {
         gameId: game.id,
+        candidateId: makeCandidateId("Moneyline", outcome.name, undefined, book.key),
         market: "Moneyline",
         side: outcome.name,
         teamName: outcome.name,
@@ -325,7 +378,7 @@ const buildMoneylineCandidates = (game: SlateGame, odds: OddsGame): WnbaCandidat
         fairProbability,
         impliedProbability,
         edgePercent,
-        rankingScore: edgePercent,
+        rankingScore: edgePercent + (edgePercent >= BET_EDGE_FLOOR ? 0.25 : 0),
         supportNotes: ["Consensus moneyline value versus available supported books."],
       },
     ];
@@ -349,6 +402,7 @@ const buildPointMarketCandidates = (game: SlateGame, odds: OddsGame, marketKey: 
     return [
       {
         gameId: game.id,
+        candidateId: makeCandidateId(market, market === "Total" ? outcome.name.toUpperCase() : outcome.name, outcome.point, book.key),
         market,
         side: market === "Total" ? outcome.name.toUpperCase() : outcome.name,
         teamName: market === "Spread" ? outcome.name : undefined,
@@ -359,7 +413,7 @@ const buildPointMarketCandidates = (game: SlateGame, odds: OddsGame, marketKey: 
         fairProbability,
         impliedProbability,
         edgePercent,
-        rankingScore: edgePercent + (market === "Total" ? 0.35 : 0),
+        rankingScore: edgePercent + (market === "Total" ? 0.35 : 0) + (edgePercent >= BET_EDGE_FLOOR ? 0.25 : 0),
         supportNotes:
           market === "Total"
             ? ["Totals receive a ranking bonus because pace and efficiency are more modelable in WNBA."]
@@ -392,6 +446,76 @@ const readPassReasonCode = (value: unknown): WnbaPassReasonCode | undefined => {
   ]);
   return typeof value === "string" && allowed.has(value as WnbaPassReasonCode) ? (value as WnbaPassReasonCode) : undefined;
 };
+
+const findCandidateOnBoard = (
+  candidates: WnbaCandidate[],
+  market: WnbaCandidate["market"],
+  side: string,
+  bookTitle: string,
+  point?: number,
+) =>
+  candidates.find(
+    (candidate) =>
+      candidate.market === market &&
+      normalizeName(candidate.side) === normalizeName(side) &&
+      normalizeName(candidate.bookTitle) === normalizeName(bookTitle) &&
+      (candidate.point ?? null) === (point ?? null),
+  );
+
+const readNarrativeSignals = (value: unknown): WnbaNarrativeSignal[] => {
+  if (!Array.isArray(value)) return [];
+  return value.slice(0, 6).flatMap((signal) => {
+    if (!signal || typeof signal !== "object") return [];
+    const category = readSignalCategory((signal as any).category);
+    const grade = readSignalGrade((signal as any).grade);
+    const direction = readSignalDirection((signal as any).direction);
+    const summary = String((signal as any).summary || "").trim();
+    if (!summary) return [];
+    return [
+      {
+        category,
+        grade,
+        direction,
+        summary,
+        source: String((signal as any).source || "").trim() || undefined,
+      },
+    ];
+  });
+};
+
+const readSignalCategory = (value: unknown): WnbaNarrativeSignal["category"] => {
+  const allowed = new Set<WnbaNarrativeSignal["category"]>([
+    "injury",
+    "rotation",
+    "rest_travel",
+    "rematch",
+    "recent_form",
+    "matchup",
+    "market",
+    "total_pace",
+    "other",
+  ]);
+  return typeof value === "string" && allowed.has(value as WnbaNarrativeSignal["category"])
+    ? (value as WnbaNarrativeSignal["category"])
+    : "other";
+};
+
+const readSignalGrade = (value: unknown): WnbaNarrativeSignal["grade"] => {
+  const allowed = new Set<WnbaNarrativeSignal["grade"]>(["HARD_FACT", "SUPPORTED_ANGLE", "SOFT_NARRATIVE"]);
+  return typeof value === "string" && allowed.has(value as WnbaNarrativeSignal["grade"])
+    ? (value as WnbaNarrativeSignal["grade"])
+    : "SOFT_NARRATIVE";
+};
+
+const readSignalDirection = (value: unknown): WnbaNarrativeSignal["direction"] => {
+  const allowed = new Set<WnbaNarrativeSignal["direction"]>(["supports_candidate", "opposes_candidate", "neutral"]);
+  return typeof value === "string" && allowed.has(value as WnbaNarrativeSignal["direction"])
+    ? (value as WnbaNarrativeSignal["direction"])
+    : "neutral";
+};
+
+const makeCandidateId = (market: string, side: string, point: number | undefined, bookKey: string) =>
+  [market, side, point ?? "na", bookKey].map((part) => String(part).toLowerCase().replace(/[^a-z0-9.-]+/g, "-")).join(":");
 
 const normalizeName = (name: string) =>
   normalizeTeamName(name);

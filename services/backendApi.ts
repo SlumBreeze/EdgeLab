@@ -66,7 +66,43 @@ export type AnalysisResult = {
   selectedOdds?: number;
   selectedPoint?: number;
   edgePercent?: number;
+  candidateBoard?: WnbaCandidate[];
+  narrativeSignals?: WnbaNarrativeSignal[];
   passReasonCode?: string;
+};
+
+export type WnbaCandidate = {
+  gameId: string;
+  candidateId: string;
+  market: "Moneyline" | "Spread" | "Total";
+  side: string;
+  teamName?: string;
+  bookKey: string;
+  bookTitle: string;
+  odds: number;
+  point?: number;
+  fairProbability: number;
+  impliedProbability: number;
+  edgePercent: number;
+  rankingScore: number;
+  supportNotes: string[];
+};
+
+export type WnbaNarrativeSignal = {
+  category:
+    | "injury"
+    | "rotation"
+    | "rest_travel"
+    | "rematch"
+    | "recent_form"
+    | "matchup"
+    | "market"
+    | "total_pace"
+    | "other";
+  grade: "HARD_FACT" | "SUPPORTED_ANGLE" | "SOFT_NARRATIVE";
+  direction: "supports_candidate" | "opposes_candidate" | "neutral";
+  summary: string;
+  source?: string;
 };
 
 export type SlateResponse = {

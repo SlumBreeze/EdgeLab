@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { createApp } from "../src/app.js";
 import { migrate, Store } from "../src/storage/database.js";
 import { filterSupportedBooks } from "../src/services/oddsService.js";
-import { selectBestWnbaCandidate } from "../src/services/analysisService.js";
+import { buildWnbaCandidateBoard, selectBestWnbaCandidate } from "../src/services/analysisService.js";
 import type { AnalysisResult, OddsGame, SlateGame } from "../src/types.js";
 
 const config = {
@@ -296,5 +296,34 @@ describe("WNBA candidate selection", () => {
 
     expect(candidate).toMatchObject({ market: "Total", side: "OVER", bookTitle: "DraftKings" });
     expect(candidate?.edgePercent).toBeGreaterThanOrEqual(1.5);
+  });
+
+  it("builds a candidate board across moneyline, spread, and totals for narrative review", () => {
+    const board = buildWnbaCandidateBoard(slateGame, {
+      ...oddsGame,
+      bookmakers: [
+        {
+          key: "draftkings",
+          title: "DraftKings",
+          markets: [
+            { key: "h2h", outcomes: [{ name: "New York Liberty", price: +128 }, { name: "Las Vegas Aces", price: -148 }] },
+            { key: "spreads", outcomes: [{ name: "New York Liberty", point: 3.5, price: -102 }, { name: "Las Vegas Aces", point: -3.5, price: -118 }] },
+            { key: "totals", outcomes: [{ name: "Over", point: 162.5, price: -100 }, { name: "Under", point: 162.5, price: -115 }] },
+          ],
+        },
+        {
+          key: "fanduel",
+          title: "FanDuel",
+          markets: [
+            { key: "h2h", outcomes: [{ name: "New York Liberty", price: +110 }, { name: "Las Vegas Aces", price: -132 }] },
+            { key: "spreads", outcomes: [{ name: "New York Liberty", point: 3.5, price: -118 }, { name: "Las Vegas Aces", point: -3.5, price: -102 }] },
+            { key: "totals", outcomes: [{ name: "Over", point: 162.5, price: -120 }, { name: "Under", point: 162.5, price: -102 }] },
+          ],
+        },
+      ],
+    });
+
+    expect(new Set(board.map((candidate) => candidate.market))).toEqual(new Set(["Moneyline", "Spread", "Total"]));
+    expect(board.every((candidate) => candidate.candidateId && candidate.edgePercent >= 0.5)).toBe(true);
   });
 });

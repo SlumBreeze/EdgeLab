@@ -46,7 +46,8 @@ The root dev script starts this backend and the Vite frontend together. The Vite
 - SQLite stores the daily budget, slate cache, odds cache, analysis cache, and provider usage counters.
 - WNBA odds are fetched only when `/api/odds/wnba?refresh=true` is called.
 - `/api/analyze/all` uses cached odds and cached slate; it does not refresh odds.
-- The analysis service evaluates only the selected priced candidate. If stats support the opposite side, the result is a pass with `STATS_CONFLICT`, not an automatic flip into a bet.
+- The analysis service builds a candidate board across moneyline, spread, and total. Gemini can recommend only a listed candidate from that board.
+- Narrative/news context is graded as hard fact, supported angle, or soft narrative. Soft narrative can support a lean, but cannot create value without a priced candidate.
 
 ## API Contracts
 
@@ -90,6 +91,7 @@ Returns cached analysis results for the current Eastern Time date.
 - `NO_MARKET_DATA`: required slate or odds data is missing.
 - `STALE_INJURY_DATA`: injury/availability context is too weak or stale.
 - `STATS_CONFLICT`: the priced candidate conflicts with the statistical profile.
+- `AI_MARKET_SWITCH`: Gemini tried to evaluate a side, book, line, or market that was not on the candidate board.
 - `MARKET_OVERREACTION`: the price move is not supported by hard data.
 - `LOW_CONFIDENCE`: the recommendation lacks enough confidence to size a wager.
 - `MISSING_ROTATION_DATA`: player availability or rotation context is missing.

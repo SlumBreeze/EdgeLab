@@ -21,7 +21,7 @@
 
 Unlike basic odds screens, EdgeLab implements a rigorous "veto system" where Gemini AI agents audit every potential bet for injuries, motivation traps, and narrative contradictions before it reaches your card.
 
-The current branch also includes a WNBA-focused dashboard backed by a local Node API. That flow separates price discovery from bet validation: the scanner finds a priced candidate, then the backend analysis can reject it when hard WNBA data points the other way. That is intentional. The app should not flip an Under into an Over unless the opposite side independently clears the pricing screen.
+The current branch also includes a WNBA-focused dashboard backed by a local Node API. That flow separates price discovery from bet validation: the scanner builds a candidate board across moneyline, spread, and total, then Gemini can recommend only a priced candidate from that board. Narrative and news can upgrade a lean or confirm a bet, but they cannot invent value where the price screen failed.
 
 ## ✨ Key Features
 
@@ -51,7 +51,8 @@ The current branch also includes a WNBA-focused dashboard backed by a local Node
 - **Daily WNBA slate:** Pulls the current Eastern Time slate from ESPN through the local backend.
 - **Manual odds refresh:** Fetches WNBA odds only when explicitly requested, which protects Odds API credits.
 - **Daily budget gate:** Requires a daily bankroll budget before wager sizing is shown.
-- **Candidate validation:** Selects the best priced candidate from supported books, then validates it with Gemini and official/free WNBA context.
+- **Candidate-board validation:** Checks moneyline, spread, and total candidates from supported books before Gemini chooses a listed priced candidate.
+- **News and narrative layer:** Grades previews, injuries, rotation notes, rematch context, rest/travel, recent form, matchup angles, and market context as hard facts, supported angles, or soft narrative.
 - **Conservative passes:** Uses explicit pass codes such as `NO_EDGE`, `STATS_CONFLICT`, `LOW_CONFIDENCE`, and `MISSING_ROTATION_DATA`.
 - **Usage tracking:** Shows Odds API refresh usage and Gemini cost estimates for the current day/week.
 
@@ -140,7 +141,7 @@ The current branch also includes a WNBA-focused dashboard backed by a local Node
 - `npm run dev` starts the backend and frontend together.
 - Click the WNBA tab in the app, set the daily budget, then refresh odds manually.
 - `Analyze All` uses cached slate and cached odds. It does not refresh odds in the background.
-- A `STATS_CONFLICT` pass means the selected priced candidate had market value, but the basketball profile supported the opposite side.
+- A `STATS_CONFLICT` pass means the listed priced candidate had market value, but the basketball profile and narrative review supported the opposite side.
 
 ---
 
@@ -239,7 +240,7 @@ edgelab/
 6. **WNBA dashboard is backend-backed**
    - `pages/WnbaDashboard.tsx` calls `services/backendApi.ts`.
    - Vite proxies `/api` to the local backend on port `8787`.
-   - The backend caches daily slate, odds, sessions, analysis results, and quota data in SQLite.
+   - The backend caches daily slate, odds, sessions, analysis results, candidate boards, narrative signals, and quota data in SQLite.
    - Odds refreshes and slate-wide analysis are explicit user actions to avoid invisible API spend.
 
 ---

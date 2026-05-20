@@ -81,13 +81,14 @@ The WNBA dashboard is a separate backend-backed workflow for the current Eastern
 *   **Daily Session:** Requires a daily budget before suggested wager sizing is shown.
 *   **Manual Odds Refresh:** Odds are fetched only when explicitly refreshed. Background API spend is not hidden from the user.
 *   **Supported Books Panel:** Shows available moneyline, spread, and total lines by book for each WNBA game.
-*   **Candidate Selection:** The backend picks the best priced candidate from available supported books using market-implied value.
-*   **Gemini Validation:** The selected candidate is checked against WNBA context, injuries, rotation risk, pace, efficiency, and market support.
+*   **Candidate Board:** The backend checks moneyline, spread, and total candidates from available supported books using market-implied value.
+*   **Gemini Validation:** Gemini can recommend only a listed candidate from that board. It cannot invent a side, line, book, or price.
+*   **News & Narrative Layer:** Game previews, injury news, rotation context, rematch notes, rest/travel, recent form, matchup angles, and market context are graded as hard facts, supported angles, or soft narrative.
 *   **Pass Codes:** Rejections are labeled with reasons such as `NO_EDGE`, `STATS_CONFLICT`, `LOW_CONFIDENCE`, or `MISSING_ROTATION_DATA`.
 *   **Quota Tracking:** Shows Odds API usage and Gemini estimated cost for the current day/week.
 
 **Important Behavior:**
-The analysis evaluates only the selected priced candidate. If the scanner finds an Under but the WNBA profile supports Over, the result is a `STATS_CONFLICT` pass. The app does not automatically recommend the opposite side unless that side independently clears the pricing screen. That conservative rule is the point, not a bug wearing a cheap disguise.
+The analysis evaluates the candidate board, not a blank canvas. If the model likes an underdog, spread, or total, that play still has to exist on the board at a real book and price. Soft narrative can support a lean, but it cannot rescue negative-value math. That is the line between useful context and expensive storytelling.
 
 ### 5. Bankroll Management
 Access the bankroll modal via the 💰 button in the top-right corner.

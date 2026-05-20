@@ -58,6 +58,8 @@ const formatOdds = (price?: number) => {
   return price > 0 ? `+${price}` : String(price);
 };
 
+const formatPercent = (value?: number) => (Number.isFinite(value) ? `${value.toFixed(2)}%` : "-");
+
 const formatSource = (source: "cache" | "espn" | "unknown") => {
   if (source === "espn") return "ESPN";
   if (source === "cache") return "Saved";
@@ -149,6 +151,20 @@ const getCandidateSummary = (analysis?: AnalysisResult) => {
   const book = analysis.selectedBook ? ` at ${analysis.selectedBook}` : "";
   return `${analysis.selectedSide} ${analysis.selectedMarket}${point}${odds}${book}${edge}`;
 };
+
+const getNarrativeGradeLabel = (grade: string) => {
+  if (grade === "HARD_FACT") return "Hard fact";
+  if (grade === "SUPPORTED_ANGLE") return "Supported angle";
+  return "Soft narrative";
+};
+
+const getNarrativeDirectionLabel = (direction: string) => {
+  if (direction === "supports_candidate") return "Supports";
+  if (direction === "opposes_candidate") return "Opposes";
+  return "Neutral";
+};
+
+const getCandidateBoard = (analysis?: AnalysisResult) => analysis?.candidateBoard?.slice(0, 6) || [];
 
 const indexAnalysis = (results: AnalysisResult[]) =>
   results.reduce<Record<string, AnalysisResult>>((acc, result) => {
@@ -663,6 +679,65 @@ export default function WnbaDashboard() {
                       <p>{analysis?.reasoning || "Analysis has not run."}</p>
                     </div>
                   </div>
+
+                  {(getCandidateBoard(analysis).length > 0 || analysis?.narrativeSignals?.length) ? (
+                    <div className="wnba-context-grid">
+                      <div className="wnba-context-panel">
+                        <div className="wnba-lines-heading">
+                          <div>Candidate Board</div>
+                          <span>ML / spread / total</span>
+                        </div>
+                        {getCandidateBoard(analysis).length > 0 ? (
+                          <div className="wnba-candidate-list">
+                            {getCandidateBoard(analysis).map((candidate) => (
+                              <div key={candidate.candidateId} className="wnba-candidate-row">
+                                <div>
+                                  <strong>
+                                    {candidate.side} {candidate.market}
+                                    {candidate.point !== undefined ? ` ${candidate.point}` : ""}
+                                  </strong>
+                                  <span>{candidate.bookTitle} {formatOdds(candidate.odds)}</span>
+                                </div>
+                                <div>
+                                  <span>Edge</span>
+                                  <strong>{formatPercent(candidate.edgePercent)}</strong>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="wnba-muted">No priced candidate board saved for this analysis.</div>
+                        )}
+                      </div>
+
+                      <div className="wnba-context-panel">
+                        <div className="wnba-lines-heading">
+                          <div>News & Narrative</div>
+                          <span>{analysis?.narrativeSignals?.length || 0} signals</span>
+                        </div>
+                        {analysis?.narrativeSignals?.length ? (
+                          <div className="wnba-signal-list">
+                            {analysis.narrativeSignals.map((signal, index) => (
+                              <div key={`${signal.category}-${index}`} className="wnba-signal-row">
+                                <div className="wnba-signal-tags">
+                                  <Badge tone={signal.direction === "supports_candidate" ? "good" : signal.direction === "opposes_candidate" ? "bad" : "neutral"}>
+                                    {getNarrativeDirectionLabel(signal.direction)}
+                                  </Badge>
+                                  <Badge tone={signal.grade === "HARD_FACT" ? "good" : signal.grade === "SUPPORTED_ANGLE" ? "warn" : "neutral"}>
+                                    {getNarrativeGradeLabel(signal.grade)}
+                                  </Badge>
+                                </div>
+                                <p>{signal.summary}</p>
+                                {signal.source ? <span>{signal.source}</span> : null}
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="wnba-muted">No source-backed narrative signals saved for this analysis.</div>
+                        )}
+                      </div>
+                    </div>
+                  ) : null}
 
                   <div className="wnba-lines-panel">
                     <div className="wnba-lines-heading">

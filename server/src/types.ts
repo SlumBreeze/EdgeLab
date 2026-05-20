@@ -65,6 +65,8 @@ export type AnalysisResult = {
   selectedOdds?: number;
   selectedPoint?: number;
   edgePercent?: number;
+  candidateBoard?: WnbaCandidate[];
+  narrativeSignals?: WnbaNarrativeSignal[];
   passReasonCode?: WnbaPassReasonCode;
 };
 
@@ -133,6 +135,7 @@ export type WnbaDataPack = {
 
 export type WnbaCandidate = {
   gameId: string;
+  candidateId: string;
   market: "Moneyline" | "Spread" | "Total";
   side: string;
   teamName?: string;
@@ -145,4 +148,21 @@ export type WnbaCandidate = {
   edgePercent: number;
   rankingScore: number;
   supportNotes: string[];
+};
+
+export type WnbaNarrativeSignal = {
+  category:
+    | "injury"
+    | "rotation"
+    | "rest_travel"
+    | "rematch"
+    | "recent_form"
+    | "matchup"
+    | "market"
+    | "total_pace"
+    | "other";
+  grade: "HARD_FACT" | "SUPPORTED_ANGLE" | "SOFT_NARRATIVE";
+  direction: "supports_candidate" | "opposes_candidate" | "neutral";
+  summary: string;
+  source?: string;
 };
