@@ -237,6 +237,11 @@ export const backendApi = {
       method: "POST",
       body: JSON.stringify(typeof overrideReason === "string" && overrideReason.trim() ? { overrideReason: overrideReason.trim() } : {}),
     }),
+  analyzeGame: (gameId: string, overrideReason?: string) =>
+    requestJson<AnalysisResult>(`/api/analyze/${encodeURIComponent(gameId)}`, {
+      method: "POST",
+      body: JSON.stringify(typeof overrideReason === "string" && overrideReason.trim() ? { overrideReason: overrideReason.trim() } : {}),
+    }),
   getWnbaAnalysis: () => requestJson<AnalysisCacheResponse>("/api/analysis/wnba"),
   getQuota: () => requestJson<QuotaResponse>("/api/quota"),
 };

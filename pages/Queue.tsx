@@ -243,8 +243,29 @@ export default function Queue() {
     }
   };
 
-  const handleAnalyzeAll = () => {
-    const gamesToAnalyze = queue.filter(
+  const queueGamesForAnalysis = (gamesToAnalyze: typeof queue, rerun = false) => {
+    if (gamesToAnalyze.length === 0) {
+      toast.showInfo(rerun ? "No games available to re-analyze." : "No eligible games to analyze.");
+      return;
+    }
+
+    if (rerun) {
+      gamesToAnalyze.forEach((game) => {
+        updateGame(game.id, {
+          analysis: undefined,
+          analysisError: undefined,
+          autoAnalyze: false,
+        });
+      });
+    }
+
+    const ids = gamesToAnalyze.map((g) => g.id);
+    setAnalysisQueue((prev) => Array.from(new Set([...prev, ...ids])));
+    toast.showSuccess(`${rerun ? "Re-queued" : "Queued"} ${ids.length} games for analysis.`);
+  };
+
+  const getPendingGames = (games: typeof queue) =>
+    games.filter(
       (g) =>
         !g.analysis &&
         !g.analysisError &&
@@ -252,14 +273,15 @@ export default function Queue() {
         activeAnalysisId !== g.id,
     );
 
-    if (gamesToAnalyze.length === 0) {
-      toast.showInfo("No eligible games to analyze.");
-      return;
-    }
+  const getRerunGames = (games: typeof queue) =>
+    games.filter((g) => !analysisQueue.includes(g.id) && activeAnalysisId !== g.id);
 
-    const ids = gamesToAnalyze.map((g) => g.id);
-    setAnalysisQueue((prev) => [...prev, ...ids]);
-    toast.showSuccess(`Queued ${ids.length} games for analysis.`);
+  const handleAnalyzeAll = () => {
+    queueGamesForAnalysis(getPendingGames(queue));
+  };
+
+  const handleReanalyzeAll = () => {
+    queueGamesForAnalysis(getRerunGames(queue), true);
   };
 
   const filteredQueue =
@@ -272,46 +294,44 @@ export default function Queue() {
     count: queue.filter((g) => isInTimeWindow(g.date, window.key)).length,
   }));
 
-  const pendingCountAll = queue.filter(
-    (g) =>
-      !g.analysis &&
-      !g.analysisError &&
-      !analysisQueue.includes(g.id) &&
-      activeAnalysisId !== g.id,
-  ).length;
-  const pendingCountWindow = filteredQueue.filter(
-    (g) =>
-      !g.analysis &&
-      !g.analysisError &&
-      !analysisQueue.includes(g.id) &&
-      activeAnalysisId !== g.id,
-  ).length;
+  const pendingCountAll = getPendingGames(queue).length;
+  const pendingCountWindow = getPendingGames(filteredQueue).length;
+  const rerunCountAll = getRerunGames(queue).length;
+  const rerunCountWindow = getRerunGames(filteredQueue).length;
 
   const handleAnalyzeWindow = () => {
     if (selectedWindow === "ALL") return;
-    const gamesToAnalyze = filteredQueue.filter(
-      (g) =>
-        !g.analysis &&
-        !g.analysisError &&
-        !analysisQueue.includes(g.id) &&
-        activeAnalysisId !== g.id,
-    );
+    const gamesToAnalyze = getPendingGames(filteredQueue);
 
     if (gamesToAnalyze.length === 0) {
       toast.showInfo("No eligible games to analyze in this window.");
       return;
     }
 
-    const ids = gamesToAnalyze.map((g) => g.id);
-    setAnalysisQueue((prev) => [...prev, ...ids]);
-    toast.showSuccess(
-      `Queued ${ids.length} ${getTimeWindowLabel(selectedWindow)} games for analysis.`,
-    );
+    queueGamesForAnalysis(gamesToAnalyze);
+  };
+
+  const handleReanalyzeWindow = () => {
+    if (selectedWindow === "ALL") return;
+    queueGamesForAnalysis(getRerunGames(filteredQueue), true);
   };
 
   const handleRemoveFromQueue = (gameId: string) => {
     setAnalysisQueue((prev) => prev.filter((id) => id !== gameId));
     toast.showInfo("Removed from analysis queue");
+  };
+
+  const handleReanalyzeGame = (gameId: string) => {
+    const game = queue.find((g) => g.id === gameId);
+    if (!game || analysisQueue.includes(gameId) || activeAnalysisId === gameId) return;
+
+    updateGame(gameId, {
+      analysis: undefined,
+      analysisError: undefined,
+      autoAnalyze: false,
+    });
+    setAnalysisQueue((prev) => Array.from(new Set([...prev, gameId])));
+    toast.showInfo("Game re-queued for fresh analysis.");
   };
 
   const handleManualRemove = (gameId: string) => {
@@ -463,17 +483,27 @@ export default function Queue() {
             </span>
           </div>
 
-          {pendingCountAll > 0 && (
+          {(pendingCountAll > 0 || rerunCountAll > 0) && (
             <div className="flex flex-col gap-2">
-              <button
-                onClick={handleAnalyzeAll}
-                className="w-full py-3 bg-ink-accent hover:bg-sky-500 text-white rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-2"
-              >
-                <span className="animate-pulse">⚡</span>
-                {analysisQueue.length > 0
-                  ? `Queued (${analysisQueue.length}) — Add ${pendingCountAll} More`
-                  : `Analyze Remaining (${pendingCountAll})`}
-              </button>
+              {pendingCountAll > 0 ? (
+                <button
+                  onClick={handleAnalyzeAll}
+                  className="w-full py-3 bg-ink-accent hover:bg-sky-500 text-white rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-2"
+                >
+                  <span className="animate-pulse">⚡</span>
+                  {analysisQueue.length > 0
+                    ? `Queued (${analysisQueue.length}) — Add ${pendingCountAll} More`
+                    : `Analyze Remaining (${pendingCountAll})`}
+                </button>
+              ) : (
+                <button
+                  onClick={handleReanalyzeAll}
+                  className="w-full py-3 bg-ink-paper hover:bg-ink-base text-ink-accent border border-ink-accent rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-2"
+                >
+                  <span>🔄</span>
+                  Re-analyze All ({rerunCountAll})
+                </button>
+              )}
               {selectedWindow !== "ALL" && pendingCountWindow > 0 && (
                 <button
                   onClick={handleAnalyzeWindow}
@@ -481,6 +511,15 @@ export default function Queue() {
                 >
                   Analyze {getTimeWindowLabel(selectedWindow)} Window (
                   {pendingCountWindow})
+                </button>
+              )}
+              {selectedWindow !== "ALL" && pendingCountWindow === 0 && rerunCountWindow > 0 && (
+                <button
+                  onClick={handleReanalyzeWindow}
+                  className="w-full py-2 bg-ink-paper text-ink-accent border border-ink-accent hover:bg-ink-accent/10 rounded-xl font-bold text-sm shadow-sm transition-all"
+                >
+                  Re-analyze {getTimeWindowLabel(selectedWindow)} Window (
+                  {rerunCountWindow})
                 </button>
               )}
             </div>
@@ -588,6 +627,7 @@ export default function Queue() {
                     queuePosition={analysisQueue.indexOf(game.id)}
                     isAnalyzing={activeAnalysisId === game.id}
                     onQuickAnalyze={() => handleQuickAnalyze(game.id)}
+                    onReanalyze={() => handleReanalyzeGame(game.id)}
                     onRemoveFromQueue={() => handleRemoveFromQueue(game.id)}
                     loading={
                       analyzingIds.has(game.id) ||

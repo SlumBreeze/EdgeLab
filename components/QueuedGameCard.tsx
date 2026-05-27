@@ -23,6 +23,7 @@ interface Props {
   queuePosition: number;
   isAnalyzing: boolean;
   onQuickAnalyze: () => void;
+  onReanalyze: () => void;
   onRemoveFromQueue: () => void;
 }
 
@@ -38,6 +39,7 @@ const QueuedGameCard: React.FC<Props> = ({
   queuePosition,
   isAnalyzing,
   onQuickAnalyze,
+  onReanalyze,
   onRemoveFromQueue
 }) => {
   const { setSharpLines, addSoftLines, updateGame, activeBookNames } = useGameContext();
@@ -357,6 +359,15 @@ const QueuedGameCard: React.FC<Props> = ({
                 </>
               )}
             </div>
+          )}
+          {game.analysis && !isAnalyzing && queuePosition < 0 && (
+            <button
+              onClick={onReanalyze}
+              disabled={fetchingOdds}
+              className="text-xs bg-ink-base hover:bg-ink-paper text-ink-text/70 border border-ink-gray px-3 py-2 rounded-xl font-bold transition-colors shadow-sm flex items-center gap-1 disabled:opacity-50"
+            >
+              <span>🔄</span> Re-analyze
+            </button>
           )}
           <input type="file" hidden ref={sharpInputRef} accept="image/*" onChange={(e) => handleFileChange(e, 'SHARP')} />
           <input type="file" hidden ref={softInputRef} accept="image/*" onChange={(e) => handleFileChange(e, 'SOFT')} />

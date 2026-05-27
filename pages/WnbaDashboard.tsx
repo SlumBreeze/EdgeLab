@@ -377,6 +377,48 @@ export default function WnbaDashboard() {
     }
   };
 
+  const analyzeSingleGame = async (gameId: string, overrideReason?: string) => {
+    setAnalysisError(null);
+    if (needsBudget) {
+      toast.showError("Set today's budget before analyzing games.");
+      return;
+    }
+    if (oddsCache.games.length === 0) {
+      toast.showError("Refresh odds before analyzing games.");
+      return;
+    }
+
+    const hardStopped = Boolean(quota?.gemini.isHardStopped);
+    const reason =
+      overrideReason ||
+      (hardStopped
+        ? getOverrideReason(`Estimated Gemini spend is already at ${formatUsd(quota?.gemini.week.estimatedCostUsd)} this week.`)
+        : undefined);
+    if (reason === null) return;
+
+    setWorkState("analyzing");
+    try {
+      const result = await backendApi.analyzeGame(gameId, reason);
+      const quotaResponse = await backendApi.getQuota();
+      setAnalysisByGameId((current) => ({ ...current, [gameId]: result }));
+      setQuota(quotaResponse);
+      toast.showSuccess("Game analysis refreshed.");
+    } catch (analyzeError) {
+      if (analyzeError instanceof ApiError && analyzeError.code === "GUARDRAIL_OVERRIDE_REQUIRED") {
+        const retryReason = getOverrideReason(analyzeError.message);
+        if (retryReason) {
+          await analyzeSingleGame(gameId, retryReason);
+        }
+      } else {
+        const message = analyzeError instanceof Error ? analyzeError.message : "Failed to analyze game.";
+        setAnalysisError(message);
+        toast.showError(message);
+      }
+    } finally {
+      setWorkState("idle");
+    }
+  };
+
   const oddsCount = quota?.usage.odds?.count || 0;
   const geminiCount = quota?.usage.gemini?.count || 0;
   const oddsDailyLimitReached =
@@ -473,17 +515,16 @@ export default function WnbaDashboard() {
                 workState !== "idle" ||
                 needsBudget ||
                 slate.length === 0 ||
-                oddsCache.games.length === 0 ||
-                (analyzeAllLimitReached && savedAnalysisCount > 0)
+                oddsCache.games.length === 0
               }
               className="wnba-button wnba-button-primary"
-              title={analyzeAllLimitReached && savedAnalysisCount > 0 ? "Today's analysis is already saved. Reload will keep it visible." : undefined}
+              title={analyzeAllLimitReached && savedAnalysisCount > 0 ? "Re-running requires an override reason." : undefined}
             >
               {workState === "analyzing" ? <Loader2 size={16} className="wnba-spin" /> : <BarChart3 size={16} />}
               {workState === "analyzing"
                 ? "Analyzing Games..."
                 : analyzeAllLimitReached && savedAnalysisCount > 0
-                  ? "Analysis Saved"
+                  ? "Re-analyze All Games"
                   : "Analyze All Games"}
             </button>
           </div>
@@ -639,6 +680,16 @@ export default function WnbaDashboard() {
                         {game.awayTeam.name} at {game.homeTeam.name}
                       </h2>
                       <p>{game.status}{game.venue ? ` | ${game.venue}` : ""}</p>
+                      {analysis && (
+                        <button
+                          type="button"
+                          onClick={() => analyzeSingleGame(game.id)}
+                          disabled={workState !== "idle" || needsBudget || oddsCache.games.length === 0}
+                          className="wnba-inline-action"
+                        >
+                          Re-analyze game
+                        </button>
+                      )}
                     </div>
 
                     <div className="wnba-metrics">

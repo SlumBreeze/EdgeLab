@@ -327,6 +327,30 @@ input {
   line-height: 1.45;
 }
 
+.wnba-inline-action {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  margin-top: 10px;
+  border: 1px solid #314158;
+  border-radius: 6px;
+  padding: 7px 10px;
+  background: #0f172a;
+  color: #93c5fd;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.wnba-inline-action:not(:disabled):hover {
+  border-color: #1da8ff;
+}
+
+.wnba-inline-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
 .wnba-badge-row {
   display: flex;
   flex-wrap: wrap;
