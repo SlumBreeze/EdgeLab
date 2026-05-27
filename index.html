@@ -8,31 +8,35 @@
     <title>EdgeLab - AI Sports Analysis</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
-      tailwind.config = {
-        darkMode: 'class',
-        theme: {
-          extend: {
-            colors: {
-              ink: {
-                base: '#0b1220',
-                paper: '#111a2b',
-                panel: '#151f33',
-                text: '#e6edf6',
-                gray: '#475569', // Brightened from #25324a for better visibility
-                muted: '#94a3b8', // Improved secondary text color
-                accent: '#1da8ff'
+      if (window.tailwind) {
+        tailwind.config = {
+          darkMode: 'class',
+          theme: {
+            extend: {
+              colors: {
+                ink: {
+                  base: '#0b1220',
+                  paper: '#111a2b',
+                  panel: '#151f33',
+                  text: '#e6edf6',
+                  gray: '#475569', // Brightened from #25324a for better visibility
+                  muted: '#94a3b8', // Improved secondary text color
+                  accent: '#1da8ff'
+                },
+                status: {
+                  win: '#19c37d',
+                  loss: '#ff4d4f'
+                }
               },
-              status: {
-                win: '#19c37d',
-                loss: '#ff4d4f'
+              fontFamily: {
+                sans: ['system-ui', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'Arial', 'Noto Sans', 'sans-serif'],
+                mono: ['JetBrains Mono', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'Liberation Mono', 'monospace']
               }
-            },
-            fontFamily: {
-              sans: ['system-ui', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'Arial', 'Noto Sans', 'sans-serif'],
-              mono: ['JetBrains Mono', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'Liberation Mono', 'monospace']
             }
           }
-        }
+        };
+      } else {
+        console.warn('Tailwind CDN did not load. Utility classes may be incomplete.');
       }
     </script>
     <style>
