@@ -5,6 +5,7 @@ import { createApp } from "../src/app.js";
 import { migrate, Store } from "../src/storage/database.js";
 import { filterSupportedBooks } from "../src/services/oddsService.js";
 import { buildWnbaCandidateBoard, selectBestWnbaCandidate } from "../src/services/analysisService.js";
+import { AnalysisService } from "../src/services/analysisService.js";
 import type { AnalysisResult, OddsGame, SlateGame } from "../src/types.js";
 
 const config = {
@@ -370,5 +371,66 @@ describe("WNBA candidate selection", () => {
 
     expect(new Set(board.map((candidate) => candidate.market))).toEqual(new Set(["Moneyline", "Spread", "Total"]));
     expect(board.every((candidate) => candidate.candidateId && candidate.edgePercent >= 0.5)).toBe(true);
+  });
+});
+
+describe("WNBA Gemini fallback", () => {
+  it("falls back to Gemini 2.5 Pro when the configured analysis model times out", async () => {
+    vi.useFakeTimers();
+    const generateContent = vi
+      .fn()
+      .mockReturnValueOnce(new Promise(() => {}))
+      .mockResolvedValueOnce({
+        text: JSON.stringify({
+          recommendation: "PASS",
+          confidence: 25,
+          dataQuality: "PARTIAL",
+          selectedCandidateId: "moneyline:new-york-liberty:na:betonlineag",
+          selectedMarket: "Moneyline",
+          selectedSide: "New York Liberty",
+          selectedBook: "BetOnline",
+          selectedPoint: null,
+          marketValue: "Thin market value.",
+          reasoning: "The price is not enough without stronger rotation support.",
+          narrativeSignals: [],
+          riskFactors: ["Thin edge"],
+          passReasonCode: "LOW_CONFIDENCE",
+        }),
+        usageMetadata: {
+          promptTokenCount: 100,
+          candidatesTokenCount: 25,
+        },
+      });
+    const service = new AnalysisService(
+      undefined,
+      { models: { generateContent } },
+      "gemini-3.1-pro-preview",
+      config,
+    );
+    const oddsWithEdge: OddsGame = {
+      ...oddsGame,
+      bookmakers: [
+        {
+          key: "betonlineag",
+          title: "BetOnline",
+          markets: [{ key: "h2h", outcomes: [{ name: "New York Liberty", price: -185 }, { name: "Las Vegas Aces", price: +160 }] }],
+        },
+        {
+          key: "fanduel",
+          title: "FanDuel",
+          markets: [{ key: "h2h", outcomes: [{ name: "New York Liberty", price: -205 }, { name: "Las Vegas Aces", price: +170 }] }],
+        },
+      ],
+    };
+
+    const promise = service.analyzeGame("2026-05-14", slateGame, oddsWithEdge, null);
+    await vi.advanceTimersByTimeAsync(90001);
+    const response = await promise;
+
+    expect(generateContent).toHaveBeenNthCalledWith(1, expect.objectContaining({ model: "gemini-3.1-pro-preview" }));
+    expect(generateContent).toHaveBeenNthCalledWith(2, expect.objectContaining({ model: "gemini-2.5-pro" }));
+    expect(response.result.recommendation).toBe("PASS");
+    expect(response.usage?.model).toBe("gemini-2.5-pro");
+    vi.useRealTimers();
   });
 });

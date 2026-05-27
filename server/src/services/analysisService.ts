@@ -34,9 +34,10 @@ const DEFAULT_COST_CONFIG: GeminiCostConfig = {
   fallbackInputTokens: 6000,
   fallbackOutputTokens: 1200,
 };
-const GEMINI_TIMEOUT_MS = 45000;
+const GEMINI_TIMEOUT_MS = 90000;
 const BET_EDGE_FLOOR = 1.5;
 const NARRATIVE_WATCH_EDGE_FLOOR = 0.5;
+const FALLBACK_ANALYSIS_MODEL = "gemini-2.5-pro";
 
 export class AnalysisService {
   private readonly client: GeminiClient | null;
@@ -72,21 +73,33 @@ export class AnalysisService {
     }
 
     const prompt = buildWnbaPrompt(game, odds, candidate, candidateBoard, dataPack || null);
+    const models = getAnalysisModels(this.model);
     let response: any;
-    try {
-      response = await withTimeout(
-        this.client.models.generateContent({
-          model: this.model,
-          contents: prompt,
-          config: {
-            tools: [{ googleSearch: {} }],
-            temperature: 0.15,
-          },
-        }),
-        GEMINI_TIMEOUT_MS,
-      );
-    } catch (error) {
-      throw error;
+    let usedModel = models[0];
+    let lastError: unknown = null;
+
+    for (const model of models) {
+      try {
+        response = await withTimeout(
+          this.client.models.generateContent({
+            model,
+            contents: prompt,
+            config: {
+              tools: [{ googleSearch: {} }],
+              temperature: 0.15,
+            },
+          }),
+          GEMINI_TIMEOUT_MS,
+          model,
+        );
+        usedModel = model;
+        break;
+      } catch (error) {
+        lastError = error;
+        if (model === models[models.length - 1]) {
+          throw lastError;
+        }
+      }
     }
 
     const text = typeof response.text === "function" ? response.text() : response.text;
@@ -94,10 +107,18 @@ export class AnalysisService {
     const result = normalizeAnalysis(dateEt, game.id, parsed, candidate, candidateBoard);
     return {
       result,
-      usage: estimateGeminiUsage(this.model, game.id, response, this.costConfig),
+      usage: estimateGeminiUsage(usedModel, game.id, response, this.costConfig),
     };
   }
 }
+
+const getAnalysisModels = (primaryModel: string) => {
+  const models = [primaryModel];
+  if (primaryModel !== FALLBACK_ANALYSIS_MODEL) {
+    models.push(FALLBACK_ANALYSIS_MODEL);
+  }
+  return models;
+};
 
 export const estimatePlannedGeminiCostUsd = (gameCount: number, costConfig: GeminiCostConfig) =>
   gameCount *
@@ -304,13 +325,13 @@ const readTokenCount = (metadata: any, keys: string[]) => {
   return null;
 };
 
-const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number): Promise<T> => {
+const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number, label = "operation"): Promise<T> => {
   let timeout: ReturnType<typeof setTimeout> | undefined;
   try {
     return await Promise.race([
       promise,
       new Promise<never>((_resolve, reject) => {
-        timeout = setTimeout(() => reject(new Error(`Gemini timed out after ${timeoutMs}ms.`)), timeoutMs);
+        timeout = setTimeout(() => reject(new Error(`Gemini model ${label} timed out after ${timeoutMs}ms.`)), timeoutMs);
       }),
     ]);
   } finally {
