@@ -417,8 +417,8 @@ export const generateWithFallback = async (
   
   const disableFallback = options?.disableFallback === true;
 
-  // MANDATE: Strict Gemini 3 Pro -> Gemini 3 Flash fallback (unless disabled)
-  const mandateModels = ["gemini-3-pro-preview", "gemini-3-flash-preview"];
+  // Stable Gemini models first; preview model names can disappear without warning.
+  const mandateModels = ["gemini-2.5-pro", "gemini-2.5-flash"];
   
   // Use mandate models if the requested list contains a Pro or Flash variant
   const targetModels = disableFallback
@@ -712,7 +712,7 @@ export const extractLinesFromScreenshot = async (
   const base64 = await fileToBase64(file);
 
   const response = await geminiService.generateWithFallback(
-    ["gemini-3-flash-preview"],
+    ["gemini-2.5-flash"],
     {
       contents: {
         parts: [
@@ -1107,7 +1107,7 @@ Return JSON only.
   let analysis: StoicAiResult;
   try {
     const response = await geminiService.generateWithFallback(
-      ["gemini-3-pro-preview"],
+      ["gemini-2.5-pro"],
       {
         contents: prompt,
         config: {
@@ -1133,7 +1133,7 @@ Return JSON only.
     if (isTimeoutError(error)) {
       try {
         const retryResponse = await geminiService.generateWithFallback(
-          ["gemini-3-pro-preview"],
+          ["gemini-2.5-pro"],
           {
             contents: prompt,
             config: {
@@ -1692,7 +1692,7 @@ export const quickScanGame = async (
 
   try {
     const response = await geminiService.generateWithFallback(
-      ["gemini-3-flash-preview"],
+      ["gemini-2.5-flash"],
       {
         contents: prompt,
         config: {
@@ -1718,7 +1718,7 @@ export const quickScanGame = async (
     // Fallback: retry without external tools
     try {
       const response = await geminiService.generateWithFallback(
-        ["gemini-3-flash-preview"],
+        ["gemini-2.5-flash"],
         {
           contents: prompt,
           config: {

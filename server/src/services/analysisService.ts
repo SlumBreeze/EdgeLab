@@ -43,7 +43,7 @@ export class AnalysisService {
   private readonly model: string;
   private readonly costConfig: GeminiCostConfig;
 
-  constructor(apiKey?: string, client?: GeminiClient, model = "gemini-3-pro-preview", costConfig = DEFAULT_COST_CONFIG) {
+  constructor(apiKey?: string, client?: GeminiClient, model = "gemini-2.5-pro", costConfig = DEFAULT_COST_CONFIG) {
     this.client = client || (apiKey ? new GoogleGenAI({ apiKey }) : null);
     this.model = model;
     this.costConfig = costConfig;
@@ -86,16 +86,7 @@ export class AnalysisService {
         GEMINI_TIMEOUT_MS,
       );
     } catch (error) {
-      return {
-        result: passAnalysis(
-          dateEt,
-          game.id,
-          "AI_ERROR",
-          error instanceof Error ? error.message : "Gemini analysis failed before returning a verified recommendation.",
-          candidate,
-        ),
-        usage: null,
-      };
+      throw error;
     }
 
     const text = typeof response.text === "function" ? response.text() : response.text;

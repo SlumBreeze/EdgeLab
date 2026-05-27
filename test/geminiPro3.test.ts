@@ -88,7 +88,7 @@ describe('Gemini Pro 3 Analysis', () => {
     const callArgs = spy.mock.calls[0];
     const prompt = callArgs[1].contents;
     
-    expect(callArgs[0]).toContain('gemini-3-pro-preview');
+    expect(callArgs[0]).toContain('gemini-2.5-pro');
     expect(prompt).toContain('LeBron James');
     expect(prompt).toContain('Jayson Tatum');
     expect(prompt).toContain('Ground Truth Rosters (Verified)');

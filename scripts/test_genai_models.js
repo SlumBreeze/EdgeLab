@@ -24,7 +24,7 @@ if (fs.existsSync(envPath)) {
 
 const ai = new GoogleGenAI({ apiKey: envConfig.VITE_GEMINI_API_KEY });
 
-const model = "gemini-3-flash-preview";
+const model = "gemini-2.5-flash";
 
 async function testTool() {
   console.log(`Testing Tool Support for: ${model}...`);

@@ -28,7 +28,7 @@ The current branch also includes a WNBA-focused dashboard backed by a local Node
 ### 🧠 Intelligent Analysis
 
 - **Stoic Handicapper:** AI agent that enforces strict discipline, rejecting plays with weak edges (<3%) or low confidence.
-- **Bet Slip Scanning:** Upload screenshots of your betting slips; Gemini 3 Flash extracts the data (Odds, Pick, Wager) automatically.
+- **Bet Slip Scanning:** Upload screenshots of your betting slips; Gemini Flash extracts the data (Odds, Pick, Wager) automatically.
 - **Line Shopping:** Real-time comparison of "Sharp" (Pinnacle) vs. "Soft" bookmakers to find pricing inefficiencies.
 - **Narrative Audits:** Cross-references betting angles against injury reports and news to prevent "trap" bets.
 
@@ -62,7 +62,7 @@ The current branch also includes a WNBA-focused dashboard backed by a local Node
 
 - **Frontend:** React 19, TypeScript, Vite
 - **Styling:** Tailwind CSS (Dark Mode / FanDuel-inspired)
-- **AI:** Google Gemini 3 Flash & Pro (Preview) + Smart Fallback
+- **AI:** Google Gemini 2.5 Pro & Flash + Smart Fallback
 - **Data:** The Odds API (Real-time Odds), Supabase (Persistence & Sync)
 - **Charts:** Recharts
 - **Icons:** Lucide React
@@ -125,7 +125,7 @@ The current branch also includes a WNBA-focused dashboard backed by a local Node
     SQLITE_PATH=server/data/edgelab.sqlite
     ODDS_API_KEY=your_odds_api_key
     GEMINI_API_KEY=your_gemini_key
-    GEMINI_MODEL=gemini-3-pro-preview
+    GEMINI_MODEL=gemini-2.5-pro
     ALLOWED_ORIGIN=http://localhost:5173
     ```
 

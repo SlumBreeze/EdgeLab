@@ -12,7 +12,7 @@ const config = {
   sqlitePath: ":memory:",
   oddsApiKey: "test-odds",
   geminiApiKey: "test-gemini",
-  geminiModel: "gemini-3-pro-preview",
+  geminiModel: "gemini-2.5-pro",
   allowedOrigin: "http://localhost:5173",
   geminiInputCostPerMillionTokens: 2,
   geminiOutputCostPerMillionTokens: 12,
@@ -183,7 +183,7 @@ describe("analyze-all flow", () => {
     const analyzeGame = vi.fn().mockResolvedValue({
       result,
       usage: {
-        model: "gemini-3-pro-preview",
+        model: "gemini-2.5-pro",
         gameId: "espn-1",
         inputTokens: 100,
         outputTokens: 50,

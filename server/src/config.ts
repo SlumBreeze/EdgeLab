@@ -28,7 +28,7 @@ export const loadConfig = (): Config => {
     sqlitePath: path.isAbsolute(sqlitePath) ? sqlitePath : path.resolve(projectRoot, sqlitePath),
     oddsApiKey: process.env.ODDS_API_KEY,
     geminiApiKey: process.env.GEMINI_API_KEY,
-    geminiModel: process.env.GEMINI_MODEL || "gemini-3-pro-preview",
+    geminiModel: process.env.GEMINI_MODEL || "gemini-2.5-pro",
     allowedOrigin: process.env.ALLOWED_ORIGIN || "http://localhost:5173",
     geminiInputCostPerMillionTokens: readNumber("GEMINI_INPUT_COST_PER_MILLION_TOKENS", 2),
     geminiOutputCostPerMillionTokens: readNumber("GEMINI_OUTPUT_COST_PER_MILLION_TOKENS", 12),

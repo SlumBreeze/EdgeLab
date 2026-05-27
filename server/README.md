@@ -26,7 +26,7 @@ PORT=8787
 SQLITE_PATH=server/data/edgelab.sqlite
 ODDS_API_KEY=your_odds_api_key
 GEMINI_API_KEY=your_gemini_key
-GEMINI_MODEL=gemini-3-pro-preview
+GEMINI_MODEL=gemini-2.5-pro
 ALLOWED_ORIGIN=http://localhost:5173
 ```
 

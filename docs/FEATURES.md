@@ -32,7 +32,7 @@ The **Scout** tab is your daily dashboard. It displays the slate of games for su
         *   **Current Line:** Real-time sharp line.
         *   **Movement Indicator:** Shows if sharps are moving toward a side (e.g., "⬆️ Sharps on Lakers").
     *   **Color-Coded Border:** Red/Yellow/Gray left border indicates scan signal strength.
-*   **Quick Scan (⚡):** Uses `Gemini 3 Flash` to rapidly search for injury reports and major roster news.
+*   **Quick Scan (⚡):** Uses `Gemini 2.5 Flash` to rapidly search for injury reports and major roster news.
     *   Returns a signal: **RED** (Major Injury/Risk), **YELLOW** (Caution), or **WHITE** (Standard).
     *   Results are cached and displayed with emoji indicators (🔴/🟡/⚪).
 *   **Batch Scanning:** "Scan All" button runs quick scans on all games without results.
@@ -112,8 +112,8 @@ Access the bankroll modal via the 💰 button in the top-right corner.
 
 ## AI Models Used
 
-*   **Gemini 3 Pro:** Used for the deep "Holistic Analysis" (matching math edge with game script).
-*   **Gemini 3 Flash:** Used for "Quick Scans" (fast injury checks).
+*   **Gemini 2.5 Pro:** Used for the deep "Holistic Analysis" (matching math edge with game script).
+*   **Gemini 2.5 Flash:** Used for "Quick Scans" (fast injury checks).
 *   **Gemini 2.5 Flash:** Used for OCR (Screenshot to Odds extraction).
 
 ## "Sharp" Logic

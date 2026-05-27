@@ -388,6 +388,17 @@ const parseGeminiError = (error: any) => {
     };
   }
 
+  if (status === "NOT_FOUND" || message.includes("not found") || message.includes("not available")) {
+    return {
+      status: 400,
+      body: {
+        error: "GEMINI_MODEL_UNAVAILABLE",
+        message:
+          "The configured Gemini model is not available for this API key. Update GEMINI_MODEL to a supported model such as gemini-2.5-pro or gemini-2.5-flash.",
+      },
+    };
+  }
+
   if (status === "INVALID_ARGUMENT" || message.includes("unsupported")) {
     return {
       status: 400,

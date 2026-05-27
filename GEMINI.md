@@ -11,7 +11,7 @@ The application functions as an "operating system" for handicappers, enforcing d
 - **Framework:** React 19 + TypeScript + Vite
 - **Styling:** Tailwind CSS (Dark Mode / FanDuel-inspired)
 - **State Management:** React Context + Hooks
-- **AI/LLM:** Google Gemini 3 Flash & Pro (Preview) + Fallback to 2.0/1.5
+- **AI/LLM:** Google Gemini 2.5 Pro & Flash
 - **Data Source:** The Odds API (Real-time odds), ESPN (via internal service)
 - **Persistence:** Supabase (PostgreSQL) + Row Level Security (RLS)
 - **Deployment:** Google Cloud Run (Dockerized)

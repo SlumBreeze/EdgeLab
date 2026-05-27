@@ -68,8 +68,6 @@ const formatSource = (source: "cache" | "espn" | "unknown") => {
 
 const formatModelName = (model?: string) => {
   if (!model) return "-";
-  if (model === "gemini-3-pro-preview") return "Gemini 3 Pro";
-  if (model === "gemini-3.1-pro-preview") return "Gemini 3.1 Pro";
   if (model === "gemini-2.5-pro") return "Gemini 2.5 Pro";
   if (model === "gemini-2.5-flash") return "Gemini 2.5 Flash";
   return model;
