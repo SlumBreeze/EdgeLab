@@ -394,7 +394,7 @@ const parseGeminiError = (error: any) => {
       body: {
         error: "GEMINI_MODEL_UNAVAILABLE",
         message:
-          "The configured Gemini model is not available for this API key. Update GEMINI_MODEL to a supported model such as gemini-2.5-pro or gemini-2.5-flash.",
+          "The configured Gemini model is not available for this API key. Update GEMINI_MODEL to a supported model such as gemini-3.1-pro-preview or gemini-2.5-pro.",
       },
     };
   }

@@ -43,7 +43,7 @@ export class AnalysisService {
   private readonly model: string;
   private readonly costConfig: GeminiCostConfig;
 
-  constructor(apiKey?: string, client?: GeminiClient, model = "gemini-2.5-pro", costConfig = DEFAULT_COST_CONFIG) {
+  constructor(apiKey?: string, client?: GeminiClient, model = "gemini-3.1-pro-preview", costConfig = DEFAULT_COST_CONFIG) {
     this.client = client || (apiKey ? new GoogleGenAI({ apiKey }) : null);
     this.model = model;
     this.costConfig = costConfig;
