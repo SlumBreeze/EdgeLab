@@ -248,6 +248,51 @@ describe("analyze-all flow", () => {
     await request(app).post("/api/analyze/all").send({ overrideReason: "manual slate rerun" }).expect(200);
     expect(analyzeGame).toHaveBeenCalledTimes(2);
   });
+
+  it("resets saved WNBA analysis and the Analyze All run marker without clearing odds cache", async () => {
+    const store = makeStore();
+    const result: AnalysisResult = {
+      gameId: "espn-1",
+      dateEt: "2026-05-14",
+      recommendation: "PASS",
+      confidence: 44,
+      dataQuality: "PARTIAL",
+      marketValue: "No clear market value.",
+      reasoning: "Rotation data is incomplete.",
+      riskFactors: ["Lineup uncertainty"],
+      createdAt: "2026-05-14T12:00:00.000Z",
+    };
+    const analyzeGame = vi.fn().mockResolvedValue({ result, usage: null });
+    const fetchWnbaOdds = vi.fn().mockResolvedValue(oddsFetchResult);
+    const app = createApp({
+      store,
+      config,
+      getDateEt: () => "2026-05-14",
+      odds: { fetchWnbaOdds } as any,
+      analysis: { analyzeGame } as any,
+      wnbaData: makeWnbaData(),
+    });
+
+    store.saveSlate("2026-05-14", "WNBA", [slateGame]);
+    await request(app).get("/api/odds/wnba?refresh=true").expect(200);
+    await request(app).post("/api/analyze/all").expect(200);
+
+    let quota = await request(app).get("/api/quota").expect(200);
+    expect(quota.body.quotaPolicy.analyzeAllRunsToday).toBe(1);
+
+    const reset = await request(app).delete("/api/analysis/wnba/today").expect(200);
+    expect(reset.body.reset).toEqual({ analyses: 1, analyzeAllRuns: 1 });
+
+    const saved = await request(app).get("/api/analysis/wnba").expect(200);
+    expect(saved.body.count).toBe(0);
+
+    quota = await request(app).get("/api/quota").expect(200);
+    expect(quota.body.quotaPolicy.analyzeAllRunsToday).toBe(0);
+
+    const odds = await request(app).get("/api/odds/wnba").expect(200);
+    expect(odds.body.games).toHaveLength(1);
+    expect(fetchWnbaOdds).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("WNBA candidate selection", () => {

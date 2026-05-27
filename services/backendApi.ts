@@ -133,6 +133,14 @@ export type AnalysisCacheResponse = {
   results: AnalysisResult[];
 };
 
+export type ResetAnalysisResponse = {
+  dateEt: string;
+  reset: {
+    analyses: number;
+    analyzeAllRuns: number;
+  };
+};
+
 export type OddsCredits = {
   provider: "odds-api";
   endpoint: string;
@@ -243,5 +251,9 @@ export const backendApi = {
       body: JSON.stringify(typeof overrideReason === "string" && overrideReason.trim() ? { overrideReason: overrideReason.trim() } : {}),
     }),
   getWnbaAnalysis: () => requestJson<AnalysisCacheResponse>("/api/analysis/wnba"),
+  resetWnbaAnalysis: () =>
+    requestJson<ResetAnalysisResponse>("/api/analysis/wnba/today", {
+      method: "DELETE",
+    }),
   getQuota: () => requestJson<QuotaResponse>("/api/quota"),
 };

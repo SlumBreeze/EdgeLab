@@ -419,6 +419,31 @@ export default function WnbaDashboard() {
     }
   };
 
+  const resetTodayAnalysis = async () => {
+    const shouldReset = window.confirm(
+      "Reset today's saved WNBA analysis? This clears recommendations and the Analyze All run marker, but keeps budget, slate, odds, and usage history.",
+    );
+    if (!shouldReset) return;
+
+    setWorkState("analyzing");
+    setAnalysisError(null);
+    try {
+      const response = await backendApi.resetWnbaAnalysis();
+      const quotaResponse = await backendApi.getQuota();
+      setAnalysisByGameId({});
+      setQuota(quotaResponse);
+      toast.showSuccess(
+        `Reset ${response.reset.analyses} saved analyses and ${response.reset.analyzeAllRuns} Analyze All run marker.`,
+      );
+    } catch (resetError) {
+      const message = resetError instanceof Error ? resetError.message : "Failed to reset today's analysis.";
+      setAnalysisError(message);
+      toast.showError(message);
+    } finally {
+      setWorkState("idle");
+    }
+  };
+
   const oddsCount = quota?.usage.odds?.count || 0;
   const geminiCount = quota?.usage.gemini?.count || 0;
   const oddsDailyLimitReached =
@@ -527,6 +552,17 @@ export default function WnbaDashboard() {
                   ? "Re-analyze All Games"
                   : "Analyze All Games"}
             </button>
+            {savedAnalysisCount > 0 && (
+              <button
+                onClick={resetTodayAnalysis}
+                disabled={workState !== "idle"}
+                className="wnba-button wnba-button-secondary"
+                title="Clear today's saved recommendations and Analyze All marker."
+              >
+                <RefreshCw size={16} />
+                Reset Analysis
+              </button>
+            )}
           </div>
         </header>
 

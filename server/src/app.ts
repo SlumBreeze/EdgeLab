@@ -222,6 +222,12 @@ export const createApp = ({ store, config, espn, odds, analysis, wnbaData, getDa
     res.json({ dateEt, count: results.length, results });
   });
 
+  app.delete("/api/analysis/wnba/today", (_req, res) => {
+    const dateEt = getDateEt();
+    const reset = store.resetWnbaAnalysis(dateEt);
+    res.json({ dateEt, reset });
+  });
+
   app.post("/api/analyze/:gameId", async (req, res, next) => {
     try {
       const dateEt = getDateEt();

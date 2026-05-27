@@ -201,6 +201,17 @@ export class Store {
     return rows.map((row) => JSON.parse(row.result_json));
   }
 
+  resetWnbaAnalysis(dateEt: string) {
+    const deleteAnalyses = this.db.prepare("DELETE FROM analysis_results WHERE date_et = ?");
+    const deleteAnalyzeAllRuns = this.db.prepare("DELETE FROM analyze_all_runs WHERE date_et = ? AND sport = 'WNBA'");
+    const run = this.db.transaction(() => {
+      const analyses = deleteAnalyses.run(dateEt).changes;
+      const analyzeAllRuns = deleteAnalyzeAllRuns.run(dateEt).changes;
+      return { analyses, analyzeAllRuns };
+    });
+    return run();
+  }
+
   incrementUsage(dateEt: string, kind: ApiUsageKind, amount = 1) {
     this.db
       .prepare(
