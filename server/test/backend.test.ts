@@ -344,6 +344,47 @@ describe("WNBA candidate selection", () => {
     expect(candidate?.edgePercent).toBeGreaterThanOrEqual(1.5);
   });
 
+  it("excludes favorite prices shorter than -165 from WNBA candidates", () => {
+    const board = buildWnbaCandidateBoard(slateGame, {
+      ...oddsGame,
+      bookmakers: [
+        {
+          key: "betonlineag",
+          title: "BetOnline",
+          markets: [{ key: "h2h", outcomes: [{ name: "New York Liberty", price: -200 }, { name: "Las Vegas Aces", price: +170 }] }],
+        },
+        {
+          key: "fanduel",
+          title: "FanDuel",
+          markets: [{ key: "h2h", outcomes: [{ name: "New York Liberty", price: -225 }, { name: "Las Vegas Aces", price: +188 }] }],
+        },
+      ],
+    });
+
+    expect(board.some((candidate) => candidate.side === "New York Liberty" && candidate.odds < -165)).toBe(false);
+  });
+
+  it("allows the -165 boundary price when it otherwise qualifies", () => {
+    const board = buildWnbaCandidateBoard(slateGame, {
+      ...oddsGame,
+      bookmakers: [
+        {
+          key: "betonlineag",
+          title: "BetOnline",
+          markets: [{ key: "h2h", outcomes: [{ name: "New York Liberty", price: -165 }, { name: "Las Vegas Aces", price: +142 }] }],
+        },
+        {
+          key: "fanduel",
+          title: "FanDuel",
+          markets: [{ key: "h2h", outcomes: [{ name: "New York Liberty", price: -185 }, { name: "Las Vegas Aces", price: +160 }] }],
+        },
+      ],
+    });
+
+    expect(board).toEqual(expect.arrayContaining([expect.objectContaining({ side: "New York Liberty", odds: -165 })]));
+    expect(board.some((candidate) => candidate.side === "New York Liberty" && candidate.odds < -165)).toBe(false);
+  });
+
   it("builds a candidate board across moneyline, spread, and totals for narrative review", () => {
     const board = buildWnbaCandidateBoard(slateGame, {
       ...oddsGame,

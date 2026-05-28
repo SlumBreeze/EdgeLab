@@ -37,6 +37,7 @@ const DEFAULT_COST_CONFIG: GeminiCostConfig = {
 const GEMINI_TIMEOUT_MS = 90000;
 const BET_EDGE_FLOOR = 1.5;
 const NARRATIVE_WATCH_EDGE_FLOOR = 0.5;
+const MAX_FAVORITE_ODDS = -165;
 const FALLBACK_ANALYSIS_MODEL = "gemini-2.5-pro";
 
 export class AnalysisService {
@@ -156,6 +157,7 @@ Rules:
 - You may recommend only a candidate that appears in the candidate board. Do not invent a side, market, line, book, or price.
 - If the initial best candidate is weak but another listed candidate has stronger price plus hard-data/narrative support, select the stronger listed candidate.
 - BET requires positive price value plus hard factual or supported narrative confirmation. LEAN is allowed for thin value with strong narrative/news support.
+- Exclude expensive favorites. Any candidate priced shorter than -165 is not playable, regardless of edge percentage.
 - Totals deserve priority only when pace plus offensive/defensive efficiency support the number.
 - Spreads and moneylines require verified availability for high-usage players, primary creators, rim protectors, or defensive anchors.
 - Incorporate game previews, AP/ESPN/CBS/WNBA/team news, injury reports, rotation notes, coach comments, rematch context, rest/travel, and recent form as narrative signals.
@@ -360,7 +362,7 @@ export const buildWnbaCandidateBoard = (game: SlateGame, odds: OddsGame | null):
     ...buildMoneylineCandidates(game, odds),
     ...buildPointMarketCandidates(game, odds, "spreads"),
     ...buildPointMarketCandidates(game, odds, "totals"),
-  ].filter((candidate) => candidate.edgePercent >= NARRATIVE_WATCH_EDGE_FLOOR);
+  ].filter((candidate) => candidate.edgePercent >= NARRATIVE_WATCH_EDGE_FLOOR && isPlayablePrice(candidate.odds));
 
   return candidates
     .sort((a, b) => b.rankingScore - a.rankingScore)
@@ -436,6 +438,8 @@ const buildPointMarketCandidates = (game: SlateGame, odds: OddsGame, marketKey: 
 };
 
 const getMarket = (book: Bookmaker, key: OddsMarket["key"]) => book.markets.find((market) => market.key === key);
+
+const isPlayablePrice = (odds: number) => odds >= MAX_FAVORITE_ODDS;
 
 const americanToImpliedProbability = (odds: number) => {
   if (odds > 0) return 100 / (odds + 100);
