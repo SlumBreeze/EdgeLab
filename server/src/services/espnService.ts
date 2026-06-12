@@ -1,16 +1,18 @@
 import type { SlateGame } from "../types.js";
 
-const ESPN_WNBA_SCOREBOARD =
-  "https://site.api.espn.com/apis/site/v2/sports/basketball/wnba/scoreboard";
+const ESPN_SCOREBOARDS = {
+  WNBA: "https://site.api.espn.com/apis/site/v2/sports/basketball/wnba/scoreboard",
+  MLB: "https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/scoreboard",
+} as const;
 
 export class EspnService {
   constructor(private readonly fetchImpl: typeof fetch = fetch) {}
 
-  async fetchWnbaSlate(dateEt: string): Promise<SlateGame[]> {
+  async fetchSlate(sport: keyof typeof ESPN_SCOREBOARDS, dateEt: string): Promise<SlateGame[]> {
     const dateParam = dateEt.replaceAll("-", "");
-    const response = await this.fetchImpl(`${ESPN_WNBA_SCOREBOARD}?dates=${dateParam}`);
+    const response = await this.fetchImpl(`${ESPN_SCOREBOARDS[sport]}?dates=${dateParam}`);
     if (!response.ok) {
-      throw new Error(`ESPN slate fetch failed with ${response.status}`);
+      throw new Error(`ESPN ${sport} slate fetch failed with ${response.status}`);
     }
 
     const data = await response.json();
@@ -21,7 +23,7 @@ export class EspnService {
 
       return {
         id: String(event.id),
-        sport: "WNBA",
+        sport,
         date: event.date,
         status: event.status?.type?.shortDetail || "Scheduled",
         venue: competition?.venue?.fullName,
@@ -39,5 +41,13 @@ export class EspnService {
         },
       };
     });
+  }
+
+  async fetchWnbaSlate(dateEt: string): Promise<SlateGame[]> {
+    return this.fetchSlate("WNBA", dateEt);
+  }
+
+  async fetchMlbSlate(dateEt: string): Promise<SlateGame[]> {
+    return this.fetchSlate("MLB", dateEt);
   }
 }

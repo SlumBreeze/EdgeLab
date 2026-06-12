@@ -1,3 +1,5 @@
+export type BackendSport = "WNBA" | "MLB";
+
 const API_BASE = (import.meta.env.VITE_BACKEND_URL || "").replace(/\/$/, "");
 
 export type SessionResponse = {
@@ -17,7 +19,7 @@ export type SlateTeam = {
 
 export type SlateGame = {
   id: string;
-  sport: "WNBA";
+  sport: BackendSport;
   date: string;
   status: string;
   homeTeam: SlateTeam;
@@ -53,6 +55,7 @@ export type OddsGame = {
 export type AnalysisResult = {
   gameId: string;
   dateEt: string;
+  sport?: BackendSport;
   recommendation: "BET" | "LEAN" | "PASS";
   confidence: number;
   dataQuality: "STRONG" | "PARTIAL" | "WEAK";
@@ -98,6 +101,13 @@ export type WnbaNarrativeSignal = {
     | "matchup"
     | "market"
     | "total_pace"
+    | "starting_pitcher"
+    | "bullpen"
+    | "lineup"
+    | "weather"
+    | "park_factor"
+    | "umpire"
+    | "total_environment"
     | "other";
   grade: "HARD_FACT" | "SUPPORTED_ANGLE" | "SOFT_NARRATIVE";
   direction: "supports_candidate" | "opposes_candidate" | "neutral";
@@ -195,6 +205,7 @@ export type QuotaResponse = {
     analyzeAllLastRun: { gameCount: number; createdAt: string } | null;
   };
   analysisModel?: string;
+  sport?: BackendSport;
 };
 
 export class ApiError extends Error {
@@ -231,29 +242,34 @@ export const backendApi = {
       method: "PUT",
       body: JSON.stringify({ budgetCents }),
     }),
-  getWnbaSlate: () => requestJson<SlateResponse>("/api/slate/wnba?refresh=false"),
-  getWnbaOddsCache: () => requestJson<OddsResponse>("/api/odds/wnba?refresh=false"),
-  refreshWnbaOdds: (overrideReason?: string) => {
+  getSlate: (sport: BackendSport) => requestJson<SlateResponse>(`/api/slate/${sport.toLowerCase()}?refresh=false`),
+  getOddsCache: (sport: BackendSport) => requestJson<OddsResponse>(`/api/odds/${sport.toLowerCase()}?refresh=false`),
+  refreshOdds: (sport: BackendSport, overrideReason?: string) => {
     const params = new URLSearchParams({ refresh: "true" });
     if (typeof overrideReason === "string" && overrideReason.trim()) {
       params.set("overrideReason", overrideReason.trim());
     }
-    return requestJson<OddsResponse>(`/api/odds/wnba?${params.toString()}`);
+    return requestJson<OddsResponse>(`/api/odds/${sport.toLowerCase()}?${params.toString()}`);
   },
-  analyzeAll: (overrideReason?: string) =>
-    requestJson<AnalyzeAllResponse>("/api/analyze/all", {
+  analyzeAll: (sport: BackendSport = "WNBA", overrideReason?: string) =>
+    requestJson<AnalyzeAllResponse>(`/api/analyze/${sport.toLowerCase()}/all`, {
       method: "POST",
       body: JSON.stringify(typeof overrideReason === "string" && overrideReason.trim() ? { overrideReason: overrideReason.trim() } : {}),
     }),
-  analyzeGame: (gameId: string, overrideReason?: string) =>
-    requestJson<AnalysisResult>(`/api/analyze/${encodeURIComponent(gameId)}`, {
+  analyzeGame: (sport: BackendSport, gameId: string, overrideReason?: string) =>
+    requestJson<AnalysisResult>(`/api/analyze/${sport.toLowerCase()}/${encodeURIComponent(gameId)}`, {
       method: "POST",
       body: JSON.stringify(typeof overrideReason === "string" && overrideReason.trim() ? { overrideReason: overrideReason.trim() } : {}),
     }),
-  getWnbaAnalysis: () => requestJson<AnalysisCacheResponse>("/api/analysis/wnba"),
-  resetWnbaAnalysis: () =>
-    requestJson<ResetAnalysisResponse>("/api/analysis/wnba/today", {
+  getAnalysis: (sport: BackendSport) => requestJson<AnalysisCacheResponse>(`/api/analysis/${sport.toLowerCase()}`),
+  resetAnalysis: (sport: BackendSport) =>
+    requestJson<ResetAnalysisResponse>(`/api/analysis/${sport.toLowerCase()}/today`, {
       method: "DELETE",
     }),
-  getQuota: () => requestJson<QuotaResponse>("/api/quota"),
+  getQuota: (sport: BackendSport = "WNBA") => requestJson<QuotaResponse>(`/api/quota?sport=${sport}`),
+  getWnbaSlate: () => backendApi.getSlate("WNBA"),
+  getWnbaOddsCache: () => backendApi.getOddsCache("WNBA"),
+  refreshWnbaOdds: (overrideReason?: string) => backendApi.refreshOdds("WNBA", overrideReason),
+  getWnbaAnalysis: () => backendApi.getAnalysis("WNBA"),
+  resetWnbaAnalysis: () => backendApi.resetAnalysis("WNBA"),
 };

@@ -194,22 +194,36 @@ export class Store {
     return row ? JSON.parse(row.result_json) : null;
   }
 
-  getAnalyses(dateEt: string): AnalysisResult[] {
+  getAnalyses(dateEt: string, sport?: Sport): AnalysisResult[] {
     const rows = this.db
       .prepare("SELECT result_json FROM analysis_results WHERE date_et = ? ORDER BY created_at ASC")
       .all(dateEt) as any[];
-    return rows.map((row) => JSON.parse(row.result_json));
+    return rows
+      .map((row) => JSON.parse(row.result_json) as AnalysisResult)
+      .filter((result) => !sport || result.sport === sport || (!result.sport && sport === "WNBA"));
   }
 
-  resetWnbaAnalysis(dateEt: string) {
-    const deleteAnalyses = this.db.prepare("DELETE FROM analysis_results WHERE date_et = ?");
-    const deleteAnalyzeAllRuns = this.db.prepare("DELETE FROM analyze_all_runs WHERE date_et = ? AND sport = 'WNBA'");
+  resetAnalysis(dateEt: string, sport: Sport) {
+    const existing = this.db.prepare("SELECT game_id, result_json FROM analysis_results WHERE date_et = ?").all(dateEt) as any[];
+    const gameIds = existing
+      .map((row) => ({ gameId: row.game_id as string, result: JSON.parse(row.result_json) as AnalysisResult }))
+      .filter((row) => row.result.sport === sport || (!row.result.sport && sport === "WNBA"))
+      .map((row) => row.gameId);
+    const deleteAnalysis = this.db.prepare("DELETE FROM analysis_results WHERE date_et = ? AND game_id = ?");
+    const deleteAnalyzeAllRuns = this.db.prepare("DELETE FROM analyze_all_runs WHERE date_et = ? AND sport = ?");
     const run = this.db.transaction(() => {
-      const analyses = deleteAnalyses.run(dateEt).changes;
-      const analyzeAllRuns = deleteAnalyzeAllRuns.run(dateEt).changes;
+      let analyses = 0;
+      for (const gameId of gameIds) {
+        analyses += deleteAnalysis.run(dateEt, gameId).changes;
+      }
+      const analyzeAllRuns = deleteAnalyzeAllRuns.run(dateEt, sport).changes;
       return { analyses, analyzeAllRuns };
     });
     return run();
+  }
+
+  resetWnbaAnalysis(dateEt: string) {
+    return this.resetAnalysis(dateEt, "WNBA");
   }
 
   incrementUsage(dateEt: string, kind: ApiUsageKind, amount = 1) {
@@ -269,26 +283,30 @@ export class Store {
       );
   }
 
-  countOddsRefreshes(dateEt: string) {
+  countOddsRefreshes(dateEt: string, sport?: Sport) {
+    const endpointPattern =
+      sport === "MLB" ? "%/baseball_mlb/%" : sport === "WNBA" ? "%/basketball_wnba/%" : "%";
     const eventRow = this.db
-      .prepare("SELECT COUNT(*) AS count FROM odds_api_usage_events WHERE date_et = ? AND provider = 'odds-api'")
-      .get(dateEt) as any;
+      .prepare("SELECT COUNT(*) AS count FROM odds_api_usage_events WHERE date_et = ? AND provider = 'odds-api' AND endpoint LIKE ?")
+      .get(dateEt, endpointPattern) as any;
     const legacyRow = this.db
       .prepare("SELECT count FROM api_usage WHERE date_et = ? AND kind = 'odds'")
       .get(dateEt) as any;
-    return Math.max(Number(eventRow?.count || 0), Number(legacyRow?.count || 0));
+    return sport ? Number(eventRow?.count || 0) : Math.max(Number(eventRow?.count || 0), Number(legacyRow?.count || 0));
   }
 
-  getLatestOddsUsage() {
+  getLatestOddsUsage(sport?: Sport) {
+    const endpointPattern =
+      sport === "MLB" ? "%/baseball_mlb/%" : sport === "WNBA" ? "%/basketball_wnba/%" : "%";
     const row = this.db
       .prepare(
         `SELECT provider, endpoint, requests_used, requests_remaining, requests_last, fetched_at
          FROM odds_api_usage_events
-         WHERE provider = 'odds-api'
+         WHERE provider = 'odds-api' AND endpoint LIKE ?
          ORDER BY fetched_at DESC, id DESC
          LIMIT 1`,
       )
-      .get() as any;
+      .get(endpointPattern) as any;
 
     return row
       ? {

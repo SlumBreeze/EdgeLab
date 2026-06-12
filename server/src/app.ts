@@ -8,7 +8,7 @@ import { EspnService } from "./services/espnService.js";
 import { OddsService } from "./services/oddsService.js";
 import { AnalysisService, estimatePlannedGeminiCostUsd, findOddsForSlateGame } from "./services/analysisService.js";
 import { WnbaDataService } from "./services/wnbaDataService.js";
-import type { SlateGame, WnbaDataPack } from "./types.js";
+import type { SlateGame, Sport, WnbaDataPack } from "./types.js";
 
 export type AppDeps = {
   store: Store;
@@ -48,36 +48,123 @@ export const createApp = ({ store, config, espn, odds, analysis, wnbaData, getDa
     res.json({ ...session, needsBudget: false });
   });
 
-  app.get("/api/slate/wnba", async (req, res, next) => {
+  registerSportRoutes({
+    app,
+    sport: "WNBA",
+    store,
+    config,
+    espnService,
+    oddsService,
+    analysisService,
+    wnbaDataService,
+    getDateEt,
+    geminiCostConfig,
+    legacyAnalyzeAllPath: "/api/analyze/all",
+    legacyAnalyzeGamePath: "/api/analyze/:gameId",
+  });
+
+  registerSportRoutes({
+    app,
+    sport: "MLB",
+    store,
+    config,
+    espnService,
+    oddsService,
+    analysisService,
+    wnbaDataService,
+    getDateEt,
+    geminiCostConfig,
+  });
+
+  app.get("/api/quota", (req, res) => {
+    const sport = readSport(req.query.sport) || "WNBA";
+    sendQuota({ res, store, config, dateEt: getDateEt(), sport });
+  });
+
+  app.use((error: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    if (error instanceof z.ZodError) {
+      res.status(400).json({ error: "VALIDATION_ERROR", issues: error.issues });
+      return;
+    }
+    const geminiError = parseGeminiError(error);
+    if (geminiError) {
+      res.status(geminiError.status).json(geminiError.body);
+      return;
+    }
+    res.status(500).json({ error: "SERVER_ERROR", message: error?.message || "Unexpected backend error" });
+  });
+
+  return app;
+};
+
+const registerSportRoutes = ({
+  app,
+  sport,
+  store,
+  config,
+  espnService,
+  oddsService,
+  analysisService,
+  wnbaDataService,
+  getDateEt,
+  geminiCostConfig,
+  legacyAnalyzeAllPath,
+  legacyAnalyzeGamePath,
+}: {
+  app: express.Express;
+  sport: Sport;
+  store: Store;
+  config: Config;
+  espnService: EspnService;
+  oddsService: OddsService;
+  analysisService: AnalysisService;
+  wnbaDataService: WnbaDataService;
+  getDateEt: () => string;
+  geminiCostConfig: {
+    inputCostPerMillionTokens: number;
+    outputCostPerMillionTokens: number;
+    fallbackInputTokens: number;
+    fallbackOutputTokens: number;
+  };
+  legacyAnalyzeAllPath?: string;
+  legacyAnalyzeGamePath?: string;
+}) => {
+  const slug = sport.toLowerCase();
+  const slatePath = `/api/slate/${slug}`;
+  const oddsPath = `/api/odds/${slug}`;
+  const analyzeAllPaths = [`/api/analyze/${slug}/all`, legacyAnalyzeAllPath].filter(Boolean) as string[];
+  const analyzeGamePaths = [`/api/analyze/${slug}/:gameId`, legacyAnalyzeGamePath].filter(Boolean) as string[];
+
+  app.get(slatePath, async (req, res, next) => {
     try {
       const dateEt = getDateEt();
       const refresh = req.query.refresh === "true";
-      const cached = store.getSlate(dateEt, "WNBA");
+      const cached = store.getSlate(dateEt, sport);
       if (cached && !refresh) {
         res.json({ dateEt, fetchedAt: cached.fetchedAt, source: "cache", games: cached.data });
         return;
       }
 
-      const games = await espnService.fetchWnbaSlate(dateEt);
-      store.saveSlate(dateEt, "WNBA", games);
-      const updated = store.getSlate(dateEt, "WNBA");
+      const games = await fetchSlateForSport(espnService, sport, dateEt);
+      store.saveSlate(dateEt, sport, games);
+      const updated = store.getSlate(dateEt, sport);
       res.json({ dateEt, fetchedAt: updated?.fetchedAt, source: "espn", games });
     } catch (error) {
       next(error);
     }
   });
 
-  app.get("/api/odds/wnba", async (req, res, next) => {
+  app.get(oddsPath, async (req, res, next) => {
     try {
       const dateEt = getDateEt();
       const refresh = req.query.refresh === "true";
-      const cached = store.getOdds(dateEt, "WNBA");
+      const cached = store.getOdds(dateEt, sport);
 
       if (!refresh) {
         if (!cached) {
           res.status(409).json({
             error: "ODDS_REFRESH_REQUIRED",
-            message: "No WNBA odds cache exists for today. Call with refresh=true to spend Odds API quota.",
+            message: `No ${sport} odds cache exists for today. Call with refresh=true to spend Odds API quota.`,
           });
           return;
         }
@@ -86,7 +173,7 @@ export const createApp = ({ store, config, espn, odds, analysis, wnbaData, getDa
       }
 
       const overrideReason = readOverrideReason(req.query.overrideReason);
-      const previousRefreshes = store.countOddsRefreshes(dateEt);
+      const previousRefreshes = store.countOddsRefreshes(dateEt, sport);
       if (previousRefreshes >= 1) {
         const overrideError = validateOverride(overrideReason);
         if (overrideError) {
@@ -104,19 +191,19 @@ export const createApp = ({ store, config, espn, odds, analysis, wnbaData, getDa
           actor: "local-user",
           action: "odds_refresh_daily_limit",
           provider: "odds-api",
-          sport: "WNBA",
+          sport,
           overrideReason: overrideReason!,
         });
       }
 
-      const oddsFetch = await oddsService.fetchWnbaOdds();
+      const oddsFetch = await fetchOddsForSport(oddsService, sport);
       const games = Array.isArray(oddsFetch) ? oddsFetch : oddsFetch.games;
-      store.saveOdds(dateEt, "WNBA", games);
+      store.saveOdds(dateEt, sport, games);
       if (!Array.isArray(oddsFetch)) {
         store.saveOddsApiUsage(dateEt, oddsFetch.usage);
       }
       store.incrementUsage(dateEt, "odds");
-      const updated = store.getOdds(dateEt, "WNBA");
+      const updated = store.getOdds(dateEt, sport);
       res.json({
         dateEt,
         fetchedAt: updated?.fetchedAt,
@@ -129,12 +216,13 @@ export const createApp = ({ store, config, espn, odds, analysis, wnbaData, getDa
     }
   });
 
-  app.post("/api/analyze/all", async (req, res, next) => {
+  for (const analyzeAllPath of analyzeAllPaths) {
+  app.post(analyzeAllPath, async (req, res, next) => {
     try {
       const dateEt = getDateEt();
       const body = overrideBodySchema.parse(req.body || {});
-      const slate = store.getSlate(dateEt, "WNBA");
-      const oddsCache = store.getOdds(dateEt, "WNBA");
+      const slate = store.getSlate(dateEt, sport);
+      const oddsCache = store.getOdds(dateEt, sport);
       if (!slate || !oddsCache) {
         res.status(409).json({
           error: "CACHE_REQUIRED",
@@ -144,7 +232,7 @@ export const createApp = ({ store, config, espn, odds, analysis, wnbaData, getDa
       }
 
       const overrideReason = body.overrideReason;
-      const previousRun = store.getLatestAnalyzeAllRun(dateEt, "WNBA");
+      const previousRun = store.getLatestAnalyzeAllRun(dateEt, sport);
       const plannedCostUsd = estimatePlannedGeminiCostUsd(slate.data.length, geminiCostConfig);
       const weeklyTotals = store.getWeeklyTotals(dateEt);
       const projectedWeeklySpendUsd = weeklyTotals.providers.gemini.estimatedCostUsd + plannedCostUsd;
@@ -172,7 +260,7 @@ export const createApp = ({ store, config, espn, odds, analysis, wnbaData, getDa
             message:
               violations.includes("GEMINI_WEEKLY_HARD_STOP")
                 ? `Analyze All would put estimated Gemini spend at ${formatUsd(projectedWeeklySpendUsd)} this week, above the hard stop. Send overrideReason with at least 10 characters to continue.`
-                : `Analyze All has already run for this WNBA Eastern-date slate.${slateChange} Send overrideReason with at least 10 characters to run it again.`,
+                : `Analyze All has already run for this ${sport} Eastern-date slate.${slateChange} Send overrideReason with at least 10 characters to run it again.`,
           });
           return;
         }
@@ -183,14 +271,14 @@ export const createApp = ({ store, config, espn, odds, analysis, wnbaData, getDa
             actor: "local-user",
             action: violation.toLowerCase(),
             provider: violation.startsWith("GEMINI") ? "gemini" : null,
-            sport: "WNBA",
+            sport,
             overrideReason: overrideReason!,
           });
         }
       }
 
       const results = [];
-      const dataPack = await getOrBuildWnbaDataPack(store, wnbaDataService, dateEt, slate.data);
+      const dataPack = sport === "WNBA" ? await getOrBuildWnbaDataPack(store, wnbaDataService, dateEt, slate.data) : null;
       for (const game of slate.data) {
         const analysisResponse = await analysisService.analyzeGame(
           dateEt,
@@ -209,36 +297,38 @@ export const createApp = ({ store, config, espn, odds, analysis, wnbaData, getDa
         results.push(result);
       }
 
-      store.recordAnalyzeAllRun(dateEt, "WNBA", slate.data.length);
+      store.recordAnalyzeAllRun(dateEt, sport, slate.data.length);
       res.json({ dateEt, count: results.length, results, weeklyTotals: store.getWeeklyTotals(dateEt) });
     } catch (error) {
       next(error);
     }
   });
+  }
 
-  app.get("/api/analysis/wnba", (_req, res) => {
+  app.get(`/api/analysis/${slug}`, (_req, res) => {
     const dateEt = getDateEt();
-    const results = store.getAnalyses(dateEt);
+    const results = store.getAnalyses(dateEt, sport);
     res.json({ dateEt, count: results.length, results });
   });
 
-  app.delete("/api/analysis/wnba/today", (_req, res) => {
+  app.delete(`/api/analysis/${slug}/today`, (_req, res) => {
     const dateEt = getDateEt();
-    const reset = store.resetWnbaAnalysis(dateEt);
+    const reset = store.resetAnalysis(dateEt, sport);
     res.json({ dateEt, reset });
   });
 
-  app.post("/api/analyze/:gameId", async (req, res, next) => {
+  for (const analyzeGamePath of analyzeGamePaths) {
+  app.post(analyzeGamePath, async (req, res, next) => {
     try {
       const dateEt = getDateEt();
-      const slate = store.getSlate(dateEt, "WNBA");
-      const oddsCache = store.getOdds(dateEt, "WNBA");
+      const slate = store.getSlate(dateEt, sport);
+      const oddsCache = store.getOdds(dateEt, sport);
       if (!slate) {
-        res.status(409).json({ error: "SLATE_REQUIRED", message: "Fetch /api/slate/wnba before analysis." });
+        res.status(409).json({ error: "SLATE_REQUIRED", message: `Fetch /api/slate/${slug} before analysis.` });
         return;
       }
       if (!oddsCache) {
-        res.status(409).json({ error: "ODDS_REQUIRED", message: "Refresh /api/odds/wnba before analysis." });
+        res.status(409).json({ error: "ODDS_REQUIRED", message: `Refresh /api/odds/${slug} before analysis.` });
         return;
       }
 
@@ -269,13 +359,13 @@ export const createApp = ({ store, config, espn, odds, analysis, wnbaData, getDa
           actor: "local-user",
           action: "gemini_weekly_hard_stop",
           provider: "gemini",
-          sport: "WNBA",
-          gameId: req.params.gameId,
+          sport,
+          gameId: String(req.params.gameId),
           overrideReason: body.overrideReason!,
         });
       }
 
-      const dataPack = await getOrBuildWnbaDataPack(store, wnbaDataService, dateEt, slate.data);
+      const dataPack = sport === "WNBA" ? await getOrBuildWnbaDataPack(store, wnbaDataService, dateEt, slate.data) : null;
       const analysisResponse = await analysisService.analyzeGame(dateEt, game, findOddsForSlateGame(game, oddsCache.data), dataPack);
       const { result, usage } = normalizeAnalysisResponse(analysisResponse);
       store.saveAnalysis(result);
@@ -288,69 +378,86 @@ export const createApp = ({ store, config, espn, odds, analysis, wnbaData, getDa
       next(error);
     }
   });
+  }
+};
 
-  app.get("/api/quota", (_req, res) => {
-    const dateEt = getDateEt();
-    const oddsCache = store.getOdds(dateEt, "WNBA");
-    const weeklyTotals = store.getWeeklyTotals(dateEt);
-    const latestOddsUsage = store.getLatestOddsUsage();
-    const todayGemini = store.getTodayGeminiUsage(dateEt);
-    const legacyUsage = store.getUsage(dateEt);
-    const legacyGeminiCalls = legacyUsage.gemini?.count || 0;
-    const displayedTodayGemini = { ...todayGemini, calls: Math.max(todayGemini.calls, legacyGeminiCalls) };
-    const displayedWeekGemini = {
-      ...weeklyTotals.providers.gemini,
-      calls: Math.max(weeklyTotals.providers.gemini.calls, legacyGeminiCalls),
-    };
-    const latestAnalyzeAll = store.getLatestAnalyzeAllRun(dateEt, "WNBA");
-    res.json({
-      dateEt,
-      weekEt: weeklyTotals.weekEt,
-      oddsLastFetchAt: oddsCache?.fetchedAt || null,
-      usage: legacyUsage,
-      oddsCredits: latestOddsUsage,
-      gemini: {
-        today: displayedTodayGemini,
-        week: displayedWeekGemini,
-        warningThresholdUsd: config.geminiWeeklyWarningUsd,
-        hardStopUsd: config.geminiWeeklyHardStopUsd,
-        isWarning: weeklyTotals.providers.gemini.estimatedCostUsd >= config.geminiWeeklyWarningUsd,
-        isHardStopped: weeklyTotals.providers.gemini.estimatedCostUsd >= config.geminiWeeklyHardStopUsd,
+const fetchSlateForSport = (espnService: any, sport: Sport, dateEt: string): Promise<SlateGame[]> => {
+  if (typeof espnService.fetchSlate === "function") return espnService.fetchSlate(sport, dateEt);
+  if (sport === "WNBA" && typeof espnService.fetchWnbaSlate === "function") return espnService.fetchWnbaSlate(dateEt);
+  if (sport === "MLB" && typeof espnService.fetchMlbSlate === "function") return espnService.fetchMlbSlate(dateEt);
+  throw new Error(`No ESPN slate fetcher configured for ${sport}.`);
+};
+
+const fetchOddsForSport = (oddsService: any, sport: Sport) => {
+  if (typeof oddsService.fetchOdds === "function") return oddsService.fetchOdds(sport);
+  if (sport === "WNBA" && typeof oddsService.fetchWnbaOdds === "function") return oddsService.fetchWnbaOdds();
+  if (sport === "MLB" && typeof oddsService.fetchMlbOdds === "function") return oddsService.fetchMlbOdds();
+  throw new Error(`No odds fetcher configured for ${sport}.`);
+};
+
+const readSport = (value: unknown): Sport | null => {
+  const normalized = typeof value === "string" ? value.toUpperCase() : "";
+  return normalized === "WNBA" || normalized === "MLB" ? normalized : null;
+};
+
+const sendQuota = ({
+  res,
+  store,
+  config,
+  dateEt,
+  sport,
+}: {
+  res: express.Response;
+  store: Store;
+  config: Config;
+  dateEt: string;
+  sport: Sport;
+}) => {
+  const oddsCache = store.getOdds(dateEt, sport);
+  const weeklyTotals = store.getWeeklyTotals(dateEt);
+  const latestOddsUsage = store.getLatestOddsUsage(sport);
+  const todayGemini = store.getTodayGeminiUsage(dateEt);
+  const legacyUsage = store.getUsage(dateEt);
+  const legacyGeminiCalls = legacyUsage.gemini?.count || 0;
+  const displayedTodayGemini = { ...todayGemini, calls: Math.max(todayGemini.calls, legacyGeminiCalls) };
+  const displayedWeekGemini = {
+    ...weeklyTotals.providers.gemini,
+    calls: Math.max(weeklyTotals.providers.gemini.calls, legacyGeminiCalls),
+  };
+  const latestAnalyzeAll = store.getLatestAnalyzeAllRun(dateEt, sport);
+  res.json({
+    dateEt,
+    weekEt: weeklyTotals.weekEt,
+    sport,
+    oddsLastFetchAt: oddsCache?.fetchedAt || null,
+    usage: legacyUsage,
+    oddsCredits: latestOddsUsage,
+    gemini: {
+      today: displayedTodayGemini,
+      week: displayedWeekGemini,
+      warningThresholdUsd: config.geminiWeeklyWarningUsd,
+      hardStopUsd: config.geminiWeeklyHardStopUsd,
+      isWarning: weeklyTotals.providers.gemini.estimatedCostUsd >= config.geminiWeeklyWarningUsd,
+      isHardStopped: weeklyTotals.providers.gemini.estimatedCostUsd >= config.geminiWeeklyHardStopUsd,
+    },
+    weeklyTotals: {
+      ...weeklyTotals,
+      providers: {
+        ...weeklyTotals.providers,
+        gemini: displayedWeekGemini,
       },
-      weeklyTotals: {
-        ...weeklyTotals,
-        providers: {
-          ...weeklyTotals.providers,
-          gemini: displayedWeekGemini,
-        },
-      },
-      quotaPolicy: {
-        oddsRefreshRequired: true,
-        backgroundPolling: false,
-        maxOddsRefreshesPerEtDay: 1,
-        maxAnalyzeAllPerSlate: 1,
-        oddsRefreshesToday: store.countOddsRefreshes(dateEt),
-        analyzeAllRunsToday: latestAnalyzeAll ? 1 : 0,
-        analyzeAllLastRun: latestAnalyzeAll,
-      },
-      analysisModel: config.geminiModel,
-    });
+    },
+    quotaPolicy: {
+      oddsRefreshRequired: true,
+      backgroundPolling: false,
+      maxOddsRefreshesPerEtDay: 1,
+      maxAnalyzeAllPerSlate: 1,
+      oddsRefreshesToday: store.countOddsRefreshes(dateEt, sport),
+      analyzeAllRunsToday: latestAnalyzeAll ? 1 : 0,
+      analyzeAllLastRun: latestAnalyzeAll,
+    },
+    analysisModel: config.geminiModel,
   });
-
-  app.use((error: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-    if (error instanceof z.ZodError) {
-      res.status(400).json({ error: "VALIDATION_ERROR", issues: error.issues });
-      return;
-    }
-    const geminiError = parseGeminiError(error);
-    if (geminiError) {
-      res.status(geminiError.status).json(geminiError.body);
-      return;
-    }
-    res.status(500).json({ error: "SERVER_ERROR", message: error?.message || "Unexpected backend error" });
-  });
-
-  return app;
 };
 
 const getOrBuildWnbaDataPack = async (

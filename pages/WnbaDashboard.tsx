@@ -11,7 +11,7 @@ import {
   ShieldAlert,
   Target,
 } from "lucide-react";
-import { ApiError, AnalysisResult, backendApi, Bookmaker, OddsGame, QuotaResponse, SessionResponse, SlateGame } from "../services/backendApi";
+import { ApiError, AnalysisResult, backendApi, BackendSport, Bookmaker, OddsGame, QuotaResponse, SessionResponse, SlateGame } from "../services/backendApi";
 import { createToastHelpers, useToast } from "../components/Toast";
 
 type LoadState = "loading" | "ready" | "error";
@@ -91,7 +91,22 @@ const findOddsForGame = (game: SlateGame, oddsGames: OddsGame[]) => {
 const findMarket = (book: Bookmaker, key: "h2h" | "spreads" | "totals") =>
   book.markets.find((market) => market.key === key);
 
-const getBookLineSummary = (book: Bookmaker, game: SlateGame) => {
+const SPORT_COPY: Record<BackendSport, { label: string; title: string; edgeLabel: string; marketsLabel: string }> = {
+  WNBA: {
+    label: "WNBA",
+    title: "Today's Dashboard",
+    edgeLabel: "spread",
+    marketsLabel: "ML / spread / total",
+  },
+  MLB: {
+    label: "MLB",
+    title: "Today's MLB Dashboard",
+    edgeLabel: "run line",
+    marketsLabel: "ML / run line / total",
+  },
+};
+
+const getBookLineSummary = (book: Bookmaker, game: SlateGame, sport: BackendSport) => {
   const away = game.awayTeam.name;
   const home = game.homeTeam.name;
   const h2h = findMarket(book, "h2h");
@@ -110,6 +125,7 @@ const getBookLineSummary = (book: Bookmaker, game: SlateGame) => {
     awaySpread: awaySpread ? `${awaySpread.point ?? "-"} (${formatOdds(awaySpread.price)})` : "-",
     homeSpread: homeSpread ? `${homeSpread.point ?? "-"} (${formatOdds(homeSpread.price)})` : "-",
     total: over || under ? `O ${over?.point ?? "-"} (${formatOdds(over?.price)}) / U ${under?.point ?? "-"} (${formatOdds(under?.price)})` : "-",
+    spreadLabel: sport === "MLB" ? "Run line" : "Spread",
   };
 };
 
@@ -175,9 +191,10 @@ const Badge = ({ children, tone = "neutral" }: { children: React.ReactNode; tone
   <span className={`wnba-badge wnba-badge-${tone}`}>{children}</span>
 );
 
-export default function WnbaDashboard() {
+export default function WnbaDashboard({ sport = "WNBA" }: { sport?: BackendSport }) {
   const { addToast } = useToast();
   const toast = createToastHelpers(addToast);
+  const copy = SPORT_COPY[sport];
 
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [workState, setWorkState] = useState<WorkState>("idle");
@@ -190,6 +207,7 @@ export default function WnbaDashboard() {
   const [quota, setQuota] = useState<QuotaResponse | null>(null);
   const [analysisByGameId, setAnalysisByGameId] = useState<Record<string, AnalysisResult>>({});
   const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [activeAnalysisGameId, setActiveAnalysisGameId] = useState<string | null>(null);
 
   const budgetCents = session?.budgetCents ?? null;
   const needsBudget = Boolean(session?.needsBudget);
@@ -207,24 +225,30 @@ export default function WnbaDashboard() {
   const loadDashboard = async () => {
     setLoadState("loading");
     setError(null);
+    setSlate([]);
+    setSlateSource("unknown");
+    setOddsCache({ source: "unknown", fetchedAt: null, games: [] });
+    setAnalysisByGameId({});
+    setAnalysisError(null);
+    setActiveAnalysisGameId(null);
 
     try {
       const sessionResponse = await backendApi.getTodaySession();
       setSession(sessionResponse);
       setBudgetDraft(centsToDollars(sessionResponse.budgetCents));
 
-      const quotaResponse = await backendApi.getQuota();
+      const quotaResponse = await backendApi.getQuota(sport);
       setQuota(quotaResponse);
 
-      const slateResponse = await backendApi.getWnbaSlate();
+      const slateResponse = await backendApi.getSlate(sport);
       setSlate(slateResponse.games);
       setSlateSource(slateResponse.source);
 
-      const analysisResponse = await backendApi.getWnbaAnalysis();
+      const analysisResponse = await backendApi.getAnalysis(sport);
       setAnalysisByGameId(indexAnalysis(analysisResponse.results));
 
       try {
-        const oddsResponse = await backendApi.getWnbaOddsCache();
+        const oddsResponse = await backendApi.getOddsCache(sport);
         setOddsCache({
           source: oddsResponse.source,
           fetchedAt: oddsResponse.fetchedAt || null,
@@ -242,7 +266,7 @@ export default function WnbaDashboard() {
     } catch (loadError) {
       const message =
         loadError instanceof ApiError && loadError.status === 500
-          ? "Could not load today's WNBA slate."
+          ? `Could not load today's ${copy.label} slate.`
           : loadError instanceof TypeError
             ? "The local app service is not running. Start it, then reload this page."
             : loadError instanceof Error
@@ -256,7 +280,7 @@ export default function WnbaDashboard() {
 
   useEffect(() => {
     loadDashboard();
-  }, []);
+  }, [sport]);
 
   const saveBudget = async () => {
     const nextBudgetCents = dollarsToCents(budgetDraft);
@@ -289,7 +313,7 @@ export default function WnbaDashboard() {
   const refreshOdds = async (overrideReason?: string) => {
     if (!overrideReason) {
       const shouldRefresh = window.confirm(
-        "Refresh WNBA odds now? This uses API credits; exact cost is shown after refresh.",
+        `Refresh ${copy.label} odds now? This uses API credits; exact cost is shown after refresh.`,
       );
       if (!shouldRefresh) return;
     }
@@ -305,8 +329,8 @@ export default function WnbaDashboard() {
 
     setWorkState("refreshing-odds");
     try {
-      const oddsResponse = await backendApi.refreshWnbaOdds(reason);
-      const quotaResponse = await backendApi.getQuota();
+      const oddsResponse = await backendApi.refreshOdds(sport, reason);
+      const quotaResponse = await backendApi.getQuota(sport);
       setOddsCache({
         source: oddsResponse.source,
         fetchedAt: oddsResponse.fetchedAt || null,
@@ -348,15 +372,16 @@ export default function WnbaDashboard() {
         ? getOverrideReason(
             hardStopped
               ? `Estimated Gemini spend is already at ${formatUsd(quota?.gemini.week.estimatedCostUsd)} this week.`
-              : "Analyze All has already run for this WNBA Eastern-date slate.",
+              : `Analyze All has already run for this ${copy.label} Eastern-date slate.`,
           )
         : undefined);
     if (reason === null) return;
 
     setWorkState("analyzing");
+    setActiveAnalysisGameId(null);
     try {
-      const response = await backendApi.analyzeAll(reason);
-      const quotaResponse = await backendApi.getQuota();
+      const response = await backendApi.analyzeAll(sport, reason);
+      const quotaResponse = await backendApi.getQuota(sport);
       setAnalysisByGameId(indexAnalysis(response.results));
       setQuota(quotaResponse);
       toast.showSuccess(`Analyzed ${response.count} games.`);
@@ -396,12 +421,13 @@ export default function WnbaDashboard() {
     if (reason === null) return;
 
     setWorkState("analyzing");
+    setActiveAnalysisGameId(gameId);
     try {
-      const result = await backendApi.analyzeGame(gameId, reason);
-      const quotaResponse = await backendApi.getQuota();
+      const result = await backendApi.analyzeGame(sport, gameId, reason);
+      const quotaResponse = await backendApi.getQuota(sport);
       setAnalysisByGameId((current) => ({ ...current, [gameId]: result }));
       setQuota(quotaResponse);
-      toast.showSuccess("Game analysis refreshed.");
+      toast.showSuccess("Game analysis complete.");
     } catch (analyzeError) {
       if (analyzeError instanceof ApiError && analyzeError.code === "GUARDRAIL_OVERRIDE_REQUIRED") {
         const retryReason = getOverrideReason(analyzeError.message);
@@ -414,21 +440,22 @@ export default function WnbaDashboard() {
         toast.showError(message);
       }
     } finally {
+      setActiveAnalysisGameId(null);
       setWorkState("idle");
     }
   };
 
   const resetTodayAnalysis = async () => {
     const shouldReset = window.confirm(
-      "Reset today's saved WNBA analysis? This clears recommendations and the Analyze All run marker, but keeps budget, slate, odds, and usage history.",
+      `Reset today's saved ${copy.label} analysis? This clears recommendations and the Analyze All run marker, but keeps budget, slate, odds, and usage history.`,
     );
     if (!shouldReset) return;
 
     setWorkState("analyzing");
     setAnalysisError(null);
     try {
-      const response = await backendApi.resetWnbaAnalysis();
-      const quotaResponse = await backendApi.getQuota();
+      const response = await backendApi.resetAnalysis(sport);
+      const quotaResponse = await backendApi.getQuota(sport);
       setAnalysisByGameId({});
       setQuota(quotaResponse);
       toast.showSuccess(
@@ -460,7 +487,7 @@ export default function WnbaDashboard() {
         ? `Gemini warning threshold reached at ${formatUsd(geminiWeekSpend)} this week.`
         : null,
     oddsDailyLimitReached ? "Odds refresh limit reached for this Eastern date. Override reason required." : null,
-    analyzeAllLimitReached ? "Analyze All already ran for this WNBA slate. Override reason required." : null,
+    analyzeAllLimitReached ? `Analyze All already ran for this ${copy.label} slate. Override reason required.` : null,
   ].filter((warning): warning is string => Boolean(warning));
   const cacheLabel =
     oddsCache.source === "odds-api"
@@ -481,7 +508,7 @@ export default function WnbaDashboard() {
                 <DollarSign size={20} />
               </div>
               <div>
-                <h2>Set Today&apos;s WNBA Budget</h2>
+                <h2>Set Today&apos;s {copy.label} Budget</h2>
                 <p>
                   No budget is set for {session?.dateEt || "today"}. Suggested wagers stay disabled until this is set.
                 </p>
@@ -508,11 +535,11 @@ export default function WnbaDashboard() {
           <div>
             <div className="wnba-kicker">
               <Target size={16} />
-              EdgeLab WNBA
+              EdgeLab {copy.label}
             </div>
-            <h1>Today&apos;s Dashboard</h1>
+            <h1>{copy.title}</h1>
             <p>
-              Today&apos;s slate, saved odds, request usage, and WNBA recommendations. Odds refresh is manual so the monthly limit stays under control.
+              Today&apos;s slate, saved odds, request usage, and {copy.label} recommendations. Odds refresh is manual so the monthly limit stays under control.
             </p>
           </div>
 
@@ -667,7 +694,7 @@ export default function WnbaDashboard() {
             <div className="wnba-alert-main">
               <AlertTriangle size={16} />
               <span>
-                No saved WNBA odds exist for today. The slate is loaded, but sportsbook lines and analysis require a manual odds refresh.
+                No saved {copy.label} odds exist for today. The slate is loaded, but sportsbook lines and analysis require a manual odds refresh.
               </span>
             </div>
             <button
@@ -690,17 +717,26 @@ export default function WnbaDashboard() {
         <section className="wnba-games">
           {loadState === "loading" ? (
             <div className="wnba-empty">
-              Loading today&apos;s WNBA session.
+              Loading today&apos;s {copy.label} session.
             </div>
           ) : mergedGames.length === 0 ? (
             <div className="wnba-empty">
-              No WNBA games found for today.
+              No {copy.label} games found for today.
             </div>
           ) : (
             mergedGames.map(({ game, odds, analysis }) => {
               const suggestedWager = getSuggestedWager(analysis, budgetCents);
               const recommendationTone = analysis?.recommendation === "BET" ? "good" : analysis?.recommendation === "LEAN" ? "warn" : "bad";
               const books = odds?.bookmakers.slice().sort((a, b) => BOOK_ORDER.indexOf(a.key) - BOOK_ORDER.indexOf(b.key)) || [];
+              const isAnalyzingThisGame = activeAnalysisGameId === game.id;
+              const singleGameDisabled = workState !== "idle" || needsBudget || !odds;
+              const singleGameTitle = needsBudget
+                ? "Set today's budget before analyzing this game."
+                : !odds
+                  ? "Refresh odds before analyzing this game."
+                  : analysis
+                    ? "Refresh analysis for this game only."
+                    : "Analyze this game only.";
 
               return (
                 <article key={game.id} className="wnba-game-card">
@@ -715,16 +751,15 @@ export default function WnbaDashboard() {
                         {game.awayTeam.name} at {game.homeTeam.name}
                       </h2>
                       <p>{game.status}{game.venue ? ` | ${game.venue}` : ""}</p>
-                      {analysis && (
-                        <button
-                          type="button"
-                          onClick={() => analyzeSingleGame(game.id)}
-                          disabled={workState !== "idle" || needsBudget || oddsCache.games.length === 0}
-                          className="wnba-inline-action"
-                        >
-                          Re-analyze game
-                        </button>
-                      )}
+                      <button
+                        type="button"
+                        onClick={() => analyzeSingleGame(game.id)}
+                        disabled={singleGameDisabled}
+                        className="wnba-inline-action"
+                        title={singleGameTitle}
+                      >
+                        {isAnalyzingThisGame ? "Analyzing game..." : analysis ? "Re-analyze game" : "Analyze game"}
+                      </button>
                     </div>
 
                     <div className="wnba-metrics">
@@ -771,7 +806,7 @@ export default function WnbaDashboard() {
                       <div className="wnba-context-panel">
                         <div className="wnba-lines-heading">
                           <div>Candidate Board</div>
-                          <span>ML / spread / total</span>
+                          <span>{copy.marketsLabel}</span>
                         </div>
                         {getCandidateBoard(analysis).length > 0 ? (
                           <div className="wnba-candidate-list">
@@ -834,7 +869,7 @@ export default function WnbaDashboard() {
                     {books.length > 0 ? (
                       <div className="wnba-book-grid">
                         {books.map((book) => {
-                          const line = getBookLineSummary(book, game);
+                          const line = getBookLineSummary(book, game, sport);
                           return (
                             <div key={book.key} className="wnba-book-card">
                               <div className="wnba-book-head">
@@ -842,8 +877,8 @@ export default function WnbaDashboard() {
                                 <span>{book.lastUpdate ? formatDate(book.lastUpdate) : ""}</span>
                               </div>
                               <div className="wnba-line-list">
-                                <div>{game.awayTeam.name}: ML {line.awayMl} | Spread {line.awaySpread}</div>
-                                <div>{game.homeTeam.name}: ML {line.homeMl} | Spread {line.homeSpread}</div>
+                                <div>{game.awayTeam.name}: ML {line.awayMl} | {line.spreadLabel} {line.awaySpread}</div>
+                                <div>{game.homeTeam.name}: ML {line.homeMl} | {line.spreadLabel} {line.homeSpread}</div>
                                 <div>Total: {line.total}</div>
                               </div>
                             </div>

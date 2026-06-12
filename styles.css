@@ -25,6 +25,42 @@ input {
   font: inherit;
 }
 
+.app-shell {
+  min-height: 100vh;
+}
+
+.sport-switcher {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: rgba(11, 18, 32, 0.92);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+  backdrop-filter: blur(14px);
+}
+
+.sport-switcher button {
+  min-width: 72px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 8px;
+  padding: 8px 14px;
+  background: rgba(15, 23, 42, 0.92);
+  color: #cbd5e1;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0;
+  cursor: pointer;
+}
+
+.sport-switcher button.active {
+  background: #2563eb;
+  border-color: #3b82f6;
+  color: #fff;
+}
+
 .wnba-dashboard {
   min-height: 100vh;
   background: transparent;

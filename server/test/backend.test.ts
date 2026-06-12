@@ -44,6 +44,27 @@ const oddsGame: OddsGame = {
   ],
 };
 
+const mlbSlateGame: SlateGame = {
+  id: "mlb-espn-1",
+  sport: "MLB",
+  date: "2026-06-12T23:05:00Z",
+  status: "Scheduled",
+  awayTeam: { name: "New York Yankees" },
+  homeTeam: { name: "Boston Red Sox" },
+};
+
+const mlbOddsGame: OddsGame = {
+  id: "mlb-odds-1",
+  sport_key: "baseball_mlb",
+  commence_time: "2026-06-12T23:05:00Z",
+  away_team: "New York Yankees",
+  home_team: "Boston Red Sox",
+  bookmakers: [
+    { key: "draftkings", title: "DraftKings", markets: [] },
+    { key: "fanduel", title: "FanDuel", markets: [] },
+  ],
+};
+
 const oddsFetchResult = {
   games: [filterSupportedBooks(oddsGame)],
   usage: {
@@ -53,6 +74,18 @@ const oddsFetchResult = {
     requestsRemaining: 493,
     requestsLast: 1,
     fetchedAt: "2026-05-14T12:00:00.000Z",
+  },
+};
+
+const mlbOddsFetchResult = {
+  games: [filterSupportedBooks(mlbOddsGame)],
+  usage: {
+    provider: "odds-api" as const,
+    endpoint: "/v4/sports/baseball_mlb/odds",
+    requestsUsed: 9,
+    requestsRemaining: 491,
+    requestsLast: 1,
+    fetchedAt: "2026-06-12T12:00:00.000Z",
   },
 };
 
@@ -119,6 +152,28 @@ describe("odds cache and quota protection", () => {
     expect(response.body.usage.odds.count).toBe(1);
     expect(response.body.oddsCredits).toMatchObject({ requestsUsed: 7, requestsRemaining: 493, requestsLast: 1 });
     expect(response.body.quotaPolicy.backgroundPolling).toBe(false);
+  });
+
+  it("supports MLB odds cache without spending quota in the background", async () => {
+    const store = makeStore();
+    const fetchMlbOdds = vi.fn().mockResolvedValue(mlbOddsFetchResult);
+    const app = createApp({
+      store,
+      config,
+      getDateEt: () => "2026-06-12",
+      odds: { fetchMlbOdds } as any,
+    });
+
+    await request(app).get("/api/odds/mlb").expect(409);
+    expect(fetchMlbOdds).not.toHaveBeenCalled();
+
+    const refresh = await request(app).get("/api/odds/mlb?refresh=true").expect(200);
+    expect(refresh.body.source).toBe("odds-api");
+    expect(fetchMlbOdds).toHaveBeenCalledTimes(1);
+
+    const quota = await request(app).get("/api/quota?sport=MLB").expect(200);
+    expect(quota.body.quotaPolicy.oddsRefreshesToday).toBe(1);
+    expect(quota.body.oddsCredits).toMatchObject({ endpoint: "/v4/sports/baseball_mlb/odds" });
   });
 
   it("requires an override reason before a second Eastern-date odds refresh", async () => {
@@ -412,6 +467,81 @@ describe("WNBA candidate selection", () => {
 
     expect(new Set(board.map((candidate) => candidate.market))).toEqual(new Set(["Moneyline", "Spread", "Total"]));
     expect(board.every((candidate) => candidate.candidateId && candidate.edgePercent >= 0.5)).toBe(true);
+  });
+});
+
+describe("MLB candidate selection", () => {
+  it("builds an MLB candidate board across moneyline, run line, and totals", () => {
+    const board = buildWnbaCandidateBoard(mlbSlateGame, {
+      ...mlbOddsGame,
+      bookmakers: [
+        {
+          key: "draftkings",
+          title: "DraftKings",
+          markets: [
+            { key: "h2h", outcomes: [{ name: "New York Yankees", price: +122 }, { name: "Boston Red Sox", price: -142 }] },
+            { key: "spreads", outcomes: [{ name: "New York Yankees", point: 1.5, price: -104 }, { name: "Boston Red Sox", point: -1.5, price: +176 }] },
+            { key: "totals", outcomes: [{ name: "Over", point: 8.5, price: -101 }, { name: "Under", point: 8.5, price: -119 }] },
+          ],
+        },
+        {
+          key: "fanduel",
+          title: "FanDuel",
+          markets: [
+            { key: "h2h", outcomes: [{ name: "New York Yankees", price: +108 }, { name: "Boston Red Sox", price: -126 }] },
+            { key: "spreads", outcomes: [{ name: "New York Yankees", point: 1.5, price: -126 }, { name: "Boston Red Sox", point: -1.5, price: +152 }] },
+            { key: "totals", outcomes: [{ name: "Over", point: 8.5, price: -122 }, { name: "Under", point: 8.5, price: +100 }] },
+          ],
+        },
+      ],
+    });
+
+    expect(new Set(board.map((candidate) => candidate.market))).toEqual(new Set(["Moneyline", "Spread", "Total"]));
+    expect(board.every((candidate) => candidate.gameId === "mlb-espn-1")).toBe(true);
+  });
+
+  it("vetoes MLB Gemini selections that are not on the priced board", async () => {
+    const service = new AnalysisService(undefined, {
+      models: {
+        generateContent: vi.fn().mockResolvedValue({
+          text: JSON.stringify({
+            recommendation: "BET",
+            confidence: 82,
+            dataQuality: "STRONG",
+            selectedCandidateId: "moneyline:houston-astros:na:draftkings",
+            selectedMarket: "Moneyline",
+            selectedSide: "Houston Astros",
+            selectedBook: "DraftKings",
+            selectedPoint: null,
+            marketValue: "Off-board price.",
+            reasoning: "This should be vetoed because it is not listed.",
+            narrativeSignals: [{ category: "starting_pitcher", grade: "HARD_FACT", direction: "supports_candidate", summary: "Starter edge cited.", source: "Test" }],
+            riskFactors: [],
+            passReasonCode: "LOW_CONFIDENCE",
+          }),
+        }),
+      },
+    } as any);
+
+    const response = await service.analyzeGame("2026-06-12", mlbSlateGame, {
+      ...mlbOddsGame,
+      bookmakers: [
+        {
+          key: "draftkings",
+          title: "DraftKings",
+          markets: [{ key: "h2h", outcomes: [{ name: "New York Yankees", price: +122 }, { name: "Boston Red Sox", price: -142 }] }],
+        },
+        {
+          key: "fanduel",
+          title: "FanDuel",
+          markets: [{ key: "h2h", outcomes: [{ name: "New York Yankees", price: +108 }, { name: "Boston Red Sox", price: -126 }] }],
+        },
+      ],
+    }, null);
+
+    expect(response.result.sport).toBe("MLB");
+    expect(response.result.recommendation).toBe("PASS");
+    expect(response.result.passReasonCode).toBe("AI_MARKET_SWITCH");
   });
 });
 

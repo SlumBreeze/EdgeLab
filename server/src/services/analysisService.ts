@@ -59,8 +59,9 @@ export class AnalysisService {
         result: passAnalysis(
           dateEt,
           game.id,
+          game.sport,
           "NO_EDGE",
-          "No WNBA moneyline, spread, or total cleared the narrative-watch value floor against the available book consensus.",
+          `No ${game.sport} moneyline, ${game.sport === "MLB" ? "run line" : "spread"}, or total cleared the narrative-watch value floor against the available book consensus.`,
         ),
         usage: null,
       };
@@ -68,7 +69,7 @@ export class AnalysisService {
 
     if (!this.client) {
       return {
-        result: fallbackAnalysis(dateEt, game.id, "Gemini is not configured."),
+        result: fallbackAnalysis(dateEt, game.id, game.sport, "Gemini is not configured."),
         usage: null,
       };
     }
@@ -105,7 +106,7 @@ export class AnalysisService {
 
     const text = typeof response.text === "function" ? response.text() : response.text;
     const parsed = parseJson(text);
-    const result = normalizeAnalysis(dateEt, game.id, parsed, candidate, candidateBoard);
+    const result = normalizeAnalysis(dateEt, game.id, game.sport, parsed, candidate, candidateBoard);
     return {
       result,
       usage: estimateGeminiUsage(usedModel, game.id, response, this.costConfig),
@@ -133,7 +134,7 @@ export const buildWnbaPrompt = (
   candidateBoard: WnbaCandidate[],
   dataPack: WnbaDataPack | null,
 ) => `
-You are analyzing one WNBA game for EdgeLab.
+You are analyzing one ${game.sport} game for EdgeLab.
 
 Game:
 ${game.awayTeam.name} at ${game.homeTeam.name}
@@ -152,19 +153,19 @@ Available odds snapshot for audit only:
 ${JSON.stringify(odds || null)}
 
 Rules:
-- Focus only on WNBA.
-- Evaluate moneyline, spread, and total candidates on the candidate board.
+- Focus only on ${game.sport}.
+- Evaluate moneyline, ${game.sport === "MLB" ? "run line" : "spread"}, and total candidates on the candidate board.
 - You may recommend only a candidate that appears in the candidate board. Do not invent a side, market, line, book, or price.
 - If the initial best candidate is weak but another listed candidate has stronger price plus hard-data/narrative support, select the stronger listed candidate.
 - BET requires positive price value plus hard factual or supported narrative confirmation. LEAN is allowed for thin value with strong narrative/news support.
 - Exclude expensive favorites. Any candidate priced shorter than -165 is not playable, regardless of edge percentage.
-- Totals deserve priority only when pace plus offensive/defensive efficiency support the number.
-- Spreads and moneylines require verified availability for high-usage players, primary creators, rim protectors, or defensive anchors.
-- Incorporate game previews, AP/ESPN/CBS/WNBA/team news, injury reports, rotation notes, coach comments, rematch context, rest/travel, and recent form as narrative signals.
+- ${game.sport === "MLB" ? "Moneylines require confirmed starting pitchers, bullpen status, lineup context, and price value." : "Spreads and moneylines require verified availability for high-usage players, primary creators, rim protectors, or defensive anchors."}
+- ${game.sport === "MLB" ? "Run lines require price value plus a plausible margin path from starter gap, bullpen gap, lineup edge, or late-game scoring setup." : "Totals deserve priority only when pace plus offensive/defensive efficiency support the number."}
+- ${game.sport === "MLB" ? "Totals require pitcher profile, bullpen fatigue, weather/park context, lineup quality, and market number support." : "Incorporate game previews, AP/ESPN/CBS/WNBA/team news, injury reports, rotation notes, coach comments, rematch context, rest/travel, and recent form as narrative signals."}
+- ${game.sport === "MLB" ? "Incorporate probable starters, lineup news, bullpen usage over the last three days, weather, park factors, umpire tendencies, recent form, matchup splits, and market context as narrative signals." : "Use official/free WNBA data first. Use current search-backed facts only to verify gaps in the data pack and cite the source name in the signal."}
 - Grade every narrative signal as HARD_FACT, SUPPORTED_ANGLE, or SOFT_NARRATIVE.
 - Soft narrative can support a LEAN or watchlist note, but cannot rescue a negative-value or unsupported wager.
-- Use official/free WNBA data first. Use current search-backed facts only to verify gaps in the data pack and cite the source name in the signal.
-- Treat weak injury, rotation, efficiency, pace, or market support as a reason to PASS.
+- Treat weak ${game.sport === "MLB" ? "starting pitcher, lineup, bullpen, weather, park, total environment, or market" : "injury, rotation, efficiency, pace, or market"} support as a reason to PASS.
 - Do not invent player availability, team stats, or line movement.
 - Return JSON only.
 
@@ -182,7 +183,9 @@ Schema:
   "reasoning": "two sentences maximum",
   "narrativeSignals": [
     {
-      "category": "injury" | "rotation" | "rest_travel" | "rematch" | "recent_form" | "matchup" | "market" | "total_pace" | "other",
+      "category": ${game.sport === "MLB"
+        ? `"starting_pitcher" | "bullpen" | "lineup" | "weather" | "park_factor" | "umpire" | "recent_form" | "matchup" | "market" | "total_environment" | "other"`
+        : `"injury" | "rotation" | "rest_travel" | "rematch" | "recent_form" | "matchup" | "market" | "total_pace" | "other"`},
       "grade": "HARD_FACT" | "SUPPORTED_ANGLE" | "SOFT_NARRATIVE",
       "direction": "supports_candidate" | "opposes_candidate" | "neutral",
       "summary": "short source-backed signal",
@@ -190,13 +193,14 @@ Schema:
     }
   ],
   "riskFactors": ["short factual risks"],
-  "passReasonCode": "NO_EDGE" | "STALE_INJURY_DATA" | "STATS_CONFLICT" | "MARKET_OVERREACTION" | "LOW_CONFIDENCE" | "MISSING_ROTATION_DATA"
+  "passReasonCode": "NO_EDGE" | "STALE_INJURY_DATA" | "STATS_CONFLICT" | "MARKET_OVERREACTION" | "LOW_CONFIDENCE" | "MISSING_ROTATION_DATA" | "MISSING_STARTING_PITCHER" | "WEATHER_CONFLICT"
 }
 `;
 
 const normalizeAnalysis = (
   dateEt: string,
   gameId: string,
+  sport: "WNBA" | "MLB",
   parsed: any,
   candidate: WnbaCandidate,
   candidateBoard: WnbaCandidate[],
@@ -222,6 +226,7 @@ const normalizeAnalysis = (
   return {
     gameId,
     dateEt,
+    sport,
     recommendation: finalRecommendation,
     confidence,
     dataQuality,
@@ -246,9 +251,10 @@ const normalizeAnalysis = (
   };
 };
 
-const fallbackAnalysis = (dateEt: string, gameId: string, reason: string): AnalysisResult => ({
+const fallbackAnalysis = (dateEt: string, gameId: string, sport: "WNBA" | "MLB", reason: string): AnalysisResult => ({
   gameId,
   dateEt,
+  sport,
   recommendation: "PASS",
   confidence: 0,
   dataQuality: "WEAK",
@@ -262,12 +268,14 @@ const fallbackAnalysis = (dateEt: string, gameId: string, reason: string): Analy
 const passAnalysis = (
   dateEt: string,
   gameId: string,
+  sport: "WNBA" | "MLB",
   passReasonCode: WnbaPassReasonCode,
   reason: string,
   candidate?: WnbaCandidate,
 ): AnalysisResult => ({
   gameId,
   dateEt,
+  sport,
   recommendation: "PASS",
   confidence: 0,
   dataQuality: "WEAK",
@@ -457,6 +465,8 @@ const readPassReasonCode = (value: unknown): WnbaPassReasonCode | undefined => {
     "MARKET_OVERREACTION",
     "LOW_CONFIDENCE",
     "MISSING_ROTATION_DATA",
+    "MISSING_STARTING_PITCHER",
+    "WEATHER_CONFLICT",
     "AI_MARKET_SWITCH",
     "AI_ERROR",
   ]);
@@ -509,6 +519,13 @@ const readSignalCategory = (value: unknown): WnbaNarrativeSignal["category"] => 
     "matchup",
     "market",
     "total_pace",
+    "starting_pitcher",
+    "bullpen",
+    "lineup",
+    "weather",
+    "park_factor",
+    "umpire",
+    "total_environment",
     "other",
   ]);
   return typeof value === "string" && allowed.has(value as WnbaNarrativeSignal["category"])

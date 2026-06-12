@@ -1,4 +1,4 @@
-export type Sport = "WNBA";
+export type Sport = "WNBA" | "MLB";
 
 export type Session = {
   dateEt: string;
@@ -52,6 +52,7 @@ export type OddsGame = {
 export type AnalysisResult = {
   gameId: string;
   dateEt: string;
+  sport?: Sport;
   recommendation: "BET" | "LEAN" | "PASS";
   confidence: number;
   dataQuality: "STRONG" | "PARTIAL" | "WEAK";
@@ -103,6 +104,8 @@ export type WnbaPassReasonCode =
   | "MARKET_OVERREACTION"
   | "LOW_CONFIDENCE"
   | "MISSING_ROTATION_DATA"
+  | "MISSING_STARTING_PITCHER"
+  | "WEATHER_CONFLICT"
   | "AI_MARKET_SWITCH"
   | "AI_ERROR";
 
@@ -160,6 +163,13 @@ export type WnbaNarrativeSignal = {
     | "matchup"
     | "market"
     | "total_pace"
+    | "starting_pitcher"
+    | "bullpen"
+    | "lineup"
+    | "weather"
+    | "park_factor"
+    | "umpire"
+    | "total_environment"
     | "other";
   grade: "HARD_FACT" | "SUPPORTED_ANGLE" | "SOFT_NARRATIVE";
   direction: "supports_candidate" | "opposes_candidate" | "neutral";

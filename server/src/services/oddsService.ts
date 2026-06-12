@@ -1,7 +1,13 @@
 import { nowIso } from "../utils/time.js";
-import type { OddsApiUsage, OddsGame } from "../types.js";
+import type { OddsApiUsage, OddsGame, Sport } from "../types.js";
 
 export const WNBA_ODDS_SPORT_KEY = "basketball_wnba";
+export const MLB_ODDS_SPORT_KEY = "baseball_mlb";
+
+const ODDS_SPORT_KEYS: Record<Sport, string> = {
+  WNBA: WNBA_ODDS_SPORT_KEY,
+  MLB: MLB_ODDS_SPORT_KEY,
+};
 
 export const SUPPORTED_BOOK_KEYS = new Set([
   "fliff",
@@ -28,11 +34,20 @@ export class OddsService {
   ) {}
 
   async fetchWnbaOdds(): Promise<{ games: OddsGame[]; usage: OddsApiUsage }> {
+    return this.fetchOdds("WNBA");
+  }
+
+  async fetchMlbOdds(): Promise<{ games: OddsGame[]; usage: OddsApiUsage }> {
+    return this.fetchOdds("MLB");
+  }
+
+  async fetchOdds(sport: Sport): Promise<{ games: OddsGame[]; usage: OddsApiUsage }> {
     if (!this.apiKey) {
       throw new Error("ODDS_API_KEY is not configured");
     }
 
-    const url = new URL(`https://api.the-odds-api.com/v4/sports/${WNBA_ODDS_SPORT_KEY}/odds`);
+    const sportKey = ODDS_SPORT_KEYS[sport];
+    const url = new URL(`https://api.the-odds-api.com/v4/sports/${sportKey}/odds`);
     url.searchParams.set("apiKey", this.apiKey);
     url.searchParams.set("regions", "us,us2");
     url.searchParams.set("markets", "h2h,spreads,totals");
@@ -48,7 +63,7 @@ export class OddsService {
       games: data.map(filterSupportedBooks),
       usage: {
         provider: "odds-api",
-        endpoint: `/v4/sports/${WNBA_ODDS_SPORT_KEY}/odds`,
+        endpoint: `/v4/sports/${sportKey}/odds`,
         requestsUsed: readIntegerHeader(response.headers, "x-requests-used"),
         requestsRemaining: readIntegerHeader(response.headers, "x-requests-remaining"),
         requestsLast: readIntegerHeader(response.headers, "x-requests-last"),
