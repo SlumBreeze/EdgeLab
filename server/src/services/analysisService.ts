@@ -35,8 +35,12 @@ const DEFAULT_COST_CONFIG: GeminiCostConfig = {
   fallbackOutputTokens: 1200,
 };
 const GEMINI_TIMEOUT_MS = 90000;
-const BET_EDGE_FLOOR = 1.5;
-const NARRATIVE_WATCH_EDGE_FLOOR = 0.5;
+const BET_EV_FLOOR = 2.5;
+const NARRATIVE_WATCH_EV_FLOOR = 1.0;
+const MIN_CANDIDATE_REFERENCE_BOOKS = 1;
+const MIN_BET_REFERENCE_BOOKS = 2;
+const MAX_BET_CONSENSUS_DISPERSION_PERCENT = 4;
+export const DAILY_SELECTION_CAP = 2;
 const MAX_FAVORITE_ODDS = -165;
 const FALLBACK_ANALYSIS_MODEL = "gemini-2.5-pro";
 
@@ -61,7 +65,7 @@ export class AnalysisService {
           game.id,
           game.sport,
           "NO_EDGE",
-          `No ${game.sport} moneyline, ${game.sport === "MLB" ? "run line" : "spread"}, or total cleared the narrative-watch value floor against the available book consensus.`,
+          `No ${game.sport} moneyline, ${game.sport === "MLB" ? "run line" : "spread"}, or team total cleared the 1.0% EV watch floor with an independent reference book at the identical market and line.`,
         ),
         usage: null,
       };
@@ -143,7 +147,7 @@ Tip: ${game.date}
 Initial best priced candidate:
 ${JSON.stringify(candidate)}
 
-Candidate board across moneyline, spread, and total:
+Candidate board across moneyline, ${game.sport === "MLB" ? "run line" : "spread"}, and team total:
 ${JSON.stringify(candidateBoard)}
 
 Official/free WNBA data pack:
@@ -154,15 +158,16 @@ ${JSON.stringify(odds || null)}
 
 Rules:
 - Focus only on ${game.sport}.
-- Evaluate moneyline, ${game.sport === "MLB" ? "run line" : "spread"}, and total candidates on the candidate board.
+- Evaluate only moneyline, ${game.sport === "MLB" ? "run line" : "spread"}, and team-total candidates on the candidate board.
 - You may recommend only a candidate that appears in the candidate board. Do not invent a side, market, line, book, or price.
 - If the initial best candidate is weak but another listed candidate has stronger price plus hard-data/narrative support, select the stronger listed candidate.
 - BET requires positive price value plus hard factual or supported narrative confirmation. LEAN is allowed for thin value with strong narrative/news support.
 - Exclude expensive favorites. Any candidate priced shorter than -165 is not playable, regardless of edge percentage.
 - ${game.sport === "MLB" ? "Moneylines require confirmed starting pitchers, bullpen status, lineup context, and price value." : "Spreads and moneylines require verified availability for high-usage players, primary creators, rim protectors, or defensive anchors."}
 - ${game.sport === "MLB" ? "Run lines require price value plus a plausible margin path from starter gap, bullpen gap, lineup edge, or late-game scoring setup." : "Totals deserve priority only when pace plus offensive/defensive efficiency support the number."}
-- ${game.sport === "MLB" ? "Totals require pitcher profile, bullpen fatigue, weather/park context, lineup quality, and market number support." : "Incorporate game previews, AP/ESPN/CBS/WNBA/team news, injury reports, rotation notes, coach comments, rematch context, rest/travel, and recent form as narrative signals."}
+- ${game.sport === "MLB" ? "Team totals require a confirmed opposing starter plus weather, park, or total-environment support; lineup and bullpen context should also be checked." : "Team totals require verified availability plus pace or offensive/defensive efficiency support. Incorporate game previews, injury reports, rotation notes, rest/travel, and current market context."}
 - ${game.sport === "MLB" ? "Incorporate probable starters, lineup news, bullpen usage over the last three days, weather, park factors, umpire tendencies, recent form, matchup splits, and market context as narrative signals." : "Use official/free WNBA data first. Use current search-backed facts only to verify gaps in the data pack and cite the source name in the signal."}
+- ${game.sport === "MLB" ? "For 2026, account for the MLB ABS challenge system. Downweight historical home-plate-umpire effects unless current 2026 evidence shows a stable residual effect; never treat pre-ABS umpire tendencies as directly transferable." : "For 2026 expansion teams Toronto and Portland, shrink small-sample team ratings toward league average and rely more heavily on verified current rotation, minutes, and lineup combinations."}
 - Grade every narrative signal as HARD_FACT, SUPPORTED_ANGLE, or SOFT_NARRATIVE.
 - Soft narrative can support a LEAN or watchlist note, but cannot rescue a negative-value or unsupported wager.
 - Treat weak ${game.sport === "MLB" ? "starting pitcher, lineup, bullpen, weather, park, total environment, or market" : "injury, rotation, efficiency, pace, or market"} support as a reason to PASS.
@@ -175,7 +180,7 @@ Schema:
   "confidence": 0-100,
   "dataQuality": "STRONG" | "PARTIAL" | "WEAK",
   "selectedCandidateId": "must match a listed candidateId exactly",
-  "selectedMarket": "Moneyline" | "Spread" | "Total",
+  "selectedMarket": "Moneyline" | "Spread" | "Team Total",
   "selectedSide": "must match a listed candidate side exactly",
   "selectedBook": "must match a listed candidate bookTitle exactly",
   "selectedPoint": number | null,
@@ -208,7 +213,7 @@ const normalizeAnalysis = (
   const recommendation = ["BET", "LEAN", "PASS"].includes(parsed?.recommendation) ? parsed.recommendation : "PASS";
   const dataQuality = ["STRONG", "PARTIAL", "WEAK"].includes(parsed?.dataQuality) ? parsed.dataQuality : "WEAK";
   const confidence = Number.isFinite(parsed?.confidence) ? Math.max(0, Math.min(100, Math.round(parsed.confidence))) : 0;
-  const selectedMarket = ["Moneyline", "Spread", "Total"].includes(parsed?.selectedMarket)
+  const selectedMarket = ["Moneyline", "Spread", "Team Total"].includes(parsed?.selectedMarket)
     ? parsed.selectedMarket
     : candidate.market;
   const selectedSide = String(parsed?.selectedSide || candidate.side);
@@ -221,7 +226,13 @@ const normalizeAnalysis = (
   const boardCandidate = matchedCandidate || candidate;
   const offBoardSelection = !matchedCandidate;
   const narrativeSignals = readNarrativeSignals(parsed?.narrativeSignals);
-  const finalRecommendation = dataQuality === "WEAK" || offBoardSelection ? "PASS" : recommendation;
+  const failedBetGate =
+    recommendation === "BET" &&
+    !passesBetEvidenceGate(sport, boardCandidate, dataQuality, narrativeSignals);
+  const failedBetReason = failedBetGate
+    ? getFailedBetGateReason(sport, boardCandidate, dataQuality, narrativeSignals)
+    : null;
+  const finalRecommendation = dataQuality === "WEAK" || offBoardSelection || failedBetGate ? "PASS" : recommendation;
 
   return {
     gameId,
@@ -233,10 +244,13 @@ const normalizeAnalysis = (
     marketValue: String(parsed?.marketValue || `${boardCandidate.edgePercent.toFixed(2)}% consensus edge on ${boardCandidate.bookTitle}.`),
     reasoning: offBoardSelection
       ? `AI attempted to evaluate ${selectedSide} ${selectedMarket} at ${selectedBook}, which was not on the priced candidate board.`
+      : failedBetGate
+        ? failedBetReason!.reason
       : String(parsed?.reasoning || "Insufficient verified WNBA data."),
     riskFactors: [
       ...(Array.isArray(parsed?.riskFactors) ? parsed.riskFactors.map(String) : []),
       ...(offBoardSelection ? ["AI off-board selection veto"] : []),
+      ...(failedBetGate ? ["Deterministic profitability gate"] : []),
     ],
     createdAt: nowIso(),
     selectedMarket: boardCandidate.market,
@@ -245,9 +259,16 @@ const normalizeAnalysis = (
     selectedOdds: boardCandidate.odds,
     selectedPoint: boardCandidate.point,
     edgePercent: boardCandidate.edgePercent,
+    expectedValuePercent: boardCandidate.expectedValuePercent,
+    referenceBookCount: boardCandidate.referenceBookCount,
+    consensusDispersionPercent: boardCandidate.consensusDispersionPercent,
     candidateBoard,
     narrativeSignals,
-    passReasonCode: offBoardSelection ? "AI_MARKET_SWITCH" : readPassReasonCode(parsed?.passReasonCode),
+    passReasonCode: offBoardSelection
+      ? "AI_MARKET_SWITCH"
+      : failedBetGate
+        ? failedBetReason!.code
+        : readPassReasonCode(parsed?.passReasonCode),
   };
 };
 
@@ -279,7 +300,9 @@ const passAnalysis = (
   recommendation: "PASS",
   confidence: 0,
   dataQuality: "WEAK",
-  marketValue: candidate ? `${candidate.edgePercent.toFixed(2)}% consensus edge did not clear final validation.` : "No valid WNBA candidate.",
+  marketValue: candidate
+    ? `${candidate.expectedValuePercent.toFixed(2)}% EV did not clear final validation.`
+    : `No valid ${sport} candidate.`,
   reasoning: reason,
   riskFactors: [passReasonCode],
   createdAt: nowIso(),
@@ -289,6 +312,9 @@ const passAnalysis = (
   selectedOdds: candidate?.odds,
   selectedPoint: candidate?.point,
   edgePercent: candidate?.edgePercent,
+  expectedValuePercent: candidate?.expectedValuePercent,
+  referenceBookCount: candidate?.referenceBookCount,
+  consensusDispersionPercent: candidate?.consensusDispersionPercent,
   candidateBoard: candidate ? [candidate] : [],
   narrativeSignals: [],
   passReasonCode,
@@ -369,8 +395,13 @@ export const buildWnbaCandidateBoard = (game: SlateGame, odds: OddsGame | null):
   const candidates = [
     ...buildMoneylineCandidates(game, odds),
     ...buildPointMarketCandidates(game, odds, "spreads"),
-    ...buildPointMarketCandidates(game, odds, "totals"),
-  ].filter((candidate) => candidate.edgePercent >= NARRATIVE_WATCH_EDGE_FLOOR && isPlayablePrice(candidate.odds));
+    ...buildTeamTotalCandidates(game, odds),
+  ].filter(
+    (candidate) =>
+      candidate.expectedValuePercent >= NARRATIVE_WATCH_EV_FLOOR &&
+      candidate.referenceBookCount >= MIN_CANDIDATE_REFERENCE_BOOKS &&
+      isPlayablePrice(candidate.odds),
+  );
 
   return candidates
     .sort((a, b) => b.rankingScore - a.rankingScore)
@@ -382,11 +413,24 @@ const buildMoneylineCandidates = (game: SlateGame, odds: OddsGame): WnbaCandidat
     getMarket(book, "h2h")?.outcomes.map((outcome) => ({ book, outcome })) || [],
   );
   return outcomes.flatMap(({ book, outcome }) => {
-    const sameSide = outcomes.filter((item) => normalizeName(item.outcome.name) === normalizeName(outcome.name));
-    if (sameSide.length < 2) return [];
-    const fairProbability = average(sameSide.map((item) => americanToImpliedProbability(item.outcome.price)));
+    const referenceProbabilities = odds.bookmakers
+      .filter((referenceBook) => referenceBook.key !== book.key)
+      .flatMap((referenceBook) => {
+        const referenceMarket = getMarket(referenceBook, "h2h");
+        const side = referenceMarket?.outcomes.find(
+          (referenceOutcome) => normalizeName(referenceOutcome.name) === normalizeName(outcome.name),
+        );
+        const opponent = referenceMarket?.outcomes.find(
+          (referenceOutcome) => normalizeName(referenceOutcome.name) !== normalizeName(outcome.name),
+        );
+        return side && opponent ? [calculateTwoWayNoVigProbability(side.price, opponent.price)] : [];
+      });
+    if (referenceProbabilities.length < MIN_CANDIDATE_REFERENCE_BOOKS) return [];
+    const fairProbability = median(referenceProbabilities);
     const impliedProbability = americanToImpliedProbability(outcome.price);
     const edgePercent = (fairProbability - impliedProbability) * 100;
+    const expectedValuePercent = calculateExpectedValuePercent(fairProbability, outcome.price);
+    const consensusDispersionPercent = probabilityRange(referenceProbabilities) * 100;
     return [
       {
         gameId: game.id,
@@ -400,34 +444,51 @@ const buildMoneylineCandidates = (game: SlateGame, odds: OddsGame): WnbaCandidat
         fairProbability,
         impliedProbability,
         edgePercent,
-        rankingScore: edgePercent + (edgePercent >= BET_EDGE_FLOOR ? 0.25 : 0),
-        supportNotes: ["Consensus moneyline value versus available supported books."],
+        expectedValuePercent,
+        referenceBookCount: referenceProbabilities.length,
+        consensusDispersionPercent,
+        rankingScore: expectedValuePercent - consensusDispersionPercent * 0.5,
+        supportNotes: [`Leave-one-book-out no-vig consensus from ${referenceProbabilities.length} reference books.`],
       },
     ];
   });
 };
 
-const buildPointMarketCandidates = (game: SlateGame, odds: OddsGame, marketKey: "spreads" | "totals"): WnbaCandidate[] => {
-  const market = marketKey === "totals" ? "Total" : "Spread";
+const buildPointMarketCandidates = (game: SlateGame, odds: OddsGame, marketKey: "spreads"): WnbaCandidate[] => {
+  const market = "Spread";
   const outcomes = odds.bookmakers.flatMap((book) =>
     getMarket(book, marketKey)?.outcomes.map((outcome) => ({ book, outcome })) || [],
   );
   return outcomes.flatMap(({ book, outcome }) => {
     if (outcome.point === undefined) return [];
-    const sameSideAndPoint = outcomes.filter(
-      (item) => normalizeName(item.outcome.name) === normalizeName(outcome.name) && item.outcome.point === outcome.point,
-    );
-    if (sameSideAndPoint.length < 2) return [];
-    const fairProbability = average(sameSideAndPoint.map((item) => americanToImpliedProbability(item.outcome.price)));
+    const referenceProbabilities = odds.bookmakers
+      .filter((referenceBook) => referenceBook.key !== book.key)
+      .flatMap((referenceBook) => {
+        const referenceMarket = getMarket(referenceBook, marketKey);
+        const side = referenceMarket?.outcomes.find(
+          (referenceOutcome) =>
+            normalizeName(referenceOutcome.name) === normalizeName(outcome.name) && referenceOutcome.point === outcome.point,
+        );
+        const opponent = referenceMarket?.outcomes.find(
+          (referenceOutcome) =>
+            normalizeName(referenceOutcome.name) !== normalizeName(outcome.name) &&
+            isOpposingPoint(outcome.point!, referenceOutcome.point),
+        );
+        return side && opponent ? [calculateTwoWayNoVigProbability(side.price, opponent.price)] : [];
+      });
+    if (referenceProbabilities.length < MIN_CANDIDATE_REFERENCE_BOOKS) return [];
+    const fairProbability = median(referenceProbabilities);
     const impliedProbability = americanToImpliedProbability(outcome.price);
     const edgePercent = (fairProbability - impliedProbability) * 100;
+    const expectedValuePercent = calculateExpectedValuePercent(fairProbability, outcome.price);
+    const consensusDispersionPercent = probabilityRange(referenceProbabilities) * 100;
     return [
       {
         gameId: game.id,
-        candidateId: makeCandidateId(market, market === "Total" ? outcome.name.toUpperCase() : outcome.name, outcome.point, book.key),
+        candidateId: makeCandidateId(market, outcome.name, outcome.point, book.key),
         market,
-        side: market === "Total" ? outcome.name.toUpperCase() : outcome.name,
-        teamName: market === "Spread" ? outcome.name : undefined,
+        side: outcome.name,
+        teamName: outcome.name,
         bookKey: book.key,
         bookTitle: book.title,
         odds: outcome.price,
@@ -435,13 +496,70 @@ const buildPointMarketCandidates = (game: SlateGame, odds: OddsGame, marketKey: 
         fairProbability,
         impliedProbability,
         edgePercent,
-        rankingScore: edgePercent + (market === "Total" ? 0.35 : 0) + (edgePercent >= BET_EDGE_FLOOR ? 0.25 : 0),
+        expectedValuePercent,
+        referenceBookCount: referenceProbabilities.length,
+        consensusDispersionPercent,
+        rankingScore: expectedValuePercent - consensusDispersionPercent * 0.5,
         supportNotes:
-          market === "Total"
-            ? ["Totals receive a ranking bonus because pace and efficiency are more modelable in WNBA."]
-            : ["Consensus spread value versus available supported books."],
+          [`Leave-one-book-out no-vig consensus from ${referenceProbabilities.length} reference books at the identical line.`],
       },
     ];
+  });
+};
+
+const buildTeamTotalCandidates = (game: SlateGame, odds: OddsGame): WnbaCandidate[] => {
+  const outcomes = odds.bookmakers.flatMap((book) =>
+    getMarket(book, "team_totals")?.outcomes.map((outcome) => ({ book, outcome })) || [],
+  );
+  return outcomes.flatMap(({ book, outcome }) => {
+    const teamName = outcome.description?.trim();
+    if (!teamName || outcome.point === undefined) return [];
+    const side = outcome.name.toUpperCase();
+    const referenceProbabilities = odds.bookmakers
+      .filter((referenceBook) => referenceBook.key !== book.key)
+      .flatMap((referenceBook) => {
+        const sameTeamOutcomes = getMarket(referenceBook, "team_totals")?.outcomes.filter(
+          (referenceOutcome) =>
+            normalizeName(referenceOutcome.description || "") === normalizeName(teamName) &&
+            referenceOutcome.point === outcome.point,
+        ) || [];
+        const referenceSide = sameTeamOutcomes.find(
+          (referenceOutcome) => normalizeName(referenceOutcome.name) === normalizeName(outcome.name),
+        );
+        const opponent = sameTeamOutcomes.find(
+          (referenceOutcome) => normalizeName(referenceOutcome.name) !== normalizeName(outcome.name),
+        );
+        return referenceSide && opponent
+          ? [calculateTwoWayNoVigProbability(referenceSide.price, opponent.price)]
+          : [];
+      });
+    if (referenceProbabilities.length < MIN_CANDIDATE_REFERENCE_BOOKS) return [];
+    const fairProbability = median(referenceProbabilities);
+    const impliedProbability = americanToImpliedProbability(outcome.price);
+    const edgePercent = (fairProbability - impliedProbability) * 100;
+    const expectedValuePercent = calculateExpectedValuePercent(fairProbability, outcome.price);
+    const consensusDispersionPercent = probabilityRange(referenceProbabilities) * 100;
+    return [{
+      gameId: game.id,
+      candidateId: makeCandidateId("Team Total", `${teamName}-${side}`, outcome.point, book.key),
+      market: "Team Total" as const,
+      side,
+      teamName,
+      bookKey: book.key,
+      bookTitle: book.title,
+      odds: outcome.price,
+      point: outcome.point,
+      fairProbability,
+      impliedProbability,
+      edgePercent,
+      expectedValuePercent,
+      referenceBookCount: referenceProbabilities.length,
+      consensusDispersionPercent,
+      rankingScore: expectedValuePercent - consensusDispersionPercent * 0.5,
+      supportNotes: [
+        `Leave-one-book-out no-vig ${teamName} team-total consensus from ${referenceProbabilities.length} reference books at the identical line.`,
+      ],
+    }];
   });
 };
 
@@ -454,7 +572,141 @@ const americanToImpliedProbability = (odds: number) => {
   return Math.abs(odds) / (Math.abs(odds) + 100);
 };
 
-const average = (values: number[]) => values.reduce((sum, value) => sum + value, 0) / values.length;
+const americanToDecimal = (odds: number) =>
+  odds > 0 ? 1 + odds / 100 : 1 + 100 / Math.abs(odds);
+
+const calculateTwoWayNoVigProbability = (sideOdds: number, opponentOdds: number) => {
+  const side = americanToImpliedProbability(sideOdds);
+  const opponent = americanToImpliedProbability(opponentOdds);
+  return side / (side + opponent);
+};
+
+const calculateExpectedValuePercent = (fairProbability: number, odds: number) =>
+  (fairProbability * americanToDecimal(odds) - 1) * 100;
+
+const median = (values: number[]) => {
+  const sorted = [...values].sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0 ? (sorted[middle - 1] + sorted[middle]) / 2 : sorted[middle];
+};
+
+const probabilityRange = (values: number[]) => Math.max(...values) - Math.min(...values);
+
+const isOpposingPoint = (point: number, opponentPoint: number | undefined) =>
+  opponentPoint !== undefined && Math.abs(point + opponentPoint) < 0.0001;
+
+const passesBetEvidenceGate = (
+  sport: "WNBA" | "MLB",
+  candidate: WnbaCandidate,
+  dataQuality: AnalysisResult["dataQuality"],
+  signals: WnbaNarrativeSignal[],
+) => {
+  if (
+    dataQuality !== "STRONG" ||
+    candidate.expectedValuePercent < BET_EV_FLOOR ||
+    candidate.referenceBookCount < MIN_BET_REFERENCE_BOOKS ||
+    candidate.consensusDispersionPercent > MAX_BET_CONSENSUS_DISPERSION_PERCENT
+  ) return false;
+  const supportingHardFacts = signals.filter(
+    (signal) => signal.grade === "HARD_FACT" && signal.direction === "supports_candidate" && Boolean(signal.source),
+  );
+  if (sport === "WNBA") {
+    return supportingHardFacts.some((signal) => ["injury", "rotation", "rest_travel", "total_pace", "market"].includes(signal.category));
+  }
+  const hasStarter = supportingHardFacts.some((signal) => signal.category === "starting_pitcher");
+  const hasRunSupport = supportingHardFacts.some((signal) => ["bullpen", "lineup", "matchup"].includes(signal.category));
+  const hasTotalEnvironment = supportingHardFacts.some((signal) => ["weather", "park_factor", "total_environment"].includes(signal.category));
+  return candidate.market === "Team Total" ? hasStarter && hasTotalEnvironment : hasStarter && hasRunSupport;
+};
+
+const getFailedBetGateReason = (
+  sport: "WNBA" | "MLB",
+  candidate: WnbaCandidate,
+  dataQuality: AnalysisResult["dataQuality"],
+  signals: WnbaNarrativeSignal[],
+): { code: WnbaPassReasonCode; reason: string } => {
+  if (candidate.referenceBookCount < MIN_BET_REFERENCE_BOOKS) {
+    return {
+      code: "INSUFFICIENT_REFERENCES",
+      reason: `WATCH only: ${candidate.referenceBookCount} independent reference book does not meet the ${MIN_BET_REFERENCE_BOOKS}-book minimum.`,
+    };
+  }
+  if (candidate.expectedValuePercent < BET_EV_FLOOR) {
+    return {
+      code: "NO_EDGE",
+      reason: `WATCH only: ${candidate.expectedValuePercent.toFixed(2)}% EV is below the ${BET_EV_FLOOR.toFixed(1)}% BET threshold.`,
+    };
+  }
+  if (candidate.consensusDispersionPercent > MAX_BET_CONSENSUS_DISPERSION_PERCENT) {
+    return {
+      code: "STATS_CONFLICT",
+      reason: `PASS: reference-book probabilities disagree by ${candidate.consensusDispersionPercent.toFixed(2)}%, above the ${MAX_BET_CONSENSUS_DISPERSION_PERCENT.toFixed(1)}% consistency limit.`,
+    };
+  }
+  if (dataQuality !== "STRONG") {
+    return {
+      code: sport === "WNBA" ? "STALE_INJURY_DATA" : "LOW_CONFIDENCE",
+      reason: `PASS: ${dataQuality.toLowerCase()} data quality does not meet the STRONG-data requirement.`,
+    };
+  }
+  const supportingHardFacts = signals.filter(
+    (signal) => signal.grade === "HARD_FACT" && signal.direction === "supports_candidate" && Boolean(signal.source),
+  );
+  if (sport === "MLB") {
+    const hasStarter = supportingHardFacts.some((signal) => signal.category === "starting_pitcher");
+    return {
+      code: hasStarter ? "LOW_CONFIDENCE" : "MISSING_STARTING_PITCHER",
+      reason: candidate.market === "Team Total"
+        ? "PASS: MLB team totals require a confirmed opposing starter plus sourced weather, park, or total-environment support."
+        : "PASS: MLB moneyline/run-line plays require a confirmed starter plus sourced lineup, bullpen, or matchup support.",
+    };
+  }
+  return {
+    code: "MISSING_ROTATION_DATA",
+    reason: "PASS: WNBA plays require sourced hard-fact support from availability, rotation/rest, pace/efficiency, or market evidence.",
+  };
+};
+
+export const applyDailySelectionCap = (
+  analyses: AnalysisResult[],
+  cap = DAILY_SELECTION_CAP,
+): AnalysisResult[] => {
+  const rankedBets = analyses
+    .filter((analysis) => analysis.recommendation === "BET" || analysis.qualifiedForDailySelection)
+    .sort((a, b) => selectionScore(b) - selectionScore(a));
+  const selectedIds = new Set(rankedBets.slice(0, cap).map((analysis) => analysis.gameId));
+  const ranks = new Map(rankedBets.map((analysis, index) => [analysis.gameId, index + 1]));
+  return analyses.map((analysis) => {
+    if (analysis.recommendation !== "BET" && !analysis.qualifiedForDailySelection) {
+      return { ...analysis, dailySelectionRank: undefined };
+    }
+    const dailySelectionRank = ranks.get(analysis.gameId);
+    if (selectedIds.has(analysis.gameId)) {
+      return {
+        ...analysis,
+        recommendation: "BET",
+        dailySelectionRank,
+        qualifiedForDailySelection: true,
+        passReasonCode: analysis.passReasonCode === "DAILY_SELECTION_CAP" ? undefined : analysis.passReasonCode,
+      };
+    }
+    return {
+      ...analysis,
+      recommendation: "LEAN",
+      dailySelectionRank,
+      qualifiedForDailySelection: true,
+      passReasonCode: "DAILY_SELECTION_CAP",
+      reasoning: `WATCH only: this candidate ranked ${dailySelectionRank} on today's slate, outside the ${cap}-selection cap. ${analysis.reasoning}`,
+      riskFactors: [...analysis.riskFactors, "Daily selection cap"],
+    };
+  });
+};
+
+const selectionScore = (analysis: AnalysisResult) =>
+  (analysis.expectedValuePercent || 0) +
+  (analysis.referenceBookCount || 0) * 0.25 -
+  (analysis.consensusDispersionPercent || 0) * 0.5 +
+  analysis.confidence * 0.02;
 
 const readPassReasonCode = (value: unknown): WnbaPassReasonCode | undefined => {
   const allowed = new Set<WnbaPassReasonCode>([
@@ -467,6 +719,8 @@ const readPassReasonCode = (value: unknown): WnbaPassReasonCode | undefined => {
     "MISSING_ROTATION_DATA",
     "MISSING_STARTING_PITCHER",
     "WEATHER_CONFLICT",
+    "INSUFFICIENT_REFERENCES",
+    "DAILY_SELECTION_CAP",
     "AI_MARKET_SWITCH",
     "AI_ERROR",
   ]);

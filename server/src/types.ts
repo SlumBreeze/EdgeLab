@@ -25,9 +25,10 @@ export type SlateGame = {
 };
 
 export type OddsMarket = {
-  key: "h2h" | "spreads" | "totals";
+  key: "h2h" | "spreads" | "totals" | "team_totals";
   outcomes: Array<{
     name: string;
+    description?: string;
     price: number;
     point?: number;
   }>;
@@ -60,12 +61,22 @@ export type AnalysisResult = {
   reasoning: string;
   riskFactors: string[];
   createdAt: string;
-  selectedMarket?: "Moneyline" | "Spread" | "Total";
+  selectedMarket?: "Moneyline" | "Spread" | "Team Total";
   selectedSide?: string;
   selectedBook?: string;
   selectedOdds?: number;
   selectedPoint?: number;
   edgePercent?: number;
+  expectedValuePercent?: number;
+  referenceBookCount?: number;
+  consensusDispersionPercent?: number;
+  dailySelectionRank?: number;
+  qualifiedForDailySelection?: boolean;
+  closingOdds?: number;
+  closingPoint?: number;
+  closingRecordedAt?: string;
+  clvPercent?: number;
+  beatClose?: boolean;
   candidateBoard?: WnbaCandidate[];
   narrativeSignals?: WnbaNarrativeSignal[];
   passReasonCode?: WnbaPassReasonCode;
@@ -106,6 +117,8 @@ export type WnbaPassReasonCode =
   | "MISSING_ROTATION_DATA"
   | "MISSING_STARTING_PITCHER"
   | "WEATHER_CONFLICT"
+  | "INSUFFICIENT_REFERENCES"
+  | "DAILY_SELECTION_CAP"
   | "AI_MARKET_SWITCH"
   | "AI_ERROR";
 
@@ -139,7 +152,7 @@ export type WnbaDataPack = {
 export type WnbaCandidate = {
   gameId: string;
   candidateId: string;
-  market: "Moneyline" | "Spread" | "Total";
+  market: "Moneyline" | "Spread" | "Team Total";
   side: string;
   teamName?: string;
   bookKey: string;
@@ -149,6 +162,9 @@ export type WnbaCandidate = {
   fairProbability: number;
   impliedProbability: number;
   edgePercent: number;
+  expectedValuePercent: number;
+  referenceBookCount: number;
+  consensusDispersionPercent: number;
   rankingScore: number;
   supportNotes: string[];
 };

@@ -50,7 +50,7 @@ export class OddsService {
     const url = new URL(`https://api.the-odds-api.com/v4/sports/${sportKey}/odds`);
     url.searchParams.set("apiKey", this.apiKey);
     url.searchParams.set("regions", "us,us2");
-    url.searchParams.set("markets", "h2h,spreads,totals");
+    url.searchParams.set("markets", "h2h,spreads,team_totals");
     url.searchParams.set("oddsFormat", "american");
 
     const response = await this.fetchImpl(url);

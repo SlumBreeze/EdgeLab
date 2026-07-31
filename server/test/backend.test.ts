@@ -4,7 +4,11 @@ import { describe, expect, it, vi } from "vitest";
 import { createApp } from "../src/app.js";
 import { migrate, Store } from "../src/storage/database.js";
 import { filterSupportedBooks } from "../src/services/oddsService.js";
-import { buildWnbaCandidateBoard, selectBestWnbaCandidate } from "../src/services/analysisService.js";
+import {
+  applyDailySelectionCap,
+  buildWnbaCandidateBoard,
+  selectBestWnbaCandidate,
+} from "../src/services/analysisService.js";
 import { AnalysisService } from "../src/services/analysisService.js";
 import type { AnalysisResult, OddsGame, SlateGame } from "../src/types.js";
 
@@ -21,6 +25,10 @@ const config = {
   geminiFallbackOutputTokens: 1200,
   geminiWeeklyWarningUsd: 5,
   geminiWeeklyHardStopUsd: 8,
+  authRequired: false,
+  supabaseUrl: undefined,
+  supabasePublishableKey: undefined,
+  allowedUserIds: [],
 };
 
 const slateGame: SlateGame = {
@@ -106,6 +114,109 @@ const makeWnbaData = () =>
       freshness: "partial",
     }),
   }) as any;
+
+describe("private API access", () => {
+  const privateConfig = {
+    ...config,
+    authRequired: true,
+    supabaseUrl: "https://project.supabase.co",
+    supabasePublishableKey: "sb_publishable_test",
+    allowedUserIds: ["authorized-user-id"],
+  };
+
+  it("rejects missing and invalid bearer sessions", async () => {
+    const verifyAccessToken = vi.fn().mockResolvedValue(null);
+    const app = createApp({
+      store: makeStore(),
+      config: privateConfig,
+      auth: { verifyAccessToken },
+      getDateEt: () => "2026-05-14",
+    });
+
+    await request(app).get("/api/session/today").expect(401);
+    expect(verifyAccessToken).not.toHaveBeenCalled();
+
+    const invalid = await request(app)
+      .get("/api/session/today")
+      .set("Authorization", "Bearer invalid-session")
+      .expect(401);
+    expect(invalid.body.error).toBe("INVALID_SESSION");
+    expect(verifyAccessToken).toHaveBeenCalledWith("invalid-session");
+  });
+
+  it("allows only configured Supabase user IDs", async () => {
+    const verifyAccessToken = vi
+      .fn()
+      .mockResolvedValueOnce({ id: "different-user-id" })
+      .mockResolvedValueOnce({ id: "authorized-user-id" });
+    const app = createApp({
+      store: makeStore(),
+      config: privateConfig,
+      auth: { verifyAccessToken },
+      getDateEt: () => "2026-05-14",
+    });
+
+    const denied = await request(app)
+      .get("/api/session/today")
+      .set("Authorization", "Bearer valid-but-not-allowed")
+      .expect(403);
+    expect(denied.body.error).toBe("ACCESS_DENIED");
+
+    const allowed = await request(app)
+      .get("/api/session/today")
+      .set("Authorization", "Bearer valid-and-allowed")
+      .expect(200);
+    expect(allowed.body.dateEt).toBe("2026-05-14");
+  });
+
+  it("fails closed when required auth is incomplete or unavailable", async () => {
+    const unconfigured = createApp({
+      store: makeStore(),
+      config: {
+        ...privateConfig,
+        supabaseUrl: undefined,
+        supabasePublishableKey: undefined,
+        allowedUserIds: [],
+      },
+      auth: null,
+    });
+    const missingConfig = await request(unconfigured)
+      .get("/api/session/today")
+      .set("Authorization", "Bearer any-token")
+      .expect(503);
+    expect(missingConfig.body.error).toBe("AUTH_NOT_CONFIGURED");
+
+    const unavailable = createApp({
+      store: makeStore(),
+      config: privateConfig,
+      auth: {
+        verifyAccessToken: vi.fn().mockRejectedValue(new Error("Auth provider unavailable")),
+      },
+    });
+    const upstreamFailure = await request(unavailable)
+      .get("/api/session/today")
+      .set("Authorization", "Bearer any-token")
+      .expect(503);
+    expect(upstreamFailure.body.error).toBe("AUTH_UNAVAILABLE");
+  });
+
+  it("allows only configured browser origins", async () => {
+    const app = createApp({ store: makeStore(), config });
+
+    const allowed = await request(app)
+      .options("/api/session/today")
+      .set("Origin", "http://localhost:5173")
+      .set("Access-Control-Request-Method", "GET")
+      .expect(204);
+    expect(allowed.headers["access-control-allow-origin"]).toBe("http://localhost:5173");
+
+    const denied = await request(app)
+      .get("/healthz")
+      .set("Origin", "https://untrusted.example")
+      .expect(403);
+    expect(denied.body.error).toBe("CORS_ORIGIN_DENIED");
+  });
+});
 
 describe("session reset", () => {
   it("prompts once per Eastern date and preserves that day's budget", async () => {
@@ -352,7 +463,35 @@ describe("analyze-all flow", () => {
 });
 
 describe("WNBA candidate selection", () => {
-  it("filters out markets below the 1.5 percent edge floor before Gemini analysis", () => {
+  it("prices a candidate from leave-one-book-out no-vig consensus", () => {
+    const board = buildWnbaCandidateBoard(slateGame, {
+      ...oddsGame,
+      bookmakers: [
+        {
+          key: "draftkings",
+          title: "DraftKings",
+          markets: [{ key: "h2h", outcomes: [{ name: "New York Liberty", price: +140 }, { name: "Las Vegas Aces", price: -190 }] }],
+        },
+        {
+          key: "fanduel",
+          title: "FanDuel",
+          markets: [{ key: "h2h", outcomes: [{ name: "New York Liberty", price: +120 }, { name: "Las Vegas Aces", price: -140 }] }],
+        },
+        {
+          key: "betonlineag",
+          title: "BetOnline",
+          markets: [{ key: "h2h", outcomes: [{ name: "New York Liberty", price: +118 }, { name: "Las Vegas Aces", price: -138 }] }],
+        },
+      ],
+    });
+
+    const candidate = board.find((item) => item.bookKey === "draftkings" && item.side === "New York Liberty");
+    expect(candidate).toMatchObject({ referenceBookCount: 2 });
+    expect(candidate?.expectedValuePercent).toBeGreaterThan(4);
+    expect(candidate?.fairProbability).toBeLessThan(0.45);
+  });
+
+  it("filters out markets below the watchlist EV floor before Gemini analysis", () => {
     const candidate = selectBestWnbaCandidate(slateGame, {
       ...oddsGame,
       bookmakers: [
@@ -372,7 +511,7 @@ describe("WNBA candidate selection", () => {
     expect(candidate).toBeNull();
   });
 
-  it("prioritizes a qualifying WNBA total when edge is comparable", () => {
+  it("prices a qualifying WNBA team total from independent books", () => {
     const candidate = selectBestWnbaCandidate(slateGame, {
       ...oddsGame,
       bookmakers: [
@@ -381,7 +520,10 @@ describe("WNBA candidate selection", () => {
           title: "DraftKings",
           markets: [
             { key: "h2h", outcomes: [{ name: "New York Liberty", price: -110 }, { name: "Las Vegas Aces", price: -110 }] },
-            { key: "totals", outcomes: [{ name: "Over", point: 162.5, price: -100 }, { name: "Under", point: 162.5, price: -115 }] },
+            { key: "team_totals", outcomes: [
+              { name: "Over", description: "New York Liberty", point: 81.5, price: -100 },
+              { name: "Under", description: "New York Liberty", point: 81.5, price: -115 },
+            ] },
           ],
         },
         {
@@ -389,14 +531,22 @@ describe("WNBA candidate selection", () => {
           title: "FanDuel",
           markets: [
             { key: "h2h", outcomes: [{ name: "New York Liberty", price: -116 }, { name: "Las Vegas Aces", price: -104 }] },
-            { key: "totals", outcomes: [{ name: "Over", point: 162.5, price: -120 }, { name: "Under", point: 162.5, price: -102 }] },
+            { key: "team_totals", outcomes: [
+              { name: "Over", description: "New York Liberty", point: 81.5, price: -120 },
+              { name: "Under", description: "New York Liberty", point: 81.5, price: -102 },
+            ] },
           ],
         },
       ],
     });
 
-    expect(candidate).toMatchObject({ market: "Total", side: "OVER", bookTitle: "DraftKings" });
-    expect(candidate?.edgePercent).toBeGreaterThanOrEqual(1.5);
+    expect(candidate).toMatchObject({
+      market: "Team Total",
+      teamName: "New York Liberty",
+      side: "OVER",
+      bookTitle: "DraftKings",
+    });
+    expect(candidate?.expectedValuePercent).toBeGreaterThanOrEqual(1);
   });
 
   it("excludes favorite prices shorter than -165 from WNBA candidates", () => {
@@ -431,7 +581,7 @@ describe("WNBA candidate selection", () => {
         {
           key: "fanduel",
           title: "FanDuel",
-          markets: [{ key: "h2h", outcomes: [{ name: "New York Liberty", price: -185 }, { name: "Las Vegas Aces", price: +160 }] }],
+          markets: [{ key: "h2h", outcomes: [{ name: "New York Liberty", price: -205 }, { name: "Las Vegas Aces", price: +170 }] }],
         },
       ],
     });
@@ -440,7 +590,7 @@ describe("WNBA candidate selection", () => {
     expect(board.some((candidate) => candidate.side === "New York Liberty" && candidate.odds < -165)).toBe(false);
   });
 
-  it("builds a candidate board across moneyline, spread, and totals for narrative review", () => {
+  it("builds a candidate board across moneyline, spread, and team totals for narrative review", () => {
     const board = buildWnbaCandidateBoard(slateGame, {
       ...oddsGame,
       bookmakers: [
@@ -450,7 +600,10 @@ describe("WNBA candidate selection", () => {
           markets: [
             { key: "h2h", outcomes: [{ name: "New York Liberty", price: +128 }, { name: "Las Vegas Aces", price: -148 }] },
             { key: "spreads", outcomes: [{ name: "New York Liberty", point: 3.5, price: -102 }, { name: "Las Vegas Aces", point: -3.5, price: -118 }] },
-            { key: "totals", outcomes: [{ name: "Over", point: 162.5, price: -100 }, { name: "Under", point: 162.5, price: -115 }] },
+            { key: "team_totals", outcomes: [
+              { name: "Over", description: "New York Liberty", point: 81.5, price: -100 },
+              { name: "Under", description: "New York Liberty", point: 81.5, price: -115 },
+            ] },
           ],
         },
         {
@@ -459,19 +612,103 @@ describe("WNBA candidate selection", () => {
           markets: [
             { key: "h2h", outcomes: [{ name: "New York Liberty", price: +110 }, { name: "Las Vegas Aces", price: -132 }] },
             { key: "spreads", outcomes: [{ name: "New York Liberty", point: 3.5, price: -118 }, { name: "Las Vegas Aces", point: -3.5, price: -102 }] },
-            { key: "totals", outcomes: [{ name: "Over", point: 162.5, price: -120 }, { name: "Under", point: 162.5, price: -102 }] },
+            { key: "team_totals", outcomes: [
+              { name: "Over", description: "New York Liberty", point: 81.5, price: -120 },
+              { name: "Under", description: "New York Liberty", point: 81.5, price: -102 },
+            ] },
           ],
         },
       ],
     });
 
-    expect(new Set(board.map((candidate) => candidate.market))).toEqual(new Set(["Moneyline", "Spread", "Total"]));
-    expect(board.every((candidate) => candidate.candidateId && candidate.edgePercent >= 0.5)).toBe(true);
+    expect(new Set(board.map((candidate) => candidate.market))).toEqual(new Set(["Moneyline", "Spread", "Team Total"]));
+    expect(board.every((candidate) => candidate.candidateId && candidate.expectedValuePercent >= 1)).toBe(true);
+  });
+
+  it("elevates only the two strongest qualified daily selections", () => {
+    const makeAnalysis = (gameId: string, expectedValuePercent: number): AnalysisResult => ({
+      gameId,
+      dateEt: "2026-05-14",
+      sport: "WNBA",
+      recommendation: "BET",
+      confidence: 80,
+      dataQuality: "STRONG",
+      marketValue: "Test",
+      reasoning: "Verified evidence.",
+      riskFactors: [],
+      createdAt: "2026-05-14T12:00:00.000Z",
+      expectedValuePercent,
+      referenceBookCount: 3,
+      consensusDispersionPercent: 1,
+    });
+
+    const ranked = applyDailySelectionCap([
+      makeAnalysis("third", 3),
+      makeAnalysis("first", 6),
+      makeAnalysis("second", 4),
+    ]);
+
+    expect(ranked.filter((analysis) => analysis.recommendation === "BET").map((analysis) => analysis.gameId))
+      .toEqual(["first", "second"]);
+    expect(ranked.find((analysis) => analysis.gameId === "third")).toMatchObject({
+      recommendation: "LEAN",
+      passReasonCode: "DAILY_SELECTION_CAP",
+      dailySelectionRank: 3,
+    });
+  });
+});
+
+describe("closing line tracking", () => {
+  it("records the current selected price and reports whether the recommendation beat the close", async () => {
+    const store = makeStore();
+    store.saveSlate("2026-05-14", "WNBA", [slateGame]);
+    store.saveOdds("2026-05-14", "WNBA", [{
+      ...oddsGame,
+      bookmakers: [{
+        key: "draftkings",
+        title: "DraftKings",
+        markets: [{
+          key: "h2h",
+          outcomes: [
+            { name: "New York Liberty", price: +120 },
+            { name: "Las Vegas Aces", price: -140 },
+          ],
+        }],
+      }],
+    }]);
+    store.saveAnalysis({
+      gameId: slateGame.id,
+      dateEt: "2026-05-14",
+      sport: "WNBA",
+      recommendation: "BET",
+      confidence: 80,
+      dataQuality: "STRONG",
+      marketValue: "Priced value",
+      reasoning: "Verified evidence.",
+      riskFactors: [],
+      createdAt: "2026-05-14T12:00:00.000Z",
+      selectedMarket: "Moneyline",
+      selectedSide: "New York Liberty",
+      selectedBook: "DraftKings",
+      selectedOdds: +135,
+    });
+
+    const app = createApp({ store, config, getDateEt: () => "2026-05-14" });
+    const response = await request(app)
+      .post(`/api/analysis/wnba/${slateGame.id}/close`)
+      .expect(200);
+
+    expect(response.body).toMatchObject({
+      closingOdds: 120,
+      beatClose: true,
+    });
+    expect(response.body.clvPercent).toBeGreaterThan(0);
+    expect(response.body.closingRecordedAt).toBeTruthy();
   });
 });
 
 describe("MLB candidate selection", () => {
-  it("builds an MLB candidate board across moneyline, run line, and totals", () => {
+  it("builds an MLB candidate board across moneyline, run line, and team totals", () => {
     const board = buildWnbaCandidateBoard(mlbSlateGame, {
       ...mlbOddsGame,
       bookmakers: [
@@ -481,7 +718,10 @@ describe("MLB candidate selection", () => {
           markets: [
             { key: "h2h", outcomes: [{ name: "New York Yankees", price: +122 }, { name: "Boston Red Sox", price: -142 }] },
             { key: "spreads", outcomes: [{ name: "New York Yankees", point: 1.5, price: -104 }, { name: "Boston Red Sox", point: -1.5, price: +176 }] },
-            { key: "totals", outcomes: [{ name: "Over", point: 8.5, price: -101 }, { name: "Under", point: 8.5, price: -119 }] },
+            { key: "team_totals", outcomes: [
+              { name: "Over", description: "New York Yankees", point: 4.5, price: -101 },
+              { name: "Under", description: "New York Yankees", point: 4.5, price: -119 },
+            ] },
           ],
         },
         {
@@ -490,13 +730,16 @@ describe("MLB candidate selection", () => {
           markets: [
             { key: "h2h", outcomes: [{ name: "New York Yankees", price: +108 }, { name: "Boston Red Sox", price: -126 }] },
             { key: "spreads", outcomes: [{ name: "New York Yankees", point: 1.5, price: -126 }, { name: "Boston Red Sox", point: -1.5, price: +152 }] },
-            { key: "totals", outcomes: [{ name: "Over", point: 8.5, price: -122 }, { name: "Under", point: 8.5, price: +100 }] },
+            { key: "team_totals", outcomes: [
+              { name: "Over", description: "New York Yankees", point: 4.5, price: -122 },
+              { name: "Under", description: "New York Yankees", point: 4.5, price: +100 },
+            ] },
           ],
         },
       ],
     });
 
-    expect(new Set(board.map((candidate) => candidate.market))).toEqual(new Set(["Moneyline", "Spread", "Total"]));
+    expect(new Set(board.map((candidate) => candidate.market))).toEqual(new Set(["Moneyline", "Spread", "Team Total"]));
     expect(board.every((candidate) => candidate.gameId === "mlb-espn-1")).toBe(true);
   });
 
@@ -584,7 +827,7 @@ describe("WNBA Gemini fallback", () => {
         {
           key: "betonlineag",
           title: "BetOnline",
-          markets: [{ key: "h2h", outcomes: [{ name: "New York Liberty", price: -185 }, { name: "Las Vegas Aces", price: +160 }] }],
+          markets: [{ key: "h2h", outcomes: [{ name: "New York Liberty", price: -165 }, { name: "Las Vegas Aces", price: +142 }] }],
         },
         {
           key: "fanduel",

@@ -9,7 +9,7 @@ EdgeLab uses a **single-page application** with these main views:
 *   **Queue** (📋): Deep analysis workflow
 *   **Card** (🏆): Active bet tracking
 *   **Tracker**: Bet history and P&L analytics
-*   **WNBA Dashboard**: Backend-backed WNBA slate, odds, analysis, budget, and quota workflow
+*   **MLB/WNBA Dashboard**: Backend-backed MLB and WNBA slate, odds, analysis, budget, and quota workflow
 
 **Fixed Header:**
 *   **Cloud Sync Indicator:** Real-time visual feedback on Supabase sync status
@@ -74,21 +74,25 @@ The **Queue** is where detailed handicapping happens.
 *   Track results (W/L).
 *   Visual summary of your daily exposure.
 
-### 4. WNBA Dashboard
-The WNBA dashboard is a separate backend-backed workflow for the current Eastern Time WNBA slate.
+### 4. MLB/WNBA Dashboard
+The shared dashboard is a backend-backed workflow for the current Eastern Time MLB or WNBA slate. Some source files retain the older WNBA name, but the active routes and UI support both sports.
 
 **Features:**
 *   **Daily Session:** Requires a daily budget before suggested wager sizing is shown.
 *   **Manual Odds Refresh:** Odds are fetched only when explicitly refreshed. Background API spend is not hidden from the user.
-*   **Supported Books Panel:** Shows available moneyline, spread, and total lines by book for each WNBA game.
-*   **Candidate Board:** The backend checks moneyline, spread, and total candidates from available supported books using market-implied value.
+*   **Supported Books Panel:** Shows available moneyline, spread/run-line, and team-total lines by book.
+*   **Candidate Board:** Each offered price is compared with a leave-one-book-out median of no-vig probabilities from other books at the same market and line. A book never supplies its own reference probability.
+*   **Minimum Qualification:** BET requires at least 2 independent reference books, at least 2.5% expected value, strong data quality, low consensus dispersion, and the sport-specific evidence gate. Thinner candidates remain WATCH or PASS with a reason.
+*   **Sport Evidence Gates:** MLB sides require a confirmed starter plus lineup, bullpen, or matchup support; MLB team totals require a confirmed starter plus weather/park/total-environment support. WNBA requires verified injury, rotation/rest, pace/efficiency, or market evidence.
+*   **Daily Prioritization:** At most 2 qualified recommendations per sport are elevated to BET. Lower-ranked qualified candidates remain WATCH with their slate rank.
 *   **Gemini Validation:** Gemini can recommend only a listed candidate from that board. It cannot invent a side, line, book, or price.
 *   **News & Narrative Layer:** Game previews, injury news, rotation context, rematch notes, rest/travel, recent form, matchup angles, and market context are graded as hard facts, supported angles, or soft narrative.
 *   **Pass Codes:** Rejections are labeled with reasons such as `NO_EDGE`, `STATS_CONFLICT`, `LOW_CONFIDENCE`, or `MISSING_ROTATION_DATA`.
+*   **Closing-Line Tracking:** A logged recommendation can record the current cached line as its close after an explicit confirmation. The dashboard shows closing price/line, price CLV, and whether the recommendation beat the close. CLV is labeled as a process diagnostic, not proof of profitability.
 *   **Quota Tracking:** Shows Odds API usage and Gemini estimated cost for the current day/week.
 
 **Important Behavior:**
-The analysis evaluates the candidate board, not a blank canvas. If the model likes an underdog, spread, or total, that play still has to exist on the board at a real book and price. Soft narrative can support a lean, but it cannot rescue negative-value math. That is the line between useful context and expensive storytelling.
+The analysis evaluates the candidate board, not a blank canvas. If the model likes an underdog, spread/run line, or team total, that play still has to exist on the board at a real book and price. Missing, stale, inconsistent, or unsupported evidence defaults to WATCH/PASS. All outputs are analysis, never guarantees.
 
 ### 5. Bankroll Management
 Access the bankroll modal via the 💰 button in the top-right corner.

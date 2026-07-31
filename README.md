@@ -101,16 +101,16 @@ The current branch also includes a WNBA-focused dashboard backed by a local Node
     cp .env.example .env
     ```
 
-    Populate it with your keys:
+    Keep local authentication disabled unless you are intentionally testing the
+    future private-login gate:
 
     ```env
-    VITE_GEMINI_API_KEY=your_gemini_key
-    VITE_ODDS_API_KEY=your_odds_api_key
-    VITE_SUPABASE_URL=your_supabase_url
-    VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+    VITE_AUTH_REQUIRED=false
+    VITE_BACKEND_URL=
     ```
 
-    For the WNBA dashboard, also configure the backend:
+    The active MLB/WNBA dashboard does not require Gemini or Odds API keys in
+    the browser. Configure those provider keys only in the backend:
 
     ```bash
     cd server
@@ -127,6 +127,7 @@ The current branch also includes a WNBA-focused dashboard backed by a local Node
     GEMINI_API_KEY=your_gemini_key
     GEMINI_MODEL=gemini-3.1-pro-preview
     ALLOWED_ORIGIN=http://localhost:5173
+    AUTH_REQUIRED=false
     ```
 
 4.  **Run the app:**
@@ -134,29 +135,34 @@ The current branch also includes a WNBA-focused dashboard backed by a local Node
     npm run dev
     ```
 
-    This starts both the local WNBA backend and the Vite frontend. Open `http://localhost:5173`. The Vite dev server proxies `/api` requests to `http://localhost:8787`, so no `VITE_BACKEND_URL` is needed for local development.
+    This starts both the local backend and the Vite frontend. Open `http://localhost:5173`. The Vite dev server proxies `/api` requests to `http://localhost:8787`, so no `VITE_BACKEND_URL` is needed for local development.
 
-### WNBA Run Notes
+### MLB/WNBA Run Notes
 
 - `npm run dev` starts the backend and frontend together.
-- Click the WNBA tab in the app, set the daily budget, then refresh odds manually.
+- Choose MLB or WNBA, set the daily budget, then refresh odds manually.
 - `Analyze All` uses cached slate and cached odds. It does not refresh odds in the background.
+- The MLB/WNBA board covers moneylines, spreads/run lines, and team totals only. It uses leave-one-book-out no-vig reference pricing, requires at least two independent reference books and 2.5% EV for BET, applies sport-specific evidence gates, and elevates at most two selections per sport/day.
+- Closing lines are recorded explicitly from the current cached market snapshot. CLV is shown as a process-quality diagnostic, not as proof that a strategy is profitable.
 - A `STATS_CONFLICT` pass means the listed priced candidate had market value, but the basketball profile and narrative review supported the opposite side.
 
 ---
 
 ## ☁️ Deployment Guide
 
-This project is optimized for **Google Cloud Run** using a Dockerized build process.
+The secure container layout targets **Google Cloud Run**, but deployment and
+external account configuration are intentionally manual.
 
 ### 1. Build Container
 
-The build process bakes your environment variables into the static frontend assets. You must provide your keys as substitutions.
+Only public frontend auth configuration is supplied at build time. Gemini and
+Odds API keys must be configured later as backend runtime secrets; never pass
+them as Docker build arguments.
 
 ```bash
 gcloud builds submit --config cloudbuild.yaml \
   --project gen-lang-client-0947461139 \
-  --substitutions="_GEMINI_API_KEY=your_key,_ODDS_API_KEY=your_key,_SUPABASE_URL=your_url,_SUPABASE_KEY=your_key"
+  --substitutions="_SUPABASE_URL=your_url,_SUPABASE_PUBLISHABLE_KEY=your_publishable_key"
 ```
 
 ### 2. Deploy Service
@@ -175,18 +181,13 @@ gcloud run deploy edgelab-v2 \
 
 ### Redeploy
 
-The easiest way to redeploy is using the automated script:
-
-```bash
-npm run deploy
-```
-
-Alternatively, you can run the manual commands:
+Use the reviewed manual commands after configuring backend runtime secrets and
+the optional private-login settings described in `docs/SETUP.md`:
 
 ```bash
 gcloud builds submit --config cloudbuild.yaml \
   --project gen-lang-client-0947461139 \
-  --substitutions="_GEMINI_API_KEY=your_key,_ODDS_API_KEY=your_key,_SUPABASE_URL=your_url,_SUPABASE_KEY=your_key"
+  --substitutions="_SUPABASE_URL=your_url,_SUPABASE_PUBLISHABLE_KEY=your_publishable_key"
 
 gcloud run deploy edgelab-v2 \
   --image gcr.io/gen-lang-client-0947461139/edgelab2 \

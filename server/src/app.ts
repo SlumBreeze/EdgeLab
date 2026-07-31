@@ -3,12 +3,18 @@ import cors from "cors";
 import { z } from "zod";
 import type { Config } from "./config.js";
 import { Store } from "./storage/database.js";
-import { getEasternDate } from "./utils/time.js";
+import { getEasternDate, nowIso } from "./utils/time.js";
 import { EspnService } from "./services/espnService.js";
 import { OddsService } from "./services/oddsService.js";
-import { AnalysisService, estimatePlannedGeminiCostUsd, findOddsForSlateGame } from "./services/analysisService.js";
+import {
+  AnalysisService,
+  applyDailySelectionCap,
+  estimatePlannedGeminiCostUsd,
+  findOddsForSlateGame,
+} from "./services/analysisService.js";
 import { WnbaDataService } from "./services/wnbaDataService.js";
-import type { SlateGame, Sport, WnbaDataPack } from "./types.js";
+import type { AnalysisResult, OddsGame, SlateGame, Sport, WnbaDataPack } from "./types.js";
+import { createAuthVerifier, requireApiAuth, type AuthVerifier } from "./auth.js";
 
 export type AppDeps = {
   store: Store;
@@ -18,9 +24,10 @@ export type AppDeps = {
   analysis?: AnalysisService;
   wnbaData?: WnbaDataService;
   getDateEt?: () => string;
+  auth?: AuthVerifier | null;
 };
 
-export const createApp = ({ store, config, espn, odds, analysis, wnbaData, getDateEt = getEasternDate }: AppDeps) => {
+export const createApp = ({ store, config, espn, odds, analysis, wnbaData, getDateEt = getEasternDate, auth }: AppDeps) => {
   const app = express();
   const espnService = espn || new EspnService();
   const oddsService = odds || new OddsService(config.oddsApiKey);
@@ -33,8 +40,19 @@ export const createApp = ({ store, config, espn, odds, analysis, wnbaData, getDa
   };
   const analysisService = analysis || new AnalysisService(config.geminiApiKey, undefined, config.geminiModel, geminiCostConfig);
 
-  app.use(cors({ origin: config.allowedOrigin }));
+  app.use(
+    cors({
+      origin: createOriginValidator(config.allowedOrigin),
+      methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+      allowedHeaders: ["Authorization", "Content-Type"],
+      maxAge: 600,
+    }),
+  );
   app.use(express.json({ limit: "1mb" }));
+  app.get("/healthz", (_req, res) => {
+    res.json({ ok: true, authRequired: config.authRequired });
+  });
+  app.use("/api", requireApiAuth(config, auth === undefined ? createAuthVerifier(config) : auth));
 
   app.get("/api/session/today", (_req, res) => {
     const dateEt = getDateEt();
@@ -82,6 +100,10 @@ export const createApp = ({ store, config, espn, odds, analysis, wnbaData, getDa
   });
 
   app.use((error: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    if (error?.message === "CORS_ORIGIN_DENIED") {
+      res.status(403).json({ error: "CORS_ORIGIN_DENIED", message: "This browser origin is not allowed." });
+      return;
+    }
     if (error instanceof z.ZodError) {
       res.status(400).json({ error: "VALIDATION_ERROR", issues: error.issues });
       return;
@@ -95,6 +117,23 @@ export const createApp = ({ store, config, espn, odds, analysis, wnbaData, getDa
   });
 
   return app;
+};
+
+const createOriginValidator = (configuredOrigins: string) => {
+  const allowedOrigins = new Set(
+    configuredOrigins
+      .split(",")
+      .map((origin) => origin.trim().replace(/\/$/, ""))
+      .filter(Boolean),
+  );
+
+  return (origin: string | undefined, callback: (error: Error | null, allowed?: boolean) => void) => {
+    if (!origin || allowedOrigins.has(origin.replace(/\/$/, ""))) {
+      callback(null, true);
+      return;
+    }
+    callback(new Error("CORS_ORIGIN_DENIED"));
+  };
 };
 
 const registerSportRoutes = ({
@@ -287,7 +326,6 @@ const registerSportRoutes = ({
           dataPack,
         );
         const { result, usage } = normalizeAnalysisResponse(analysisResponse);
-        store.saveAnalysis(result);
         if (usage) {
           store.saveGeminiUsage(dateEt, usage);
         }
@@ -297,8 +335,19 @@ const registerSportRoutes = ({
         results.push(result);
       }
 
+      const prioritizedResults = applyDailySelectionCap(results);
+      for (const result of prioritizedResults) {
+        store.saveAnalysis(result);
+      }
+
       store.recordAnalyzeAllRun(dateEt, sport, slate.data.length);
-      res.json({ dateEt, count: results.length, results, weeklyTotals: store.getWeeklyTotals(dateEt) });
+      res.json({
+        dateEt,
+        count: prioritizedResults.length,
+        results: prioritizedResults,
+        dailySelectionCap: 2,
+        weeklyTotals: store.getWeeklyTotals(dateEt),
+      });
     } catch (error) {
       next(error);
     }
@@ -309,6 +358,40 @@ const registerSportRoutes = ({
     const dateEt = getDateEt();
     const results = store.getAnalyses(dateEt, sport);
     res.json({ dateEt, count: results.length, results });
+  });
+
+  app.post(`/api/analysis/${slug}/:gameId/close`, (req, res) => {
+    const dateEt = getDateEt();
+    const analysis = store.getAnalysis(dateEt, req.params.gameId);
+    const oddsCache = store.getOdds(dateEt, sport);
+    if (!analysis) {
+      res.status(404).json({ error: "ANALYSIS_NOT_FOUND", message: "Analyze this game before recording its close." });
+      return;
+    }
+    if (!oddsCache || analysis.selectedOdds === undefined) {
+      res.status(409).json({ error: "CLOSING_ODDS_UNAVAILABLE", message: "Refresh odds before recording the close." });
+      return;
+    }
+    const game = store.getSlate(dateEt, sport)?.data.find((item) => item.id === req.params.gameId);
+    const odds = game ? findOddsForSlateGame(game, oddsCache.data) : null;
+    const close = findClosingOutcome(analysis, odds);
+    if (!close) {
+      res.status(409).json({
+        error: "CLOSING_MARKET_UNAVAILABLE",
+        message: "The selected book, side, and market are not present in the current odds cache.",
+      });
+      return;
+    }
+    const updated = {
+      ...analysis,
+      closingOdds: close.price,
+      closingPoint: close.point,
+      closingRecordedAt: nowIso(),
+      clvPercent: calculatePriceClvPercent(analysis.selectedOdds, close.price),
+      beatClose: didBeatClose(analysis, close.price, close.point),
+    };
+    store.saveAnalysis(updated);
+    res.json(updated);
   });
 
   app.delete(`/api/analysis/${slug}/today`, (_req, res) => {
@@ -368,12 +451,14 @@ const registerSportRoutes = ({
       const dataPack = sport === "WNBA" ? await getOrBuildWnbaDataPack(store, wnbaDataService, dateEt, slate.data) : null;
       const analysisResponse = await analysisService.analyzeGame(dateEt, game, findOddsForSlateGame(game, oddsCache.data), dataPack);
       const { result, usage } = normalizeAnalysisResponse(analysisResponse);
-      store.saveAnalysis(result);
+      const existing = store.getAnalyses(dateEt, sport).filter((item) => item.gameId !== result.gameId);
+      const prioritized = applyDailySelectionCap([...existing, result]);
+      for (const item of prioritized) store.saveAnalysis(item);
       if (usage) {
         store.saveGeminiUsage(dateEt, usage);
         store.incrementUsage(dateEt, "gemini");
       }
-      res.json(result);
+      res.json(prioritized.find((item) => item.gameId === result.gameId) || result);
     } catch (error) {
       next(error);
     }
@@ -548,3 +633,63 @@ const normalizeAnalysisResponse = (response: any) => {
 
 const formatUsd = (value: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value);
+
+const findClosingOutcome = (analysis: AnalysisResult, odds: OddsGame | null) => {
+  if (!odds || !analysis.selectedMarket || !analysis.selectedSide || !analysis.selectedBook) return null;
+  const book = odds.bookmakers.find((item) => item.title === analysis.selectedBook);
+  if (!book) return null;
+  const marketKey =
+    analysis.selectedMarket === "Moneyline"
+      ? "h2h"
+      : analysis.selectedMarket === "Spread"
+        ? "spreads"
+        : "team_totals";
+  const market = book.markets.find((item) => item.key === marketKey);
+  const selectedCandidate = analysis.candidateBoard?.find(
+    (candidate) =>
+      candidate.market === analysis.selectedMarket &&
+      candidate.side === analysis.selectedSide &&
+      candidate.bookTitle === analysis.selectedBook,
+  );
+  return market?.outcomes.find((outcome) => {
+    if (analysis.selectedMarket === "Team Total") {
+      return (
+        normalizeMarketName(outcome.name) === normalizeMarketName(analysis.selectedSide!) &&
+        normalizeMarketName(outcome.description || "") === normalizeMarketName(selectedCandidate?.teamName || "")
+      );
+    }
+    return normalizeMarketName(outcome.name) === normalizeMarketName(analysis.selectedSide!);
+  }) || null;
+};
+
+const normalizeMarketName = (value: string) =>
+  value.toLowerCase().replace(/[^a-z0-9]/g, "");
+
+const calculatePriceClvPercent = (takenOdds: number, closingOdds: number) => {
+  const takenProbability = americanToImpliedProbability(takenOdds);
+  const closingProbability = americanToImpliedProbability(closingOdds);
+  return ((closingProbability / takenProbability) - 1) * 100;
+};
+
+const americanToImpliedProbability = (odds: number) =>
+  odds > 0 ? 100 / (odds + 100) : Math.abs(odds) / (Math.abs(odds) + 100);
+
+const didBeatClose = (
+  analysis: AnalysisResult,
+  closingOdds: number,
+  closingPoint: number | undefined,
+) => {
+  if (
+    analysis.selectedPoint !== undefined &&
+    closingPoint !== undefined &&
+    analysis.selectedPoint !== closingPoint
+  ) {
+    if (analysis.selectedMarket === "Team Total") {
+      return analysis.selectedSide === "OVER"
+        ? analysis.selectedPoint < closingPoint
+        : analysis.selectedPoint > closingPoint;
+    }
+    return analysis.selectedPoint > closingPoint;
+  }
+  return (analysis.selectedOdds || 0) > closingOdds;
+};

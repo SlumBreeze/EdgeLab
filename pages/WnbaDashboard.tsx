@@ -88,7 +88,7 @@ const findOddsForGame = (game: SlateGame, oddsGames: OddsGame[]) => {
   return oddsGames.find((odds) => normalizeName(odds.home_team) === home && normalizeName(odds.away_team) === away) || null;
 };
 
-const findMarket = (book: Bookmaker, key: "h2h" | "spreads" | "totals") =>
+const findMarket = (book: Bookmaker, key: "h2h" | "spreads" | "totals" | "team_totals") =>
   book.markets.find((market) => market.key === key);
 
 const SPORT_COPY: Record<BackendSport, { label: string; title: string; edgeLabel: string; marketsLabel: string }> = {
@@ -96,13 +96,13 @@ const SPORT_COPY: Record<BackendSport, { label: string; title: string; edgeLabel
     label: "WNBA",
     title: "Today's Dashboard",
     edgeLabel: "spread",
-    marketsLabel: "ML / spread / total",
+    marketsLabel: "ML / spread / team total",
   },
   MLB: {
     label: "MLB",
     title: "Today's MLB Dashboard",
     edgeLabel: "run line",
-    marketsLabel: "ML / run line / total",
+    marketsLabel: "ML / run line / team total",
   },
 };
 
@@ -111,26 +111,35 @@ const getBookLineSummary = (book: Bookmaker, game: SlateGame, sport: BackendSpor
   const home = game.homeTeam.name;
   const h2h = findMarket(book, "h2h");
   const spreads = findMarket(book, "spreads");
-  const totals = findMarket(book, "totals");
+  const teamTotals = findMarket(book, "team_totals");
   const awayMl = h2h?.outcomes.find((outcome) => normalizeName(outcome.name) === normalizeName(away));
   const homeMl = h2h?.outcomes.find((outcome) => normalizeName(outcome.name) === normalizeName(home));
   const awaySpread = spreads?.outcomes.find((outcome) => normalizeName(outcome.name) === normalizeName(away));
   const homeSpread = spreads?.outcomes.find((outcome) => normalizeName(outcome.name) === normalizeName(home));
-  const over = totals?.outcomes.find((outcome) => outcome.name.toLowerCase() === "over");
-  const under = totals?.outcomes.find((outcome) => outcome.name.toLowerCase() === "under");
+  const formatTeamTotal = (teamName: string) => {
+    const outcomes = teamTotals?.outcomes.filter(
+      (outcome) => normalizeName(outcome.description || "") === normalizeName(teamName),
+    ) || [];
+    const over = outcomes.find((outcome) => outcome.name.toLowerCase() === "over");
+    const under = outcomes.find((outcome) => outcome.name.toLowerCase() === "under");
+    return over || under
+      ? `O ${over?.point ?? "-"} (${formatOdds(over?.price)}) / U ${under?.point ?? "-"} (${formatOdds(under?.price)})`
+      : "-";
+  };
 
   return {
     awayMl: formatOdds(awayMl?.price),
     homeMl: formatOdds(homeMl?.price),
     awaySpread: awaySpread ? `${awaySpread.point ?? "-"} (${formatOdds(awaySpread.price)})` : "-",
     homeSpread: homeSpread ? `${homeSpread.point ?? "-"} (${formatOdds(homeSpread.price)})` : "-",
-    total: over || under ? `O ${over?.point ?? "-"} (${formatOdds(over?.price)}) / U ${under?.point ?? "-"} (${formatOdds(under?.price)})` : "-",
+    awayTeamTotal: formatTeamTotal(away),
+    homeTeamTotal: formatTeamTotal(home),
     spreadLabel: sport === "MLB" ? "Run line" : "Spread",
   };
 };
 
 const getSuggestedWager = (analysis: AnalysisResult | undefined, budgetCents: number | null) => {
-  if (!analysis || !budgetCents || analysis.recommendation === "PASS" || analysis.dataQuality === "WEAK") {
+  if (!analysis || !budgetCents || analysis.recommendation !== "BET" || analysis.dataQuality !== "STRONG") {
     return { label: "No wager", amountCents: 0 };
   }
 
@@ -164,7 +173,19 @@ const getCandidateSummary = (analysis?: AnalysisResult) => {
   const odds = analysis.selectedOdds !== undefined ? ` ${formatOdds(analysis.selectedOdds)}` : "";
   const edge = analysis.edgePercent !== undefined ? ` | edge ${analysis.edgePercent.toFixed(2)}%` : "";
   const book = analysis.selectedBook ? ` at ${analysis.selectedBook}` : "";
-  return `${analysis.selectedSide} ${analysis.selectedMarket}${point}${odds}${book}${edge}`;
+  const candidate = analysis.candidateBoard?.find(
+    (item) =>
+      item.market === analysis.selectedMarket &&
+      item.side === analysis.selectedSide &&
+      item.bookTitle === analysis.selectedBook,
+  );
+  const team = candidate?.market === "Team Total" && candidate.teamName ? `${candidate.teamName} ` : "";
+  return `${team}${analysis.selectedSide} ${analysis.selectedMarket}${point}${odds}${book}${edge}`;
+};
+
+const getDecisionLabel = (analysis?: AnalysisResult) => {
+  if (!analysis) return "Not analyzed";
+  return analysis.recommendation === "LEAN" ? "WATCH" : analysis.recommendation;
 };
 
 const getNarrativeGradeLabel = (grade: string) => {
@@ -423,9 +444,12 @@ export default function WnbaDashboard({ sport = "WNBA" }: { sport?: BackendSport
     setWorkState("analyzing");
     setActiveAnalysisGameId(gameId);
     try {
-      const result = await backendApi.analyzeGame(sport, gameId, reason);
-      const quotaResponse = await backendApi.getQuota(sport);
-      setAnalysisByGameId((current) => ({ ...current, [gameId]: result }));
+      await backendApi.analyzeGame(sport, gameId, reason);
+      const [quotaResponse, analysisResponse] = await Promise.all([
+        backendApi.getQuota(sport),
+        backendApi.getAnalysis(sport),
+      ]);
+      setAnalysisByGameId(indexAnalysis(analysisResponse.results));
       setQuota(quotaResponse);
       toast.showSuccess("Game analysis complete.");
     } catch (analyzeError) {
@@ -442,6 +466,20 @@ export default function WnbaDashboard({ sport = "WNBA" }: { sport?: BackendSport
     } finally {
       setActiveAnalysisGameId(null);
       setWorkState("idle");
+    }
+  };
+
+  const recordClosingLine = async (gameId: string) => {
+    const shouldRecord = window.confirm(
+      "Record the selected market's current cached price/line as its close? Refresh odds first if the cache is not the actual closing snapshot.",
+    );
+    if (!shouldRecord) return;
+    try {
+      const result = await backendApi.recordClosingLine(sport, gameId);
+      setAnalysisByGameId((current) => ({ ...current, [gameId]: result }));
+      toast.showSuccess("Closing line recorded.");
+    } catch (closeError) {
+      toast.showError(closeError instanceof Error ? closeError.message : "Failed to record closing line.");
     }
   };
 
@@ -745,7 +783,8 @@ export default function WnbaDashboard({ sport = "WNBA" }: { sport?: BackendSport
                       <div className="wnba-badge-row">
                         <Badge>{formatGameTime(game.date)} ET</Badge>
                         <Badge tone={odds ? "good" : "warn"}>{odds ? "Odds saved" : "No odds"}</Badge>
-                        <Badge tone={analysis ? recommendationTone : "neutral"}>{analysis?.recommendation || "Not analyzed"}</Badge>
+                        <Badge tone={analysis ? recommendationTone : "neutral"}>{getDecisionLabel(analysis)}</Badge>
+                        {analysis?.dailySelectionRank ? <Badge>Slate rank #{analysis.dailySelectionRank}</Badge> : null}
                       </div>
                       <h2>
                         {game.awayTeam.name} at {game.homeTeam.name}
@@ -772,12 +811,12 @@ export default function WnbaDashboard({ sport = "WNBA" }: { sport?: BackendSport
                         <strong>{analysis?.dataQuality || "-"}</strong>
                       </div>
                       <div className="wnba-metric">
-                        <div>Suggested Wager</div>
-                        <strong>{suggestedWager.amountCents ? formatCurrency(suggestedWager.amountCents) : "$0.00"}</strong>
+                        <div>Expected Value</div>
+                        <strong>{formatPercent(analysis?.expectedValuePercent)}</strong>
                       </div>
                       <div className="wnba-metric">
-                        <div>Position</div>
-                        <strong>{suggestedWager.label}</strong>
+                        <div>Reference Books</div>
+                        <strong>{analysis?.referenceBookCount ?? "-"}</strong>
                       </div>
                     </div>
                   </div>
@@ -798,6 +837,23 @@ export default function WnbaDashboard({ sport = "WNBA" }: { sport?: BackendSport
                     <div className="wnba-analysis-box">
                       <div>Reasoning</div>
                       <p>{analysis?.reasoning || "Analysis has not run."}</p>
+                    </div>
+                    <div className="wnba-analysis-box">
+                      <div>Position</div>
+                      <p>{suggestedWager.label}: {suggestedWager.amountCents ? formatCurrency(suggestedWager.amountCents) : "$0.00"}</p>
+                    </div>
+                    <div className="wnba-analysis-box">
+                      <div>Closing Line Value</div>
+                      <p>
+                        {analysis?.closingRecordedAt
+                          ? `${analysis.beatClose ? "Beat close" : "Did not beat close"} | ${formatOdds(analysis.closingOdds)}${analysis.closingPoint !== undefined ? ` at ${analysis.closingPoint}` : ""} | price CLV ${formatPercent(analysis.clvPercent)}`
+                          : "Not recorded. CLV is a process diagnostic, not proof of profitability."}
+                      </p>
+                      {analysis?.recommendation !== "PASS" ? (
+                        <button type="button" className="wnba-inline-action" onClick={() => recordClosingLine(game.id)}>
+                          Record current cache as close
+                        </button>
+                      ) : null}
                     </div>
                   </div>
 
@@ -820,8 +876,9 @@ export default function WnbaDashboard({ sport = "WNBA" }: { sport?: BackendSport
                                   <span>{candidate.bookTitle} {formatOdds(candidate.odds)}</span>
                                 </div>
                                 <div>
-                                  <span>Edge</span>
-                                  <strong>{formatPercent(candidate.edgePercent)}</strong>
+                                  <span>EV / refs</span>
+                                  <strong>{formatPercent(candidate.expectedValuePercent)} / {candidate.referenceBookCount}</strong>
+                                  <span>Dispersion {formatPercent(candidate.consensusDispersionPercent)}</span>
                                 </div>
                               </div>
                             ))}
@@ -877,9 +934,8 @@ export default function WnbaDashboard({ sport = "WNBA" }: { sport?: BackendSport
                                 <span>{book.lastUpdate ? formatDate(book.lastUpdate) : ""}</span>
                               </div>
                               <div className="wnba-line-list">
-                                <div>{game.awayTeam.name}: ML {line.awayMl} | {line.spreadLabel} {line.awaySpread}</div>
-                                <div>{game.homeTeam.name}: ML {line.homeMl} | {line.spreadLabel} {line.homeSpread}</div>
-                                <div>Total: {line.total}</div>
+                                <div>{game.awayTeam.name}: ML {line.awayMl} | {line.spreadLabel} {line.awaySpread} | Team total {line.awayTeamTotal}</div>
+                                <div>{game.homeTeam.name}: ML {line.homeMl} | {line.spreadLabel} {line.homeSpread} | Team total {line.homeTeamTotal}</div>
                               </div>
                             </div>
                           );

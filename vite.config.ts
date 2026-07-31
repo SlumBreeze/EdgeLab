@@ -13,7 +13,7 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     setupFiles: './test/setup.ts',
-    exclude: ['node_modules/**', 'dist/**', 'server/dist/**', 'server/test/**/*.js'],
+    exclude: ['**/node_modules/**', 'dist/**', 'server/dist/**', 'server/test/**/*.js'],
   },
   build: {
     rollupOptions: {

@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import { useAuth } from "../components/AuthContext";
-import { RefreshCw } from "lucide-react";
 
 const Login: React.FC = () => {
   const { signInWithGoogle } = useAuth();
@@ -20,55 +19,35 @@ const Login: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-ink-base flex items-center justify-center p-4">
-      <div className="max-w-md w-full bg-ink-panel border border-ink-gray/30 rounded-2xl shadow-2xl p-8 text-center space-y-8">
-        {/* Logo / Header */}
-        <div className="space-y-4">
-          <div className="w-16 h-16 bg-gradient-to-br from-ink-accent to-blue-600 rounded-xl mx-auto flex items-center justify-center shadow-lg shadow-blue-500/20">
-            <span className="text-3xl">🧊</span>
-          </div>
-          <div>
-            <h1 className="text-3xl font-bold text-ink-text tracking-tight">
-              EdgeLab
-            </h1>
-            <p className="text-ink-text/50 mt-2">
-              Professional Sports Betting Intelligence
-            </p>
-          </div>
-        </div>
-
-        {/* Login Area */}
-        <div className="space-y-4">
+    <main className="auth-shell">
+      <section className="auth-card">
+        <div className="auth-logo" aria-hidden="true">EL</div>
+        <p className="auth-eyebrow">Restricted access</p>
+        <h1>Sign in to EdgeLab</h1>
+        <p>
+          Use the Google account authorized by the EdgeLab administrator.
+        </p>
+        <div className="auth-actions">
           <button
             onClick={handleLogin}
             disabled={isLoggingIn}
-            className="w-full h-12 bg-white text-gray-900 rounded-lg font-semibold flex items-center justify-center gap-3 hover:bg-gray-100 transition-all active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed"
+            className="auth-login-button"
           >
-            {isLoggingIn ? (
-              <RefreshCw className="w-5 h-5 animate-spin text-ink-base" />
-            ) : (
-              <img
-                src="https://www.google.com/favicon.ico"
-                alt="Google"
-                className="w-5 h-5"
-              />
-            )}
-            <span>{isLoggingIn ? "Connecting..." : "Sign in with Google"}</span>
+            {isLoggingIn ? "Connecting…" : "Sign in with Google"}
           </button>
 
           {error && (
-            <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-500 text-sm">
+            <div className="auth-error" role="alert">
               {error}
             </div>
           )}
         </div>
-
-        {/* Footer */}
-        <p className="text-xs text-ink-text/50">
-          Restricted Access &bull; Authorized Personnel Only
+        <p className="auth-note">
+          Authentication confirms identity. The backend separately checks the
+          account against its private user allowlist.
         </p>
-      </div>
-    </div>
+      </section>
+    </main>
   );
 };
 

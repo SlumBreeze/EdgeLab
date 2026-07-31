@@ -1,11 +1,18 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { User, Session } from "@supabase/supabase-js";
-import { supabase } from "../services/supabaseClient";
+import {
+  authConfigurationError,
+  isAuthRequired,
+  isSupabaseConfigured,
+  supabase,
+} from "../services/supabaseClient";
 
 interface AuthContextType {
   user: User | null;
   session: Session | null;
   loading: boolean;
+  authRequired: boolean;
+  configurationError: string | null;
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
 }
@@ -20,12 +27,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check active sessions and sets the user
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
+    if (!isSupabaseConfigured) {
       setLoading(false);
-    });
+      return;
+    }
+
+    supabase.auth
+      .getSession()
+      .then(({ data: { session } }) => {
+        setSession(session);
+        setUser(session?.user ?? null);
+      })
+      .finally(() => setLoading(false));
 
     // Listen for changes on auth state (logged in, signed out, etc.)
     const {
@@ -40,6 +53,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   }, []);
 
   const signInWithGoogle = async () => {
+    if (!isSupabaseConfigured) {
+      throw new Error(authConfigurationError || "Supabase Auth is not configured.");
+    }
     const redirectTo =
       typeof window !== "undefined" ? `${window.location.origin}/` : undefined;
 
@@ -53,13 +69,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   };
 
   const signOut = async () => {
+    if (!isSupabaseConfigured) return;
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
   };
 
   return (
     <AuthContext.Provider
-      value={{ user, session, loading, signInWithGoogle, signOut }}
+      value={{
+        user,
+        session,
+        loading,
+        authRequired: isAuthRequired,
+        configurationError: authConfigurationError,
+        signInWithGoogle,
+        signOut,
+      }}
     >
       {children}
     </AuthContext.Provider>

@@ -1,6 +1,6 @@
 # EdgeLab Backend
 
-Local Node/TypeScript backend for WNBA-only slate, odds, session, quota, and Gemini analysis workflows.
+Local Node/TypeScript backend for WNBA and MLB slate, odds, session, quota, and Gemini analysis workflows.
 
 The backend exists because the WNBA dashboard needs server-side API keys, SQLite persistence, quota controls, and a single place to enforce conservative analysis rules. The frontend should not call Odds API or Gemini directly for this WNBA flow.
 
@@ -28,7 +28,21 @@ ODDS_API_KEY=your_odds_api_key
 GEMINI_API_KEY=your_gemini_key
 GEMINI_MODEL=gemini-3.1-pro-preview
 ALLOWED_ORIGIN=http://localhost:5173
+AUTH_REQUIRED=false
+SUPABASE_URL=your_project_url
+SUPABASE_PUBLISHABLE_KEY=your_publishable_key
+ALLOWED_USER_IDS=your_supabase_user_uuid
 ```
+
+Production defaults to required authentication when `NODE_ENV=production`.
+Set `AUTH_REQUIRED=true` explicitly in every deployed environment. Required
+Auth fails closed if the Supabase configuration or `ALLOWED_USER_IDS` is
+missing. The backend validates each bearer session with Supabase Auth and then
+checks the authenticated user's immutable UUID against the allowlist.
+
+`ALLOWED_ORIGIN` accepts a comma-separated list of exact origins. Do not use
+wildcards. Supabase publishable keys are suitable for frontend and token
+verification; never configure a secret or `service_role` key in the browser.
 
 ## Local Frontend Pairing
 

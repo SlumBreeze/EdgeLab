@@ -1,4 +1,3 @@
-# Stage 1: Build the Vite app
 FROM node:20-alpine AS builder
 
 WORKDIR /app
@@ -8,30 +7,28 @@ RUN npm ci
 
 COPY . .
 
-# Build arguments to bake env vars into the static build
-ARG VITE_GEMINI_API_KEY
-ARG VITE_ODDS_API_KEY
 ARG VITE_SUPABASE_URL
-ARG VITE_SUPABASE_ANON_KEY
+ARG VITE_SUPABASE_PUBLISHABLE_KEY
+ARG VITE_AUTH_REQUIRED=true
 
-# Set env vars for the build process (Vite requires VITE_ prefix)
-ENV VITE_GEMINI_API_KEY=$VITE_GEMINI_API_KEY
-ENV VITE_ODDS_API_KEY=$VITE_ODDS_API_KEY
 ENV VITE_SUPABASE_URL=$VITE_SUPABASE_URL
-ENV VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY
+ENV VITE_SUPABASE_PUBLISHABLE_KEY=$VITE_SUPABASE_PUBLISHABLE_KEY
+ENV VITE_AUTH_REQUIRED=$VITE_AUTH_REQUIRED
 
-RUN npm run build
+RUN npm run build && npm --prefix server run build
 
-# Stage 2: Serve with Nginx
-FROM nginx:alpine
+FROM node:20-alpine
 
-# Copy custom nginx config
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+WORKDIR /app
 
-# Copy built assets from builder stage
-COPY --from=builder /app/dist /usr/share/nginx/html
+ENV NODE_ENV=production
+ENV PORT=8080
 
-# Expose port 8080 (Cloud Run default)
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/server/dist ./server/dist
+COPY --from=builder /app/server/node_modules ./server/node_modules
+RUN mkdir -p server/data
+
 EXPOSE 8080
 
-CMD ["nginx", "-g", "daemon off;"]
+CMD ["node", "server/dist/index.js"]

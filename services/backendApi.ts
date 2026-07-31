@@ -1,3 +1,9 @@
+import {
+  isAuthRequired,
+  isSupabaseConfigured,
+  supabase,
+} from "./supabaseClient";
+
 export type BackendSport = "WNBA" | "MLB";
 
 const API_BASE = (import.meta.env.VITE_BACKEND_URL || "").replace(/\/$/, "");
@@ -28,9 +34,10 @@ export type SlateGame = {
 };
 
 export type OddsMarket = {
-  key: "h2h" | "spreads" | "totals";
+  key: "h2h" | "spreads" | "totals" | "team_totals";
   outcomes: Array<{
     name: string;
+    description?: string;
     price: number;
     point?: number;
   }>;
@@ -63,12 +70,22 @@ export type AnalysisResult = {
   reasoning: string;
   riskFactors: string[];
   createdAt: string;
-  selectedMarket?: "Moneyline" | "Spread" | "Total";
+  selectedMarket?: "Moneyline" | "Spread" | "Team Total";
   selectedSide?: string;
   selectedBook?: string;
   selectedOdds?: number;
   selectedPoint?: number;
   edgePercent?: number;
+  expectedValuePercent?: number;
+  referenceBookCount?: number;
+  consensusDispersionPercent?: number;
+  dailySelectionRank?: number;
+  qualifiedForDailySelection?: boolean;
+  closingOdds?: number;
+  closingPoint?: number;
+  closingRecordedAt?: string;
+  clvPercent?: number;
+  beatClose?: boolean;
   candidateBoard?: WnbaCandidate[];
   narrativeSignals?: WnbaNarrativeSignal[];
   passReasonCode?: string;
@@ -77,7 +94,7 @@ export type AnalysisResult = {
 export type WnbaCandidate = {
   gameId: string;
   candidateId: string;
-  market: "Moneyline" | "Spread" | "Total";
+  market: "Moneyline" | "Spread" | "Team Total";
   side: string;
   teamName?: string;
   bookKey: string;
@@ -87,6 +104,9 @@ export type WnbaCandidate = {
   fairProbability: number;
   impliedProbability: number;
   edgePercent: number;
+  expectedValuePercent: number;
+  referenceBookCount: number;
+  consensusDispersionPercent: number;
   rankingScore: number;
   supportNotes: string[];
 };
@@ -219,12 +239,31 @@ export class ApiError extends Error {
 }
 
 const requestJson = async <T>(path: string, init?: RequestInit): Promise<T> => {
+  const headers = new Headers(init?.headers);
+  if (!headers.has("Content-Type") && init?.body) {
+    headers.set("Content-Type", "application/json");
+  }
+
+  if (isSupabaseConfigured) {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    if (session?.access_token) {
+      headers.set("Authorization", `Bearer ${session.access_token}`);
+    } else if (isAuthRequired) {
+      throw new ApiError("Sign in to access EdgeLab.", 401, "AUTH_REQUIRED");
+    }
+  } else if (isAuthRequired) {
+    throw new ApiError(
+      "Private access is enabled, but Supabase Auth is not configured.",
+      503,
+      "AUTH_NOT_CONFIGURED",
+    );
+  }
+
   const response = await fetch(`${API_BASE}${path}`, {
-    headers: {
-      "Content-Type": "application/json",
-      ...(init?.headers || {}),
-    },
     ...init,
+    headers,
   });
 
   const data = await response.json().catch(() => null);
@@ -260,6 +299,10 @@ export const backendApi = {
     requestJson<AnalysisResult>(`/api/analyze/${sport.toLowerCase()}/${encodeURIComponent(gameId)}`, {
       method: "POST",
       body: JSON.stringify(typeof overrideReason === "string" && overrideReason.trim() ? { overrideReason: overrideReason.trim() } : {}),
+    }),
+  recordClosingLine: (sport: BackendSport, gameId: string) =>
+    requestJson<AnalysisResult>(`/api/analysis/${sport.toLowerCase()}/${encodeURIComponent(gameId)}/close`, {
+      method: "POST",
     }),
   getAnalysis: (sport: BackendSport) => requestJson<AnalysisCacheResponse>(`/api/analysis/${sport.toLowerCase()}`),
   resetAnalysis: (sport: BackendSport) =>

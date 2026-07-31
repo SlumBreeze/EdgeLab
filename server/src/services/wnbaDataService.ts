@@ -1,7 +1,7 @@
 import { nowIso } from "../utils/time.js";
 import type { SlateGame, WnbaDataPack, WnbaTeamAdvancedStats } from "../types.js";
 
-const TRANSACTIONS_URL = "https://www.wnba.com/players/transactions";
+const INJURY_REPORT_URL = "https://www.wnba.com/wnba-injury-report";
 
 export class WnbaDataService {
   constructor(
@@ -33,13 +33,19 @@ export class WnbaDataService {
     }
 
     try {
-      const notes = await this.fetchTransactionNotes(slate);
+      const notes = await this.fetchOfficialInjuryNotes(slate);
       availabilityNotes.push(...notes);
-      sources.push({ name: "WNBA transactions", url: TRANSACTIONS_URL, fetchedAt: nowIso(), status: "ok" });
+      sources.push({
+        name: "Official WNBA injury report",
+        url: INJURY_REPORT_URL,
+        fetchedAt: nowIso(),
+        status: notes.length > 0 ? "ok" : "error",
+        note: notes.length > 0 ? undefined : "No slate-team injury entries were readable; availability remains unverified.",
+      });
     } catch (error) {
       sources.push({
-        name: "WNBA transactions",
-        url: TRANSACTIONS_URL,
+        name: "Official WNBA injury report",
+        url: INJURY_REPORT_URL,
         fetchedAt: nowIso(),
         status: "error",
         note: error instanceof Error ? error.message : "Unable to fetch transactions.",
@@ -135,25 +141,27 @@ export class WnbaDataService {
     return url.toString();
   }
 
-  private async fetchTransactionNotes(slate: SlateGame[]) {
-    const response = await this.fetchWithTimeout(TRANSACTIONS_URL, {
+  private async fetchOfficialInjuryNotes(slate: SlateGame[]) {
+    const response = await this.fetchWithTimeout(INJURY_REPORT_URL, {
       headers: {
         Accept: "text/html,application/xhtml+xml",
         "User-Agent": "Mozilla/5.0 EdgeLab local WNBA analytics",
       },
     });
     if (!response.ok) {
-      throw new Error(`WNBA transactions fetch failed with ${response.status}`);
+      throw new Error(`WNBA injury report fetch failed with ${response.status}`);
     }
 
     const html = await response.text();
     const text = html.replace(/<script[\s\S]*?<\/script>/gi, " ").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
     const teamNames = new Set(slate.flatMap((game) => [game.homeTeam.name, game.awayTeam.name]));
-    const notes = [...teamNames]
-      .filter((teamName) => text.toLowerCase().includes(teamName.toLowerCase()))
-      .map((teamName) => `${teamName}: official transaction page mentions this team; Gemini must verify current availability before recommending a bet.`);
-
-    return notes.length > 0 ? notes : ["No slate-team transaction note found on the official WNBA transaction page snapshot."];
+    return [...teamNames].flatMap((teamName) => {
+      const index = text.toLowerCase().indexOf(teamName.toLowerCase());
+      if (index < 0) return [];
+      const start = Math.max(0, index - 80);
+      const end = Math.min(text.length, index + teamName.length + 320);
+      return [`${teamName}: ${text.slice(start, end).trim()}`];
+    });
   }
 
   private async fetchWithTimeout(url: string, init: RequestInit = {}) {

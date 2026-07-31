@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import React from 'react';
 import Scout from '../pages/Scout';
@@ -33,7 +33,7 @@ describe('Scout Page Individual Reset', () => {
   const mockClearScanResults = vi.fn();
   
   // Match Scout.tsx date formatting
-  const today = new Date();
+  const today = new Date('2026-07-30T16:00:00.000Z');
   const formatEtDate = (date: Date) =>
     new Intl.DateTimeFormat("en-CA", {
       timeZone: "America/New_York",
@@ -75,8 +75,14 @@ describe('Scout Page Individual Reset', () => {
   };
 
   beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(today);
     vi.clearAllMocks();
     (useGameContext as any).mockReturnValue(mockContext);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('should call clearScanResults with the specific game ID when handleClearSingleScan is triggered', async () => {
